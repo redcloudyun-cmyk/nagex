@@ -1,5 +1,6 @@
 import { HttpWebSearchProvider } from './providers/http-web-search.provider.js';
 import { TavilyWebSearchProvider } from './providers/tavily-web-search.provider.js';
+import { OpenKnowledgeSearchProvider } from './providers/open-knowledge-search.provider.js';
 import type { SearchQueryInput, SearchQueryResult, SearchResult, WebSearchProviderPort } from './web-search-provider.port.js';
 import { sanitizeTextForSearchQuery } from '../context/sensitivity.detector.js';
 
@@ -15,6 +16,8 @@ export class WebSearchService {
       const providerType = (process.env.NAGEX_WEB_SEARCH_PROVIDER || '').toLowerCase();
       if (providerType === 'tavily' || Boolean(process.env.NAGEX_TAVILY_API_KEY)) {
         this.provider = new TavilyWebSearchProvider();
+      } else if (providerType === 'open_knowledge') {
+        this.provider = new OpenKnowledgeSearchProvider();
       } else {
         this.provider = new HttpWebSearchProvider();
       }

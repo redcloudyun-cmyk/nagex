@@ -43,7 +43,15 @@ const RESEARCH_OK = {
   sources: [{ sourceId: 'src_1', title: 'AI Adoption Survey', url: 'https://example.com/survey', retrievedAt: new Date().toISOString(), freshnessStatus: 'FRESH' }, { sourceId: 'src_2', title: 'Investment Report', url: 'https://example.com/invest', retrievedAt: new Date().toISOString(), freshnessStatus: 'FRESH' }],
 };
 
-type Backends = { intent?: any; research?: any; documentStatus?: number };
+const REPORT_OK = {
+  query: 'q', status: 'SUCCESS', runId: 'run_000000000000000000000001', documentId: 'doc_000000000000000000000001', artifactId: 'art_000000000000000000000001', title: 'AI 보고서', summary: 's',
+  openTarget: '/api/v1/creations/documents/doc_000000000000000000000001', downloadTarget: '/api/v1/creations/documents/doc_000000000000000000000001/download', provenanceTarget: '/api/v1/research/runs/run_000000000000000000000001', provider: 'custom_http',
+  sources: [{ sourceId: 'S1', title: 'AI Adoption Survey', publisher: 'example.com', url: 'https://example.com/survey', retrievedAt: new Date().toISOString(), basis: 'FULL_TEXT' }],
+  stats: { candidates: 4, retrieved: 2, cited: 1, claimsVerified: 2, claimsRejected: 1, paragraphsDropped: 0 },
+  steps: [{ step: 'PLAN', status: 'DONE' }, { step: 'SEARCH', status: 'DONE' }, { step: 'RETRIEVE', status: 'DONE' }, { step: 'EXTRACT', status: 'DONE' }, { step: 'COMPOSE', status: 'DONE' }, { step: 'PUBLISH', status: 'DONE' }],
+};
+
+type Backends = { intent?: any; research?: any; report?: any; documentStatus?: number };
 
 // every backend the routing decision can select; nothing outside the list is answered, and every POST is recorded
 async function stubBackends(page: Page, backends: Backends = {}): Promise<Calls> {
@@ -52,6 +60,7 @@ async function stubBackends(page: Page, backends: Backends = {}): Promise<Calls>
   const record = (name: string, route: any) => { (calls.bodies[name] ||= []).push(route.request().postDataJSON()); };
   await page.route('**/api/v1/ai/chat', (route) => { record('chat', route); return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ data: { message: '답변입니다.', messageId: 'm_chat' }, requestId: 'r_chat' }) }); });
   await page.route('**/api/v1/ambient/intent', (route) => { record('intent', route); return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(backends.intent ?? { plan: PLAN }) }); });
+  await page.route('**/api/v1/research/reports', (route) => { record('report', route); return route.fulfill({ status: 201, contentType: 'application/json', body: JSON.stringify(backends.report ?? REPORT_OK) }); });
   await page.route('**/api/v1/research', (route) => { record('research', route); return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(backends.research ?? RESEARCH_OK) }); });
   await page.route('**/api/v1/creations/documents', (route) => {
     if (route.request().method() !== 'POST') return route.continue();
@@ -193,7 +202,7 @@ describe('One Input: the optional shortcut and approval boundaries', () => {
 
 describe('One Input: research, then a report - a real compound, or a truthful stop', () => {
   for (const locale of ['ko', 'en'] as const) {
-    it(`${locale}: research runs first, the report is written from ITS findings and sources only, in the request language`, async () => {
+    it(`${locale}: one research-report request (search, retrieve, verify, compose happen on the server), in the request language, with no model-written document request`, async () => {
       const ctx = await contextAt(1440, 900, `oi_compound_${locale}`, locale === 'ko' ? 'en' : 'ko'); // the screen language differs on purpose: the REQUEST decides
       const page = await ctx.newPage();
       const calls = await stubBackends(page);
@@ -201,13 +210,13 @@ describe('One Input: research, then a report - a real compound, or a truthful st
       await ask(page, locale === 'ko' ? 'AI 동향을 조사해서 보고서로 만들어줘' : 'Research the AI market and turn it into a report');
       await page.waitForSelector('#main-result-panel:not([hidden])', { timeout: 20000 });
       const order = calls.all.filter((c) => /research|creations\/documents/.test(c));
-      assert.deepEqual(order, ['POST /api/v1/research', 'POST /api/v1/creations/documents'], 'research first, then the report');
-      const doc = calls.bodies.document[0];
-      assert.equal(doc.locale, locale, 'the report follows the language of the request, not the screen');
-      assert.match(doc.prompt, /AI adoption is growing fast/, 'the report prompt carries the verified findings');
-      assert.match(doc.prompt, /https:\/\/example\.com\/survey/, 'and the real source links');
-      assert.match(doc.prompt, /ONLY from these verified research findings/);
+      assert.deepEqual(order, ['POST /api/v1/research/reports'], 'one request - the server searches, retrieves, verifies and composes the report');
+      const report = calls.bodies.report[0];
+      assert.equal(report.locale, locale, 'the report follows the language of the request, not the screen');
+      assert.match(report.query, locale === 'ko' ? /AI 동향/ : /AI market/, 'the question travels as the person wrote it');
+      assert.equal(Object.keys(calls.bodies).includes('document'), false, 'the client never asks a model to write the report text');
       assert.equal(await page.locator('#main-result-kind').textContent(), 'DOC');
+      assert.equal(await page.locator('#main-result-sources').isEnabled(), true, 'the Sources tab is available for a research report');
       assert.deepEqual(posts(calls).filter((c) => CONSEQUENTIAL.test(c)), []);
       await ctx.close();
     });
@@ -216,12 +225,12 @@ describe('One Input: research, then a report - a real compound, or a truthful st
   it('when research finds no verified source the report is NOT written and the person is told which step stopped', async () => {
     const ctx = await contextAt(1440, 900, 'oi_compound_stop', 'en');
     const page = await ctx.newPage();
-    const calls = await stubBackends(page, { research: { query: 'q', status: 'UNAVAILABLE', answer: 'Could not complete research because live web search capability is unavailable.', sources: [] } });
+    const calls = await stubBackends(page, { report: { query: 'q', status: 'UNAVAILABLE', code: 'SEARCH_UNAVAILABLE', message: 'Live web search is not configured, so no research was performed and no report was written.', provider: 'custom_http', steps: [{ step: 'SEARCH', status: 'FAILED', detail: 'No web search provider is configured.' }] } });
     await openMain(page);
     await ask(page, 'Research the AI market and turn it into a report');
     const turn = await settle(page);
-    assert.match(turn, /research step could not be completed/i);
-    assert.match(turn, /No report was written/);
+    assert.match(turn, /Research is not available/i);
+    assert.match(turn, /no research was performed and no report was written/i);
     assert.equal(Object.keys(calls.bodies).includes('document'), false, 'no unsourced report');
     assert.equal(await page.locator('#main-result-panel').isHidden(), true);
     await ctx.close();

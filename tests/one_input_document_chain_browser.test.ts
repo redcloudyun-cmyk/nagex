@@ -148,10 +148,11 @@ describe('One Input -> a real stored document, reopened by a fresh browser, owne
   });
 });
 
-describe('research -> report: written only from the returned sources; closed when research is unavailable', () => {
+describe('research -> report: searched, retrieved, verified and composed by NAgex; closed when research is unavailable', () => {
   for (const [locale, text] of [['ko', 'AI 동향을 조사해서 보고서로 만들어줘'], ['en', 'Research the AI market and turn it into a report']] as const) {
-    it(`${locale}: research runs first, the report prompt carries ONLY the returned findings and their real links, and the stored report lists those sources`, async () => {
+    it(`${locale}: one server-side run - the model proposes, NAgex keeps only what the retrieved pages support, and the stored report lists exactly those sources`, async () => {
       world.failSearch(false);
+      world.useLocalPages(true);
       const user = h.user(`doc_research_${locale}`);
       const ctx = await contextFor(user, locale);
       const page = await ctx.newPage();
@@ -161,23 +162,74 @@ describe('research -> report: written only from the returned sources; closed whe
       const modelBefore = world.modelRequests.length;
       await openHome(page);
       await ask(page, text);
-      await page.waitForSelector('#main-result-panel:not([hidden])', { timeout: 40000 });
-      assert.deepEqual(order, ['/api/v1/research', '/api/v1/creations/documents'], 'research first, then the report');
+      await page.waitForSelector('#main-result-panel:not([hidden])', { timeout: 60000 });
+      assert.deepEqual(order, ['/api/v1/research/reports'], 'one request: the report is searched, retrieved, verified and composed on the server');
       assert.ok(world.searchQueries.length > queriesBefore, 'the search endpoint was really asked');
       const requests = world.modelRequests.slice(modelBefore);
-      assert.deepEqual(requests.map((r) => r.kind), ['research', 'document']);
-      const doc = requests[1];
-      assert.match(doc.user, /FINDINGS:/);
-      assert.match(doc.user, /https:\/\/example\.com\/ai-adoption-survey/);
-      assert.match(doc.user, /https:\/\/example\.org\/ai-investment/);
-      assert.match(doc.user, /ONLY from these verified research findings/);
-      assert.equal(doc.korean, locale === 'ko');
+      assert.deepEqual(requests.map((r) => r.kind), ['research-plan', 'research-extract', 'research-report'], 'the model proposes searches, claims and a draft - it never writes the document');
+      assert.equal(requests.filter((r) => r.kind === 'document').length, 0, 'no model-written report');
+      assert.equal(requests[1].korean, locale === 'ko');
+      assert.match(requests[2].user, /Adoption of AI assistants grew sharply/, 'the draft is written from verified claims');
+      assert.doesNotMatch(requests[2].user, /replaced its staff|Every company replaced/, 'the claim the page does not support never reached the draft');
       const preview = await page.locator('#main-result-preview').innerText();
-      assert.match(preview, /example\.com\/ai-adoption-survey/);
-      assert.match(preview, /example\.org\/ai-investment/);
-      assert.doesNotMatch(preview, /https?:\/\/(?!example\.(com|org))/, 'no link that the research did not return');
+      assert.match(preview, /Adoption of AI assistants grew sharply among knowledge workers/);
+      assert.match(preview, /Investment in AI tools increased by 18% in 2025/);
+      assert.doesNotMatch(preview, /replaced (its|their) (entire )?staff/);
+      assert.match(preview, /\[1\]/, 'citation markers are in the text');
+      const links = await page.locator('#main-result-preview a').evaluateAll((els: any[]) => els.map((e) => e.href));
+      assert.deepEqual([...links].sort(), [world.pageUrl('ai-adoption-survey'), world.pageUrl('ai-investment')].sort(), 'the source list links exactly the pages that were retrieved');
       assert.equal(h.artifactStore.list(user.tenantId, user.userId).filter((a) => a.type === 'DOCUMENT').length, 1);
       await ctx.close();
+      world.useLocalPages(false);
+    });
+
+    it(`${locale}: the Sources tab shows where each source came from and what was refused; the report reopens from Recent in a new browser with its provenance; another person cannot read the run`, async () => {
+      world.failSearch(false);
+      world.useLocalPages(true);
+      const user = h.user(`doc_research_prov_${locale}`);
+      const ctx = await contextFor(user, locale);
+      const page = await ctx.newPage();
+      await openHome(page);
+      await ask(page, text);
+      await page.waitForSelector('#main-result-panel:not([hidden])', { timeout: 60000 });
+      assert.equal(await page.locator('#main-result-sources').isEnabled(), true, 'a research report has a Sources tab');
+      await page.click('#main-result-sources');
+      await page.waitForFunction(() => document.querySelectorAll('#main-result-preview .main-research-sources li').length >= 2, undefined, { timeout: 15000 });
+      const sources = await page.locator('#main-result-preview').innerText();
+      assert.match(sources, locale === 'ko' ? /보고서에서 인용함/ : /Cited in the report/);
+      assert.match(sources, locale === 'ko' ? /원문 전체 확인/ : /Full page read/);
+      assert.match(sources, locale === 'ko' ? /확인/ : /Retrieved/);
+      assert.match(sources, locale === 'ko' ? /제외한 진술은 (\d+)건/ : /(\d+) were refused/);
+      assert.doesNotMatch(sources, /run_[0-9a-f]{24}|doc_[0-9a-f]{24}|art_[0-9a-f]{24}|S\d+\b/, 'no internal ids');
+      const sourceLinks = await page.locator('#main-result-preview .main-research-sources a').evaluateAll((els: any[]) => els.map((e) => ({ href: e.href, rel: e.rel, target: e.target })));
+      assert.ok(sourceLinks.length >= 2 && sourceLinks.every((l) => /noopener/.test(l.rel) && l.target === '_blank'));
+      await page.click('#main-result-preview-tab');
+      assert.match(await page.locator('#main-result-preview').innerText(), /Adoption of AI assistants/, 'back to the report');
+      const runId = await page.locator('#main-result-sources').getAttribute('data-run');
+      assert.match(String(runId), /^run_[0-9a-f]{24}$/);
+      await ctx.close();
+
+      const fresh = await contextFor(user, locale);
+      const page2 = await fresh.newPage();
+      await page2.goto(`${h.origin}/#recent`, { waitUntil: 'domcontentloaded' });
+      await page2.waitForSelector('.recent-item', { timeout: 20000 });
+      await page2.locator('.recent-item').first().locator('.recent-open').click();
+      await page2.waitForSelector('#main-result-panel:not([hidden])', { timeout: 20000 });
+      await page2.waitForFunction(() => !(document.getElementById('main-result-sources') as any)?.disabled, undefined, { timeout: 10000 });
+      assert.match(await page2.locator('#main-result-preview').innerText(), /Adoption of AI assistants grew sharply/);
+      assert.equal(await page2.locator('#main-result-preview h3, #main-result-preview h4').count() >= 2, true, 'the report is shown as formatted text, not as raw Markdown');
+      assert.doesNotMatch(await page2.locator('#main-result-preview').innerText(), /(^|\n)#{1,3} /);
+      await fresh.close();
+
+      const other = h.user(`doc_research_prov_other_${locale}`);
+      const strangerCtx = await contextFor(other, locale);
+      const page3 = await strangerCtx.newPage();
+      await page3.goto(`${h.origin}/#recent`, { waitUntil: 'domcontentloaded' });
+      await page3.waitForSelector('#recent-list', { timeout: 20000 });
+      const status = await page3.evaluate(async (id: string) => (await fetch(`/api/v1/research/runs/${id}`)).status, String(runId));
+      assert.equal(status, 404, 'another person cannot read the provenance of this report');
+      await strangerCtx.close();
+      world.useLocalPages(false);
     });
 
     it(`${locale}: when the search provider is down, NO report is written and the person is told research could not be completed`, async () => {
@@ -190,9 +242,10 @@ describe('research -> report: written only from the returned sources; closed whe
       await openHome(page);
       await ask(page, text);
       const turn = await settle(page);
-      assert.match(turn, locale === 'ko' ? /조사 단계를 마치지 못했어요/ : /research step could not be completed/i);
-      assert.match(turn, locale === 'ko' ? /보고서는 만들지 않았어요/ : /No report was written/);
-      assert.equal(world.modelRequests.slice(modelBefore).filter((r) => r.kind === 'document').length, 0, 'the model was never asked to write an unsourced report');
+      assert.match(turn, locale === 'ko' ? /검색이 동작하지 않았어요/ : /The search did not work/i);
+      assert.match(turn, locale === 'ko' ? /보고서를 만들지 않았어요/ : /no report was written/i);
+      const after = world.modelRequests.slice(modelBefore).map((r) => r.kind);
+      assert.equal(after.includes('document') || after.includes('research-extract') || after.includes('research-report'), false, 'the model was never asked to extract from nothing or to write an unsourced report');
       assert.equal(documentFiles(), docs);
       assert.equal(await page.locator('#main-result-panel').isHidden(), true);
       world.failSearch(false);

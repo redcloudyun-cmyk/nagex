@@ -561,7 +561,7 @@ export async function handleAsyncApiRequest(
     }
     // R22.4 — Live Research Endpoint (POST /api/v1/research)
     {
-      const researchResult = await handleResearchRoutes(method, pathname, body, headers, query, { evidencePackService: app.evidencePackService, aiService: service, artifactStore: app.artifactStore, modelErrorResult, getRelevantMemories });
+      const researchResult = await handleResearchRoutes(method, pathname, body, headers, query, { evidencePackService: app.evidencePackService, aiService: service, artifactStore: app.artifactStore, modelErrorResult, getRelevantMemories, researchReportService: app.researchReportService, researchRunStore: app.researchRunStore });
       if (researchResult) return researchResult;
     }
     // R22.6 — Perspective Compare Endpoint (POST /api/v1/ai/perspective-compare)

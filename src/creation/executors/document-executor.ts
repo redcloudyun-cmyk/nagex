@@ -104,36 +104,7 @@ export class DocumentExecutor implements CreationExecutor<CreationRequest, Creat
         updatedAt: now,
       };
 
-      // Persist canonical document artifact
-      this.deps.documentStore.save(docRecord);
-
-      // Persist thin durable projection to ArtifactStore for Recent Creations
-      let artifactRecord;
-      if (this.deps.artifactStore) {
-        artifactRecord = this.deps.artifactStore.saveCompleted({
-          tenantId,
-          ownerId,
-          type: 'DOCUMENT',
-          title: docRecord.title,
-          preview: docRecord.summary || docRecord.content.slice(0, 500),
-          sourceType: 'CAPTURE',
-          sourceId: documentId,
-          openTarget: `/api/v1/creations/documents/${documentId}`,
-        });
-        docRecord.artifactId = artifactRecord.artifactId;
-        this.deps.documentStore.save(docRecord);
-      }
-
-      // Log governance audit event if logger present
-      this.deps.auditLogger?.logEvent({
-        actor: { type: 'user', id: ownerId },
-        tenant_id: tenantId,
-        action: 'document.created',
-        resource: { type: 'DocumentRecord', id: documentId },
-        result: 'SUCCESS',
-        request_id: requestId,
-        details: { title: docRecord.title, documentKind, provider: outcome.provider, model: outcome.model },
-      });
+      const artifactRecord = this.persist(docRecord, requestId, { provider: outcome.provider, model: outcome.model });
 
       return {
         status: 'SUCCESS',
@@ -168,6 +139,84 @@ export class DocumentExecutor implements CreationExecutor<CreationRequest, Creat
         errorMessage: error?.message || 'Failed to create document.',
       };
     }
+  }
+
+  // Canonical document + its thin projection for Recent Creations + the governance audit event. Shared by model-written documents (execute) and documents NAgex composed itself (createFromContent).
+  private persist(docRecord: DocumentRecord, requestId: string, details: Record<string, unknown>): { artifactId: string } | undefined {
+    this.deps.documentStore.save(docRecord);
+    let artifactRecord: { artifactId: string } | undefined;
+    if (this.deps.artifactStore) {
+      artifactRecord = this.deps.artifactStore.saveCompleted({
+        tenantId: docRecord.tenantId,
+        ownerId: docRecord.ownerId,
+        type: 'DOCUMENT',
+        title: docRecord.title,
+        preview: docRecord.summary || docRecord.content.slice(0, 500),
+        sourceType: 'CAPTURE',
+        sourceId: docRecord.documentId,
+        openTarget: `/api/v1/creations/documents/${docRecord.documentId}`,
+      });
+      docRecord.artifactId = artifactRecord.artifactId;
+      this.deps.documentStore.save(docRecord);
+    }
+    this.deps.auditLogger?.logEvent({
+      actor: { type: 'user', id: docRecord.ownerId },
+      tenant_id: docRecord.tenantId,
+      action: 'document.created',
+      resource: { type: 'DocumentRecord', id: docRecord.documentId },
+      result: 'SUCCESS',
+      request_id: requestId,
+      details: { title: docRecord.title, documentKind: docRecord.documentKind, ...details },
+    });
+    return artifactRecord;
+  }
+
+  // A document whose text was composed by NAgex itself (a verified research report): nothing is asked of a model here. The id is derived from the run that produced it, so the same run is never stored twice.
+  public createFromContent(params: {
+    tenantId: string;
+    ownerId: string;
+    requestId: string;
+    idSeed: string;
+    title: string;
+    summary: string;
+    content: string;
+    locale: 'en' | 'ko';
+    documentKind: string;
+    researchRunId?: string;
+    sourceRefs?: DocumentRecord['sourceRefs'];
+  }): CreationResult {
+    const documentId = `doc_${crypto.createHash('sha256').update(`${params.tenantId}:${params.ownerId}:${params.idSeed}`).digest('hex').slice(0, 24)}`;
+    const now = new Date().toISOString();
+    const docRecord: DocumentRecord = {
+      documentId,
+      tenantId: params.tenantId,
+      ownerId: params.ownerId,
+      title: params.title.trim(),
+      summary: params.summary.trim(),
+      content: params.content.trim(),
+      documentKind: params.documentKind,
+      locale: params.locale,
+      format: 'MARKDOWN',
+      sourceRefs: params.sourceRefs ?? [],
+      ...(params.researchRunId ? { researchRunId: params.researchRunId } : {}),
+      revisionIndex: 1,
+      createdAt: now,
+      updatedAt: now,
+    };
+    const artifactRecord = this.persist(docRecord, params.requestId, { composedBy: 'NAGEX', ...(params.researchRunId ? { researchRunId: params.researchRunId } : {}) });
+    return {
+      status: 'SUCCESS',
+      creationId: documentId,
+      creationKind: 'DOCUMENT',
+      title: docRecord.title,
+      summary: docRecord.summary,
+      content: docRecord.content,
+      openTarget: `/api/v1/creations/documents/${documentId}`,
+      artifactId: artifactRecord?.artifactId,
+      mimeType: 'text/markdown',
+      metadata: { documentKind: params.documentKind, composedBy: 'NAGEX' },
+      createdAt: now,
+    };
   }
 
   public executeRevision(params: {

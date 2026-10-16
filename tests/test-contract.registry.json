@@ -6377,6 +6377,36 @@
       "assertionIntent": "A slide count named in the request is the TOTAL including the title slide unless the person says otherwise: the model is told an exact number of content slides, extra slides are cut, nothing is padded, and the finished .pptx has the requested number of slides.",
       "notes": "Fake provider endpoint and the real writer; the real-model run and the PowerPoint check are part of the sprint E2E."
     },
+    "research_source_fetcher": {
+      "milestone": "R26A-WEB-RESEARCH",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "runtime",
+        "security"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "What NAgex will and will not read from the web for a research report: robots.txt is obeyed (an unreadable one means do not fetch, a missing one means allowed), private / local / non-http destinations are refused before any connection, only readable text is taken within byte and time limits, a rate-limited site is left alone, requests to one site are spaced, the page is decoded in its declared charset, and every outcome states what happened.",
+      "notes": "Local HTTP fixtures on 127.0.0.1 behind the fetcher's test-only switch; no external site is contacted."
+    },
+    "research_report": {
+      "milestone": "R26A-WEB-RESEARCH",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "runtime",
+        "ux"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "A research report is composed by NAgex from claims it verified against pages it retrieved: a claim is admitted only if its quote is in the retrieved text and its figures are in the quote; every citation marker is generated from a retrieved source; paragraphs that cite nothing verified or state unsupported figures are dropped; without a search provider the state is unavailable and nothing is stored; a provider failure is reported without leaking its credential; the report is a real document that can be reopened and downloaded as .docx with clickable source links; runs are owner- and tenant-scoped.",
+      "notes": "Scripted model, stand-in search provider and real pages served from 127.0.0.1; the live run with a configured provider is part of the sprint evidence."
+    },
     "creation_continuity": {
       "milestone": "SPRINT03-CREATION-CONTINUITY",
       "classification": "CANONICAL_BEHAVIOR",
