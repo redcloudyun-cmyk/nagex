@@ -9,7 +9,7 @@ process.env.NAGEX_GEMINI_MODEL = 'gemini-test-model';
 // fake schedule, so this test needs a real (transport-mocked) connection.
 process.env.GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || 'test_google_client_id';
 process.env.GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET || 'test_google_client_secret';
-process.env.GOOGLE_REDIRECT_URI = process.env.GOOGLE_REDIRECT_URI || 'https://nagex-test.agex.site/api/v1/oauth/google/callback';
+process.env.GOOGLE_REDIRECT_URI = process.env.GOOGLE_REDIRECT_URI || 'https://nagex.agex.site/api/v1/oauth/google/callback';
 
 const origFetch = globalThis.fetch;
 globalThis.fetch = async function (input: any, init?: any) {

@@ -47,7 +47,7 @@ import { enableDevAuthTokensForFile } from './_dev_auth_tokens.js';
 const REAL_CALENDAR_SCOPES = ['https://www.googleapis.com/auth/calendar.events', 'https://www.googleapis.com/auth/calendar.events.freebusy', 'https://www.googleapis.com/auth/calendar.calendarlist.readonly'].join(' ');
 process.env.GOOGLE_CLIENT_ID ??= 'r24-6c-client-id';
 process.env.GOOGLE_CLIENT_SECRET ??= 'r24-6c-client-secret';
-process.env.GOOGLE_REDIRECT_URI ??= 'https://nagex-test.agex.site/api/v1/oauth/google/callback';
+process.env.GOOGLE_REDIRECT_URI ??= 'https://nagex.agex.site/api/v1/oauth/google/callback';
 
 // R24.6C1 — this file legitimately needs raw dev tokens to drive signup/verify; opt in explicitly (restored after the file).
 enableDevAuthTokensForFile();
@@ -391,7 +391,7 @@ describe('R24.6C — Google OAuth ownership is the authenticated account', () =>
 
 // ─────────────────────────────────────────────────────────────────────────
 describe('R24.6C — Daily Brief resolves the authenticated user\'s own Google token', () => {
-  const config: GoogleOAuthConfig = { clientId: 'cid', clientSecret: 'csecret', redirectUri: 'https://nagex-test.agex.site/api/v1/oauth/google/callback' };
+  const config: GoogleOAuthConfig = { clientId: 'cid', clientSecret: 'csecret', redirectUri: 'https://nagex.agex.site/api/v1/oauth/google/callback' };
   const jsonResponse = (data: unknown) => new Response(JSON.stringify(data), { status: 200, headers: { 'Content-Type': 'application/json' } });
 
   function briefFixture(tenantId: string, connectedPrincipals: Array<{ id: string; token: string }>) {

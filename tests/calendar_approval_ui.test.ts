@@ -96,7 +96,7 @@ function jsonResponse(data: unknown, status = 200): Response {
   return new Response(JSON.stringify(data), { status, headers: { 'Content-Type': 'application/json' } });
 }
 
-const oauthConfig: GoogleOAuthConfig = { clientId: 'cid', clientSecret: 'csecret', redirectUri: 'https://nagex-test.agex.site/api/v1/oauth/google/callback' };
+const oauthConfig: GoogleOAuthConfig = { clientId: 'cid', clientSecret: 'csecret', redirectUri: 'https://nagex.agex.site/api/v1/oauth/google/callback' };
 
 function buildIsolatedHarness(fetchFn: typeof fetch, now: () => number = Date.now, ttlMs?: number) {
   const tokenStore = new InMemoryGoogleOAuthTokenStore();

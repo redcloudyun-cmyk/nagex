@@ -33,7 +33,7 @@ function jsonResponse(data: unknown, status = 200): Response {
 
 const CALENDAR_ONLY_SCOPE_STRING = GOOGLE_CALENDAR_SCOPES.join(' ');
 const FULL_SCOPE_STRING = GOOGLE_OAUTH_SCOPES.join(' ');
-const config: GoogleOAuthConfig = { clientId: 'cid', clientSecret: 'csecret', redirectUri: 'https://nagex-test.agex.site/api/v1/oauth/google/callback' };
+const config: GoogleOAuthConfig = { clientId: 'cid', clientSecret: 'csecret', redirectUri: 'https://nagex.agex.site/api/v1/oauth/google/callback' };
 
 function validSendPayload(overrides: Record<string, unknown> = {}) {
   return {
@@ -406,7 +406,7 @@ test('full flow through the real HTTP routes: POST /api/v1/approvals -> .../appr
     assert.match(String(url), /\/gmail\/v1\/users\/me\/messages\/send/);
     return jsonResponse({ id: 'gmail_msg_flow', threadId: 'gmail_thread_flow' });
   };
-  const testConfig: GoogleOAuthConfig = { clientId: 'x', clientSecret: 'y', redirectUri: 'https://nagex-test.agex.site/api/v1/oauth/google/callback' };
+  const testConfig: GoogleOAuthConfig = { clientId: 'x', clientSecret: 'y', redirectUri: 'https://nagex.agex.site/api/v1/oauth/google/callback' };
   const testGmailService = new GmailService(sharedGoogleTokenStore, sharedActionApprovals, new AuditLogger(), new MemoryEngine(), mockFetch, () => testConfig);
 
   sharedGoogleTokenStore.saveForPrincipal(LIVE_ID.tenantId, LIVE_ID.principalId, { accessToken: 'at', refreshToken: 'rt', expiresAt: Date.now() + 3600_000, scope: FULL_SCOPE_STRING });

@@ -89,7 +89,7 @@ if [ "$AUTO_CONFIRM" = false ]; then
   esac
 fi
 
-BASE="${NAGEX_BASE_URL:-http://127.0.0.1:4100}"
+BASE="${NAGEX_BASE_URL:-http://127.0.0.1:8085}"
 TENANT="${NAGEX_TEST_TENANT:-ten_production_01}"
 PRINCIPAL="${NAGEX_TEST_PRINCIPAL:-usr_admin_001}"
 SERVICE_NAME="${NAGEX_SERVICE_NAME:-nagex.service}"

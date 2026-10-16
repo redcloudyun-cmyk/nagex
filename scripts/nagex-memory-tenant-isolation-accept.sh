@@ -151,7 +151,7 @@ if [ "$AUTO_CONFIRM" = false ]; then
   esac
 fi
 
-BASE="${NAGEX_BASE_URL:-http://127.0.0.1:4100}"
+BASE="${NAGEX_BASE_URL:-http://127.0.0.1:8085}"
 SERVICE_NAME="${NAGEX_SERVICE_NAME:-nagex.service}"
 DROPIN_DIR="/run/systemd/system/${SERVICE_NAME}.d"
 DROPIN_FILE="${DROPIN_DIR}/90-nagex-memory-tenant-isolation-accept.conf"

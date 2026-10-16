@@ -1,0 +1,28 @@
+# NAgex service unit (example). Replace the <placeholders> for the host; keep secrets in the EnvironmentFile, never in this file.
+# Canonical deployment: nagex-server, internal API 127.0.0.1:8085, public https://nagex.agex.site (Cloudflare Tunnel + Access).
+[Unit]
+Description=NAgex Personal AI service
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=<service-user>
+Group=<service-user>
+WorkingDirectory=<install-dir>
+ExecStart=<node-binary> <install-dir>/dist/src/server_web.js
+Restart=always
+RestartSec=5
+Environment=NODE_ENV=production
+Environment=HOST=127.0.0.1
+Environment=PORT=8085
+# the node.js network settings the Cloudflare / Google endpoints need on a dual-stack host
+Environment=NODE_OPTIONS=--no-network-family-autoselection --dns-result-order=ipv4first
+# NAGEX_PUBLIC_URL, NAGEX_TRUSTED_PROXIES, OAuth client ids/secrets, NAGEX_TOKEN_ENCRYPTION_KEY: see .env.example (root-readable file, mode 0600)
+EnvironmentFile=/etc/nagex/nagex.env
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+
+[Install]
+WantedBy=multi-user.target

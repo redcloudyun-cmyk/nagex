@@ -101,6 +101,7 @@ import type { RbacService } from './rbac/rbac.service.js';
 import type { EnterpriseIdentityStore } from './enterprise-identity/enterprise-identity.store.js';
 import type { SsoFlowStore } from './enterprise-identity/sso-flow.store.js';
 import { createNagexApplication } from './app/create-nagex-application.js';
+import { canonicalPublicUrl, describePublicUrl } from './config/public-url.js';
 
 const PORT = Number(process.env.PORT || 8085);
 const PUBLIC_DIR = path.join(process.cwd(), 'public');
@@ -500,7 +501,7 @@ export async function handleAsyncApiRequest(
       // redirect_uri / SAML ACS URL / entityId must exactly match the
       // origin the browser is actually talking to.
       const hostHeader = Array.isArray(headers['host']) ? headers['host'][0] : headers['host'];
-      const publicBaseUrl = `http://${hostHeader ?? '127.0.0.1'}`;
+      const publicBaseUrl = canonicalPublicUrl() ?? `http://${hostHeader ?? '127.0.0.1'}`;
       const enterpriseIdentityResult = await handleEnterpriseIdentityRoutes(method, pathname, body, headers, query, {
         rbacService: customDeps?.rbacService ?? rbacService,
         organizationStore: customDeps?.organizationStore ?? organizationStore,
@@ -1006,6 +1007,9 @@ export function createServerInstance(opts?: {
   if (trustedProxies.invalidEntries.length > 0) {
     console.error(JSON.stringify({ event: 'trusted_proxies_invalid_entries_ignored', count: trustedProxies.invalidEntries.length }));
   }
+  // NAGEX_PUBLIC_URL (the canonical origin of this deployment) is used for the redirect URIs derived from it; a value that is not an origin is ignored and said so
+  const publicUrl = describePublicUrl();
+  if (publicUrl.configured && publicUrl.problem) console.error(JSON.stringify({ event: 'public_url_invalid_ignored', problem: publicUrl.problem, hint: 'NAGEX_PUBLIC_URL must be an origin: https://host (or http://localhost for local development), no path.' }));
   let warnedUntrustedForwarding = false;
   const testPeerAddress = opts?.clientIp?.testPeerAddress;
   const handleHttpRequest = (req: http.IncomingMessage, res: http.ServerResponse): void => {

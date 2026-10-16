@@ -75,8 +75,8 @@ after(async () => {
   await h?.close();
 });
 beforeEach(() => {
-  process.env.GITHUB_CLIENT_ID = 'cx-gh'; process.env.GITHUB_CLIENT_SECRET = 'cx-gh-secret'; process.env.GITHUB_REDIRECT_URI = 'https://nagex-test.agex.site/api/v1/oauth/github/callback';
-  process.env.GOOGLE_CLIENT_ID = 'cx-g'; process.env.GOOGLE_CLIENT_SECRET = 'cx-g-secret'; process.env.GOOGLE_REDIRECT_URI = 'https://nagex-test.agex.site/api/v1/oauth/google/callback';
+  process.env.GITHUB_CLIENT_ID = 'cx-gh'; process.env.GITHUB_CLIENT_SECRET = 'cx-gh-secret'; process.env.GITHUB_REDIRECT_URI = 'https://nagex.agex.site/api/v1/oauth/github/callback';
+  process.env.GOOGLE_CLIENT_ID = 'cx-g'; process.env.GOOGLE_CLIENT_SECRET = 'cx-g-secret'; process.env.GOOGLE_REDIRECT_URI = 'https://nagex.agex.site/api/v1/oauth/google/callback';
   process.env.NAGEX_MCP_ALLOW_PRIVATE_NETWORK = '1';
   githubCalls.length = 0; state.name = 'Docs MCP'; state.requireBearer = ''; state.tools = [SEARCH, TICKET]; state.calls.length = 0;
 });

@@ -532,7 +532,7 @@ describe('Desktop Main — conditional Home briefing', () => {
     const scopes = ['https://www.googleapis.com/auth/calendar.events', 'https://www.googleapis.com/auth/calendar.events.freebusy', 'https://www.googleapis.com/auth/calendar.calendarlist.readonly'].join(' ');
     googleTokenStore.saveForPrincipal(owner.tenantId, owner.userId, { accessToken: 'at_real_owner', refreshToken: 'rt_real_owner', expiresAt: Date.now() + 3_600_000, scope: scopes });
     const env = { id: process.env.GOOGLE_CLIENT_ID, secret: process.env.GOOGLE_CLIENT_SECRET, redirect: process.env.GOOGLE_REDIRECT_URI };
-    process.env.GOOGLE_CLIENT_ID = 'cal-real-client'; process.env.GOOGLE_CLIENT_SECRET = 'cal-real-secret'; process.env.GOOGLE_REDIRECT_URI = 'https://nagex-test.agex.site/api/v1/oauth/google/callback';
+    process.env.GOOGLE_CLIENT_ID = 'cal-real-client'; process.env.GOOGLE_CLIENT_SECRET = 'cal-real-secret'; process.env.GOOGLE_REDIRECT_URI = 'https://nagex.agex.site/api/v1/oauth/google/callback';
     const originalFetch = globalThis.fetch;
     const tokens: Array<string | null> = [];
     globalThis.fetch = (async (input: string | URL | Request, init?: RequestInit) => {

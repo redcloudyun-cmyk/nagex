@@ -1,0 +1,16 @@
+# The route of the canonical NAgex service. For a REMOTELY MANAGED tunnel (token) add it as a Public Hostname in Cloudflare Zero Trust
+# (Networks -> Tunnels -> <tunnel> -> Public Hostname); for a locally managed tunnel add the entry below. Preserve every other route and the final fallback rule.
+#
+#   hostname: nagex.agex.site
+#   service:  http://127.0.0.1:8085
+#
+# ingress:
+#   - hostname: nagex.agex.site
+#     service: http://127.0.0.1:8085
+#   - service: http_status:404
+#
+# Cloudflare Access protects the hostname (policy: Administrator only). Paths the third parties call WITHOUT an Access session need an
+# Access "Bypass" policy for exactly these paths (each one is verified by its own signature / secret inside NAgex, never open):
+#   POST /api/v1/integrations/telegram/webhook   (Telegram secret-token header)
+#   POST /api/v1/integrations/slack/events        (Slack request signature + replay window)
+# OAuth callbacks (/api/v1/auth/oauth/*/callback, /api/v1/oauth/*/callback) are browser redirects that carry the person's own Access session: no bypass.

@@ -38,7 +38,7 @@ function jsonResponse(data: unknown, status = 200): Response {
 }
 
 const GRANTED_SCOPE_STRING = GOOGLE_CALENDAR_SCOPES.join(' ');
-const config: GoogleOAuthConfig = { clientId: 'cid', clientSecret: 'csecret', redirectUri: 'https://nagex-test.agex.site/api/v1/oauth/google/callback' };
+const config: GoogleOAuthConfig = { clientId: 'cid', clientSecret: 'csecret', redirectUri: 'https://nagex.agex.site/api/v1/oauth/google/callback' };
 
 function validPayload(overrides: Record<string, unknown> = {}) {
   return {
@@ -128,7 +128,7 @@ test('GET /api/v1/oauth/google/start and /start-url fail closed with 503 when Go
 // ── OAuth start: real 302 browser redirect ──────────────────────────────────
 
 test('OAuth start URL: GET /api/v1/oauth/google/start redirects (302) straight to Google, never as JSON', async () => {
-  await withEnv({ GOOGLE_CLIENT_ID: 'redir-client', GOOGLE_CLIENT_SECRET: 'redir-secret', GOOGLE_REDIRECT_URI: 'https://nagex-test.agex.site/api/v1/oauth/google/callback' }, () => {
+  await withEnv({ GOOGLE_CLIENT_ID: 'redir-client', GOOGLE_CLIENT_SECRET: 'redir-secret', GOOGLE_REDIRECT_URI: 'https://nagex.agex.site/api/v1/oauth/google/callback' }, () => {
     const result = handleApiRequest('GET', '/api/v1/oauth/google/start', null);
 
     assert.equal(result.status, 302);
@@ -142,7 +142,7 @@ test('OAuth start URL: GET /api/v1/oauth/google/start redirects (302) straight t
     assert.equal(typeof state, 'string');
     assert.ok((state as string).length > 0);
 
-    assert.equal(location.searchParams.get('redirect_uri'), 'https://nagex-test.agex.site/api/v1/oauth/google/callback');
+    assert.equal(location.searchParams.get('redirect_uri'), 'https://nagex.agex.site/api/v1/oauth/google/callback');
     assert.equal(location.searchParams.get('access_type'), 'offline');
     assert.equal(location.searchParams.get('prompt'), 'consent');
     assert.equal(location.searchParams.get('include_granted_scopes'), 'true');
@@ -161,7 +161,7 @@ test('OAuth start URL: GET /api/v1/oauth/google/start redirects (302) straight t
 });
 
 test('OAuth start-url (debug/API endpoint): returns the same authorize URL as JSON instead of redirecting', async () => {
-  await withEnv({ GOOGLE_CLIENT_ID: 'redir-client', GOOGLE_CLIENT_SECRET: 'redir-secret', GOOGLE_REDIRECT_URI: 'https://nagex-test.agex.site/api/v1/oauth/google/callback' }, () => {
+  await withEnv({ GOOGLE_CLIENT_ID: 'redir-client', GOOGLE_CLIENT_SECRET: 'redir-secret', GOOGLE_REDIRECT_URI: 'https://nagex.agex.site/api/v1/oauth/google/callback' }, () => {
     const result = handleApiRequest('GET', '/api/v1/oauth/google/start-url', null);
     assert.equal(result.status, 200);
     const authorizeUrl = new URL((result.data as Record<string, string>).authorizeUrl);
@@ -237,7 +237,7 @@ test('connected tool state: Google Calendar tools report connected/live once a r
 
 test('setting only GOOGLE_CLIENT_ID/SECRET env vars (no real OAuth connection) never flips the tool to live', async () => {
   sharedGoogleTokenStore.clearForPrincipal(LIVE_ID.tenantId, LIVE_ID.principalId);
-  await withEnv({ GOOGLE_CLIENT_ID: 'unit-test-client-id', GOOGLE_CLIENT_SECRET: 'unit-test-secret', GOOGLE_REDIRECT_URI: 'https://nagex-test.agex.site/api/v1/oauth/google/callback' }, () => {
+  await withEnv({ GOOGLE_CLIENT_ID: 'unit-test-client-id', GOOGLE_CLIENT_SECRET: 'unit-test-secret', GOOGLE_REDIRECT_URI: 'https://nagex.agex.site/api/v1/oauth/google/callback' }, () => {
     const resolution = sharedToolRegistry.resolve('Google Calendar', LIVE_ID);
     assert.equal(resolution.executionMode, 'unavailable');
     assert.equal(resolution.connectionStatus, 'disconnected');
@@ -317,7 +317,7 @@ test('POST /api/v1/tools/google-calendar/free-slots returns normalized busy/free
   const originalFetch = global.fetch;
   global.fetch = (async () => jsonResponse({ calendars: { primary: { busy: [] } } })) as typeof fetch;
   try {
-    await withEnv({ GOOGLE_CLIENT_ID: 'fs-client', GOOGLE_CLIENT_SECRET: 'fs-secret', GOOGLE_REDIRECT_URI: 'https://nagex-test.agex.site/api/v1/oauth/google/callback' }, async () => {
+    await withEnv({ GOOGLE_CLIENT_ID: 'fs-client', GOOGLE_CLIENT_SECRET: 'fs-secret', GOOGLE_REDIRECT_URI: 'https://nagex.agex.site/api/v1/oauth/google/callback' }, async () => {
       const result = await handleAsyncApiRequest('POST', '/api/v1/tools/google-calendar/free-slots', {
         calendarId: 'primary',
         timeMin: '2026-10-01T00:00:00.000Z',
@@ -667,7 +667,7 @@ test('full flow with the exact endpoints from spec: POST /api/v1/approvals -> PO
     assert.match(String(url), /\/calendar\/v3\/calendars\/primary\/events/);
     return jsonResponse({ id: 'gcal_evt_flow', htmlLink: 'https://calendar.google.com/event?eid=flow' });
   };
-  const testConfig: GoogleOAuthConfig = { clientId: 'x', clientSecret: 'y', redirectUri: 'https://nagex-test.agex.site/api/v1/oauth/google/callback' };
+  const testConfig: GoogleOAuthConfig = { clientId: 'x', clientSecret: 'y', redirectUri: 'https://nagex.agex.site/api/v1/oauth/google/callback' };
   const testCalendarService = new GoogleCalendarService(sharedGoogleTokenStore, sharedActionApprovals, new AuditLogger(), new MemoryEngine(), mockFetch, () => testConfig);
 
   sharedGoogleTokenStore.saveForPrincipal(LIVE_ID.tenantId, LIVE_ID.principalId, { accessToken: 'at', refreshToken: 'rt', expiresAt: Date.now() + 3600_000, scope: GRANTED_SCOPE_STRING });
@@ -707,7 +707,7 @@ test('full flow with the exact endpoints from spec: POST /api/v1/approvals -> PO
 test('POST /api/v1/approvals/:id/reject moves PENDING -> REJECTED and blocks execution', async () => {
   sharedGoogleTokenStore.saveForPrincipal(LIVE_ID.tenantId, LIVE_ID.principalId, { accessToken: 'at', refreshToken: 'rt', expiresAt: Date.now() + 3600_000, scope: GRANTED_SCOPE_STRING });
   try {
-    await withEnv({ GOOGLE_CLIENT_ID: 'reject-client', GOOGLE_CLIENT_SECRET: 'reject-secret', GOOGLE_REDIRECT_URI: 'https://nagex-test.agex.site/api/v1/oauth/google/callback' }, async () => {
+    await withEnv({ GOOGLE_CLIENT_ID: 'reject-client', GOOGLE_CLIENT_SECRET: 'reject-secret', GOOGLE_REDIRECT_URI: 'https://nagex.agex.site/api/v1/oauth/google/callback' }, async () => {
       const created = handleApiRequest('POST', '/api/v1/approvals', { toolId: GOOGLE_CALENDAR_CREATE_EVENT_TOOL_ID, payload: validPayload() });
       const approvalId = (created.data as Record<string, unknown>).approvalId as string;
 
@@ -728,7 +728,7 @@ test('GET /api/v1/oauth/google/callback exchanges a valid code+state and redirec
   const originalFetch = global.fetch;
   global.fetch = (async () => jsonResponse({ access_token: 'cb_at', refresh_token: 'cb_rt', expires_in: 3600, scope: GRANTED_SCOPE_STRING })) as typeof fetch;
 
-  await withEnv({ GOOGLE_CLIENT_ID: 'cb-client-id', GOOGLE_CLIENT_SECRET: 'cb-secret', GOOGLE_REDIRECT_URI: 'https://nagex-test.agex.site/api/v1/oauth/google/callback' }, async () => {
+  await withEnv({ GOOGLE_CLIENT_ID: 'cb-client-id', GOOGLE_CLIENT_SECRET: 'cb-secret', GOOGLE_REDIRECT_URI: 'https://nagex.agex.site/api/v1/oauth/google/callback' }, async () => {
     try {
       const started = handleApiRequest('GET', '/api/v1/oauth/google/start-url', null);
       assert.equal(started.status, 200);
@@ -751,7 +751,7 @@ test('GET /api/v1/oauth/google/callback exchanges a valid code+state and redirec
 });
 
 test('GET /api/v1/oauth/google/callback rejects a state that does not match the pending request', async () => {
-  await withEnv({ GOOGLE_CLIENT_ID: 'cb-client-id', GOOGLE_CLIENT_SECRET: 'cb-secret', GOOGLE_REDIRECT_URI: 'https://nagex-test.agex.site/api/v1/oauth/google/callback' }, async () => {
+  await withEnv({ GOOGLE_CLIENT_ID: 'cb-client-id', GOOGLE_CLIENT_SECRET: 'cb-secret', GOOGLE_REDIRECT_URI: 'https://nagex.agex.site/api/v1/oauth/google/callback' }, async () => {
     handleApiRequest('GET', '/api/v1/oauth/google/start-url', null);
     const callback = await handleAsyncApiRequest('GET', '/api/v1/oauth/google/callback', null, {}, undefined, { code: 'auth_code_123', state: 'not-the-real-state' });
     assert.equal(callback.status, 302);

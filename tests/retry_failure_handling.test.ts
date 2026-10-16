@@ -41,7 +41,7 @@ function tempDir(): string {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'nagex-retry-failure-'));
 }
 
-const CAL_CONFIG: GoogleOAuthConfig = { clientId: 'cid', clientSecret: 'secret', redirectUri: 'https://nagex-test.agex.site/api/v1/oauth/google/callback' };
+const CAL_CONFIG: GoogleOAuthConfig = { clientId: 'cid', clientSecret: 'secret', redirectUri: 'https://nagex.agex.site/api/v1/oauth/google/callback' };
 
 function jsonResponse(data: unknown, status = 200): Response {
   return new Response(JSON.stringify(data), { status, headers: { 'Content-Type': 'application/json' } });

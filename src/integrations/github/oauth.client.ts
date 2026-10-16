@@ -7,6 +7,7 @@
 // deployment with GITHUB_OAUTH_SCOPES (e.g. `read:user public_repo`); the scopes the user actually granted are stored and
 // the connection reports what it can really do.
 import { NagexError } from '../../common/errors.js';
+import { OAUTH_CALLBACK_PATHS, redirectUriFor } from '../../config/public-url.js';
 
 export const GITHUB_DEFAULT_SCOPES = ['read:user', 'repo'] as const;
 export const GITHUB_PROVIDER_TIMEOUT_MS = 10_000;
@@ -32,7 +33,7 @@ type FetchFn = typeof fetch;
 export function readGitHubOAuthConfig(env: NodeJS.ProcessEnv = process.env): GitHubOAuthConfig | null {
   const clientId = env.GITHUB_CLIENT_ID?.trim();
   const clientSecret = env.GITHUB_CLIENT_SECRET?.trim();
-  const redirectUri = env.GITHUB_REDIRECT_URI?.trim();
+  const redirectUri = redirectUriFor(env.GITHUB_REDIRECT_URI, OAUTH_CALLBACK_PATHS.githubConnection, env);
   if (!clientId || !clientSecret || !redirectUri) return null;
   const configured = (env.GITHUB_OAUTH_SCOPES ?? '').split(/[\s,]+/).map((scope) => scope.trim()).filter((scope) => /^[a-z:_]+$/i.test(scope));
   return { clientId, clientSecret, redirectUri, scopes: configured.length > 0 ? configured : [...GITHUB_DEFAULT_SCOPES] };
