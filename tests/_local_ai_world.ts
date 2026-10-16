@@ -4,7 +4,7 @@
 import http from 'node:http';
 import type { AddressInfo } from 'node:net';
 
-export interface LocalModelRequest { kind: 'document' | 'presentation' | 'plan-advice' | 'plan-action' | 'research' | 'research-plan' | 'research-extract' | 'research-report' | 'chat' | 'other'; system: string; user: string; korean: boolean }
+export interface LocalModelRequest { kind: 'followups' | 'document' | 'presentation' | 'plan-advice' | 'plan-action' | 'research' | 'research-plan' | 'research-extract' | 'research-report' | 'chat' | 'other'; system: string; user: string; korean: boolean }
 
 export interface LocalAiWorld {
   env: Record<string, string>;
@@ -17,6 +17,8 @@ export interface LocalAiWorld {
   /** the address of a fixture page served by this world */
   pageUrl: (name: 'ai-adoption-survey' | 'ai-investment') => string;
   setChatDelayMs: (ms: number) => void;
+  // what an ACTION plan is: the default send-mail plan, or a calendar event (for the next-actions journey)
+  setActionPlan: (kind: 'mail' | 'calendar') => void;
   // OPT-IN: slides are not a Nemotron task, so they go to another provider. The Gemini endpoint is a fixed public URL; this redirects ONLY that host to the local model for the
   // IN-PROCESS production server (global fetch, restored on close) and returns the fake key env to start the harness with. Nothing leaves the machine.
   installGeminiBridge: () => Record<string, string>;
@@ -34,6 +36,7 @@ export async function startLocalAiWorld(): Promise<LocalAiWorld> {
   let localPages = false;
   let searchPort = 0;
   let chatDelayMs = 0;
+  let actionPlan: 'mail' | 'calendar' = 'mail';
 
   const model = http.createServer(async (req, res) => {
     const body = JSON.parse((await readBody(req)) || '{}');
@@ -115,11 +118,30 @@ export async function startLocalAiWorld(): Promise<LocalAiWorld> {
       reply(JSON.stringify({ title, summary: korean ? '한 페이지 요약 보고서입니다.' : 'A one-page summary report.', content }));
       return;
     }
+    // the next actions of a conversation (todos/the follow-ups request): two things NAgex can do and one thing the person has to do themselves
+    if (/You turn a conversation into the NEXT ACTIONS/.test(system)) {
+      const ko = korean || /[가-힣]/.test(user);
+      modelRequests.push({ kind: 'followups', system, user, korean: ko });
+      reply(JSON.stringify({
+        todos: [
+          { title: ko ? '분기 계획 리뷰 회의 일정 잡기' : 'Schedule the quarterly plan review', prompt: ko ? '내일 오후 3시에 30분짜리 분기 계획 리뷰 회의 일정을 만들어줘' : 'Create a 30 minute quarterly plan review meeting tomorrow at 3 PM' },
+          { title: ko ? 'AI 동향 조사하기' : 'Research AI trends', prompt: ko ? '최근 AI 동향을 조사해서 출처와 함께 알려줘' : 'Research the latest AI trends and cite sources' },
+          { title: ko ? '홍보 영상 만들기' : 'Make a promo video', prompt: ko ? '30초짜리 홍보 영상을 만들어줘' : 'Make a 30 second promo video' },
+        ],
+        recommendations: [ko ? '리뷰 전에 팀원들과 안건을 먼저 공유해 두세요' : 'Share the agenda with the team before the review.'],
+      }));
+      return;
+    }
     if (/You are the NAgex planning model/.test(system)) {
       const advisory = /ADVISORY ANSWER:/.test(system);
       modelRequests.push({ kind: advisory ? 'plan-advice' : 'plan-action', system, user, korean });
       if (advisory) {
         reply(JSON.stringify({ responseKind: 'ADVISORY', goal: korean ? '회의 준비' : 'Prepare the meeting', summary: korean ? '안건을 정하고 사전 자료를 공유하세요.' : 'Set the agenda and share the material first.', reasoningSummary: 'r', steps: [], suggestions: korean ? ['회의 전날까지 안건을 세 가지로 정리해 참석자에게 공유하세요.', '각 안건의 담당자와 소요 시간을 미리 정해 두세요.'] : ['Fix three agenda items and share them with attendees the day before.', 'Name an owner and a time box for each item in advance.'] }));
+        return;
+      }
+      if (actionPlan === 'calendar') {
+        reply(JSON.stringify({ goal: 'Create the meeting', summary: korean ? '분기 계획 리뷰 회의 일정을 만듭니다.' : 'Create the quarterly plan review meeting.', reasoningSummary: 'r', suggestions: [],
+          steps: [{ title: korean ? '회의 일정 만들기' : 'Create the meeting', reasoning: 'asked', skill: 'skill.scheduling', tool: 'google_calendar.create_event', requiresApproval: true, necessity: 'REQUIRED', dependsOn: [], parameters: { calendarId: 'primary', summary: korean ? '분기 계획 리뷰' : 'Quarterly plan review' } }] }));
         return;
       }
       const tool = /id="(mcp\.[^"]+)"/.exec(system)?.[1];
@@ -196,6 +218,7 @@ export async function startLocalAiWorld(): Promise<LocalAiWorld> {
     useLocalPages: (on) => { localPages = on; },
     pageUrl: (name) => `http://127.0.0.1:${searchPort}/pages/${name}`,
     setChatDelayMs: (ms) => { chatDelayMs = ms; },
+    setActionPlan: (kind) => { actionPlan = kind; },
     close: async () => { globalThis.fetch = realFetch; model.closeAllConnections?.(); search.closeAllConnections?.(); await Promise.all([new Promise((r) => model.close(() => r(null))), new Promise((r) => search.close(() => r(null)))]); },
   };
 }

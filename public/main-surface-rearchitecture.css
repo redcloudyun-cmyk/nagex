@@ -1846,3 +1846,51 @@
   :root:not([data-theme="light"]) .main-trust-notice { color: #9aa7bd; }
 }
 :root[data-theme="dark"] .main-trust-notice { color: #9aa7bd; }
+
+/* Next actions (TODOs): visually apart from the answer (which is plain text), from approvals (amber, with Approve / Reject) and from results (the right panel). A recommendation has no button. */
+.main-todos {
+  margin: 12px 0 4px;
+  padding: 12px 14px;
+  border: 1px solid #d7def0;
+  border-left: 4px solid #6d5bd0;
+  border-radius: 10px;
+  background: #faf9ff;
+}
+.main-todos h3 { margin: 0 0 8px; font-size: .95rem; letter-spacing: 0; color: #3b2f9a; }
+.main-todos h4 { margin: 12px 0 6px; font-size: .85rem; color: #55637d; font-weight: 600; }
+.main-todo-list, .main-todo-recs { list-style: none; margin: 0; padding: 0; }
+.main-todo { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 12px; align-items: center; padding: 8px 0; border-top: 1px solid #e6e9f5; }
+.main-todo:first-child { border-top: 0; }
+.main-todo-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; min-width: 0; }
+.main-todo-title { font-weight: 600; overflow-wrap: anywhere; }
+.main-todo-state { display: inline-block; padding: 1px 9px; border-radius: 999px; font-size: .76rem; font-weight: 600; background: #eceffa; color: #3d4a6b; white-space: nowrap; }
+.main-todo[data-state="APPROVAL_REQUIRED"] .main-todo-state { background: #fff1d6; color: #8a5a00; }
+.main-todo[data-state="IN_PROGRESS"] .main-todo-state { background: #e3edff; color: #1c4fb4; }
+.main-todo[data-state="COMPLETED"] .main-todo-state { background: #e1f5e8; color: #14633a; }
+.main-todo[data-state="FAILED"] .main-todo-state { background: #fde7e7; color: #8b1d1d; }
+.main-todo-note { grid-column: 1 / -1; font-size: .85rem; color: #55637d; }
+.main-todo-note[hidden] { display: none; }
+.main-todo-run { justify-self: end; grid-row: 1; grid-column: 2; min-height: 40px; padding: 0 14px; }
+.main-todo-recs li { position: relative; padding: 3px 0 3px 14px; color: #55637d; font-size: .9rem; line-height: 1.45; }
+.main-todo-recs li::before { content: ""; position: absolute; left: 2px; top: .8em; width: 5px; height: 5px; border-radius: 50%; background: #aab4cc; }
+.main-todos-note { margin: 8px 0 0; font-size: .85rem; color: #8b1d1d; }
+@media (max-width: 520px) {
+  .main-todo { grid-template-columns: minmax(0, 1fr); }
+  .main-todo-run { grid-column: 1; grid-row: auto; justify-self: start; }
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .main-todos { background: #1a1930; border-color: #35345a; border-left-color: #8d7dff; }
+  :root:not([data-theme="light"]) .main-todos h3 { color: #c5bdff; }
+  :root:not([data-theme="light"]) .main-todo { border-top-color: #2c2b4a; }
+  :root:not([data-theme="light"]) .main-todo-state { background: #2a2c48; color: #c9d2ee; }
+  :root:not([data-theme="light"]) .main-todo[data-state="APPROVAL_REQUIRED"] .main-todo-state { background: #4a3a14; color: #ffd98a; }
+  :root:not([data-theme="light"]) .main-todo[data-state="IN_PROGRESS"] .main-todo-state { background: #1d3358; color: #b9d0f7; }
+  :root:not([data-theme="light"]) .main-todo[data-state="COMPLETED"] .main-todo-state { background: #12311d; color: #b7e6c3; }
+  :root:not([data-theme="light"]) .main-todo[data-state="FAILED"] .main-todo-state { background: #3a1818; color: #f2c1c1; }
+  :root:not([data-theme="light"]) .main-todo-note, :root:not([data-theme="light"]) .main-todo-recs li, :root:not([data-theme="light"]) .main-todos h4 { color: #9fb0cc; }
+}
+
+.main-todo-what { grid-column: 1 / -1; display: flex; flex-direction: column; gap: 2px; font-size: .82rem; color: #55637d; }
+.main-todo-kind { font-weight: 600; color: #3b2f9a; }
+.main-todo-prompt { overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .main-todo-what { color: #9fb0cc; } :root:not([data-theme="light"]) .main-todo-kind { color: #c5bdff; } }

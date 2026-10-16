@@ -161,7 +161,7 @@
             </div>
             <button type="button" class="main-tool-btn main-briefing-retry" id="main-briefing-retry" hidden>Try again</button>
           </section>
-          <section class="main-thread-card" id="main-thread-card" aria-label="Conversation" hidden>
+          <section class="main-thread-card" id="main-thread-card" aria-label="Conversation" data-i18n-aria-label="mainText.Conversation" hidden>
             <ol class="main-turns" id="main-turns"></ol>
           </section>
         </section>
@@ -457,7 +457,7 @@
     holder.innerHTML = turnTemplate();
     const el = holder.firstElementChild;
     list.appendChild(el);
-    const turn = { el, prompt, kind: 'pending', steps: [], detailsOpen: false };
+    const turn = { el, prompt, kind: 'pending', steps: [], detailsOpen: false, todoId: state.pendingTodoId || null };
     state.activeTurn = turn;
     const text = el.querySelector('.main-message-user p');
     if (text) text.textContent = prompt;
@@ -808,6 +808,7 @@
       const code = error ? error.code : '';
       // an already-started plan is attached to its real run; a refused or failed request leaves the plan reviewable
       if (code === 'PLAN_ALREADY_STARTED' && error.taskId) {
+        if (turn.todoId) linkTodo(turn.todoId, { taskId: error.taskId }).then(() => watchTodo(turn.todoId));
         renderRun(turn, error.taskId, { status: 'WAITING_APPROVAL' }, planRunFailureText(code));
         loadInlineApprovals(turn);
         pollRun(turn, error.taskId);
@@ -818,6 +819,7 @@
       return;
     }
     renderProposal(turn, started.proposal);
+    if (turn.todoId && started.taskId) linkTodo(turn.todoId, { taskId: started.taskId }).then(() => watchTodo(turn.todoId));
     renderRun(turn, started.taskId, started.run, '');
     if (started.run.status === 'WAITING_APPROVAL') { loadInlineApprovals(turn); pollRun(turn, started.taskId); }
   }
@@ -1298,6 +1300,7 @@
       openTarget: result.openTarget,
       projection,
     });
+    offerArtifactTodos(result.artifactId);
   }
 
   async function captureInput(prompt, route) {
@@ -1345,6 +1348,7 @@
       { id: 'follow', label: 'Ask follow-up', action: () => focusComposer('') },
       { id: 'save', label: 'Save to Vault', action: () => saveTextToVault(answer || prompt) },
     ]);
+    offerConversationTodos(state.activeTurn, prompt, answer);
   }
 
   // options.apiPrompt: what the creation route is asked (the original words plus source material); the thread always shows the person's own words.
@@ -1382,6 +1386,7 @@
       openTarget: result.openTarget,
       projection,
     });
+    offerArtifactTodos(result.artifactId);
   }
 
   async function createImage(prompt, metadata, opts) {
@@ -1507,6 +1512,7 @@
       openTarget: result.openTarget || (projection && projection.openTarget),
       projection,
     });
+    offerArtifactTodos(result.artifactId || target.artifactId);
   }
 
   async function runResearch(prompt, metadata) {
@@ -1561,6 +1567,217 @@
     }
   }
 
+  // ── Next actions (TODOs) ──────────────────────────────────────────────────────────────────────────────────
+  // A report offers the follow-up that follows from it (a deck from that very document); a request for "next steps / to-dos" gets what the person asked for; an advice answer's suggestions are split into
+  // what NAgex can run and what stays advice. Only a TODO the server classified as runnable has a button, only the one the person presses runs, and it runs as THE SAME REQUEST they could have typed:
+  // the normal route, plan preview, approval and run. Its state on screen is what the server reads from the task engine / artifact store - the screen never marks anything done by itself.
+  const TODO_ASK = /(할\s*일|투두|to-?\s?do\b|todo\b|next\s+steps?|next\s+actions?|action\s+items?|액션\s*아이템|checklist|체크\s*리스트|다음\s*(단계|행동|작업|할\s*일)|해야\s*(할|하는|될)\s*(일|것|작업)|what\s+should\s+i\s+do\s+next)/i;
+  const TODO_STATES = ['PROPOSED', 'APPROVAL_REQUIRED', 'IN_PROGRESS', 'COMPLETED', 'FAILED'];
+  const TODO_DEFAULT_LABEL = { PROPOSED: 'Suggested', APPROVAL_REQUIRED: 'Needs your approval', IN_PROGRESS: 'In progress', COMPLETED: 'Done', FAILED: 'Did not work' };
+  const TODO_NOTES = {
+    APPROVAL_PENDING: ['mainTodo.note.APPROVAL_PENDING', 'Waiting for your approval. Nothing has happened yet.'],
+    PLAN_ONLY: ['mainTodo.note.PLAN_ONLY', 'A plan is ready. Nothing was run yet - request approval to run it.'],
+    RUNNING: ['mainTodo.note.RUNNING', 'Working on it...'],
+    CREATED: ['mainTodo.note.CREATED', 'Created - it is open in the panel.'],
+    VERIFIED: ['mainTodo.note.VERIFIED', 'Done and confirmed.'],
+    RESPONDED: ['mainTodo.note.RESPONDED', 'The tool answered; NAgex did not confirm the result separately.'],
+    DECLINED: ['mainTodo.note.DECLINED', 'You declined it, so it was not run.'],
+    EXPIRED: ['mainTodo.note.EXPIRED', 'The approval expired, so it was not run.'],
+    MISMATCH: ['mainTodo.note.MISMATCH', 'It was sent, but your calendar shows something different.'],
+    NOT_CONFIRMED: ['mainTodo.note.NOT_CONFIRMED', 'It was sent, but NAgex could not confirm it.'],
+    NOT_EXECUTED: ['mainTodo.note.NOT_EXECUTED', 'NAgex only answered; nothing was done.'],
+    FAILED: ['mainTodo.note.FAILED', 'It did not work out. You can try again.'],
+  };
+
+  function todoNoteText(todo) {
+    if (todo.state === 'PROPOSED') return '';
+    const entry = TODO_NOTES[todo.detail && todo.detail.code] || (todo.state === 'FAILED' ? TODO_NOTES.FAILED : null);
+    return entry ? bt(entry[0], entry[1]) : '';
+  }
+
+  function paintTodo(li, todo) {
+    li.dataset.state = todo.state;
+    const label = li.querySelector('.main-todo-state');
+    if (label) label.textContent = bt('mainTodo.state.' + todo.state, TODO_DEFAULT_LABEL[todo.state] || todo.state);
+    const note = li.querySelector('.main-todo-note');
+    if (note) { const text = todoNoteText(todo); note.textContent = text; note.hidden = !text; }
+    // a button only where choosing it can do something: not yet started, or it did not work and may be tried again
+    let button = li.querySelector('.main-todo-run');
+    const runnable = todo.state === 'PROPOSED' || todo.state === 'FAILED';
+    if (runnable && !button) {
+      button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'btn-secondary main-todo-run';
+      button.addEventListener('click', () => runTodo(todo.todoId, button));
+      li.appendChild(button);
+    }
+    if (!runnable && button) button.remove();
+    if (button) { button.disabled = false; button.textContent = todo.state === 'FAILED' ? bt('mainTodo.retry', 'Try again') : bt('mainTodo.run', 'Do this'); }
+    li.dataset.title = todo.title;
+  }
+
+  function todoItem(todo) {
+    const li = document.createElement('li');
+    li.className = 'main-todo';
+    li.dataset.todoId = todo.todoId;
+    li.dataset.kind = todo.kind;
+    const head = document.createElement('div');
+    head.className = 'main-todo-head';
+    const stateEl = document.createElement('span');
+    stateEl.className = 'main-todo-state';
+    const title = document.createElement('span');
+    title.className = 'main-todo-title';
+    title.textContent = todo.title;
+    head.appendChild(title);
+    head.appendChild(stateEl);
+    li.appendChild(head);
+    // what choosing it will really do: the kind of path (from the router's decision on the very words below) and the exact request
+    const what = document.createElement('div');
+    what.className = 'main-todo-what';
+    const kind = document.createElement('span');
+    kind.className = 'main-todo-kind';
+    kind.textContent = bt('mainTodo.kind.' + todo.kind, todo.kind);
+    const asked = document.createElement('span');
+    asked.className = 'main-todo-prompt';
+    asked.textContent = bt('mainTodo.asks', 'Request:') + ' ' + todo.prompt;
+    what.appendChild(kind);
+    what.appendChild(asked);
+    li.appendChild(what);
+    const note = document.createElement('div');
+    note.className = 'main-todo-note';
+    li.appendChild(note);
+    paintTodo(li, todo);
+    return li;
+  }
+
+  function renderTodoBlock(turn, suggestions) {
+    if (!turn || !turn.el || !turn.el.isConnected) return;
+    const todos = suggestions && Array.isArray(suggestions.todos) ? suggestions.todos : [];
+    const recommendations = suggestions && Array.isArray(suggestions.recommendations) ? suggestions.recommendations.filter((s) => typeof s === 'string' && s.trim()) : [];
+    const old = turn.el.querySelector('.main-todos');
+    if (old) old.remove();
+    if (!todos.length && !recommendations.length) return;
+    const block = document.createElement('section');
+    block.className = 'main-todos';
+    block.setAttribute('aria-label', bt('mainTodo.title', 'Next actions'));
+    if (todos.length) {
+      const heading = document.createElement('h3');
+      heading.textContent = bt('mainTodo.title', 'Next actions');
+      block.appendChild(heading);
+      const list = document.createElement('ul');
+      list.className = 'main-todo-list';
+      todos.forEach((todo) => list.appendChild(todoItem(todo)));
+      block.appendChild(list);
+    }
+    if (recommendations.length) {
+      const heading = document.createElement('h4');
+      heading.textContent = bt('mainTodo.recsTitle', 'For you to do yourself (NAgex does not run these)');
+      block.appendChild(heading);
+      const list = document.createElement('ul');
+      list.className = 'main-todo-recs';
+      recommendations.forEach((text) => { const li = document.createElement('li'); li.textContent = text; list.appendChild(li); });
+      block.appendChild(list);
+    }
+    const anchor = turn.el.querySelector('.main-inline-actions');
+    if (anchor && anchor.parentNode) anchor.parentNode.insertBefore(block, anchor); else turn.el.appendChild(block);
+    scrollStreamToEnd();
+  }
+
+  function updateTodoViews(views) {
+    (views || []).forEach((todo) => {
+      document.querySelectorAll('.main-todo[data-todo-id="' + todo.todoId + '"]').forEach((li) => paintTodo(li, todo));
+    });
+  }
+
+  async function refreshTodos() {
+    const result = await api('/api/v1/todos');
+    const todos = result && !result.error && Array.isArray(result.todos) ? result.todos : [];
+    updateTodoViews(todos);
+    return todos;
+  }
+
+  async function linkTodo(todoId, body) {
+    const result = await api('/api/v1/todos/' + encodeURIComponent(todoId) + '/link', { method: 'POST', body: JSON.stringify(body) });
+    if (result && result.todo) updateTodoViews([result.todo]);
+    return result;
+  }
+
+  // follows a TODO whose state is decided elsewhere (an approval, a run) until it is settled
+  function watchTodo(todoId) {
+    state.todoWatch = state.todoWatch || {};
+    if (state.todoWatch[todoId]) return;
+    state.todoWatch[todoId] = true;
+    (async () => {
+      for (let i = 0; i < 150; i += 1) {
+        await new Promise((resolve) => setTimeout(resolve, 2000));
+        const todo = (await refreshTodos()).find((t) => t.todoId === todoId);
+        if (!todo || todo.state === 'COMPLETED' || todo.state === 'FAILED' || todo.state === 'PROPOSED') break;
+      }
+      state.todoWatch[todoId] = false;
+    })();
+  }
+
+  async function offerArtifactTodos(artifactId) {
+    const turn = state.activeTurn;
+    if (!/^art_[0-9a-f]{24}$/.test(String(artifactId || ''))) return;
+    const result = await api('/api/v1/todos/suggest', { method: 'POST', body: JSON.stringify({ artifactId }) });
+    if (result && !result.error && Array.isArray(result.todos)) renderTodoBlock(turn, result);
+  }
+
+  // only when the person asked for a to-do list / next steps; a plain question gets no list
+  async function offerConversationTodos(turn, message, answer, options) {
+    if (!TODO_ASK.test(message)) return;
+    const result = await api('/api/v1/todos/suggest', { method: 'POST', body: JSON.stringify({ message, answer, timezone: clientTimezone() }), timeoutMs: 90000 });
+    // after an advice answer the advice already lists what the person has to do themselves: only what NAgex can do is added
+    if (result && !result.error && Array.isArray(result.todos)) { renderTodoBlock(turn, options && options.todosOnly ? { todos: result.todos, recommendations: [] } : result); return; }
+    if (turn && turn.el && turn.el.isConnected) {
+      const note = document.createElement('p');
+      note.className = 'main-todos-note';
+      note.textContent = bt('mainTodo.unavailable', 'The next actions could not be prepared right now.');
+      const anchor = turn.el.querySelector('.main-inline-actions');
+      if (anchor && anchor.parentNode) anchor.parentNode.insertBefore(note, anchor);
+    }
+  }
+
+  // The person chose this one. It runs through the same handler as typed text (Enter / Send): route, plan preview, approval and run are unchanged.
+  async function runTodo(todoId, button) {
+    if (state.busy) { setComposerNotice(bt('mainTodo.busy', 'Finish the current request first.'), 'info'); return; }
+    if (state.voiceAdapter && state.voiceAdapter.isActive()) { setComposerNotice(bt('mainVoice.stopFirst', 'Recording stopped. Check the text, then press Enter or Send.'), 'info'); return; }
+    if (button) button.disabled = true;
+    const started = await api('/api/v1/todos/' + encodeURIComponent(todoId) + '/start', { method: 'POST', body: '{}' });
+    if (!started || started.error || typeof started.prompt !== 'string') {
+      if (button) button.disabled = false;
+      setComposerNotice(bt('mainTodo.unavailable', 'The next actions could not be prepared right now.'), 'error');
+      refreshTodos();
+      return;
+    }
+    updateTodoViews([started.todo]);
+    // a follow-up that continues from a report continues from THAT report, whatever else was opened since
+    if (started.source && /^art_[0-9a-f]{24}$/.test(String(started.source.artifactId || '')) && /^doc_[0-9a-f]{24}$/.test(String(started.source.documentId || ''))) {
+      state.recentDocument = { artifactId: started.source.artifactId, documentId: started.source.documentId, title: started.todo.title || '' };
+    }
+    const input = document.getElementById('main-surface-input');
+    const draft = input ? input.value : '';
+    state.pendingTodoId = todoId;
+    state.todoRun = { todoId, artifactId: null };
+    if (input) { input.value = started.prompt; autoGrow(input); }
+    await sendRequest();
+    const run = state.todoRun;
+    state.todoRun = null;
+    state.pendingTodoId = null;
+    if (input && draft && !input.value) { input.value = draft; autoGrow(input); }
+    // what the request produced, reported for the server to verify (a success is never taken on trust)
+    const turn = state.activeTurn;
+    if (turn && turn.todoId === todoId) {
+      if (turn.status === 'Error' || turn.status === 'Unavailable') await linkTodo(todoId, { failure: { code: 'REQUEST_FAILED' } });
+      else if (run && run.artifactId) await linkTodo(todoId, { artifactId: run.artifactId });
+      else if (turn.kind === 'answer') await linkTodo(todoId, { failure: { code: 'NOT_EXECUTED' } });
+      else await refreshTodos();
+    } else {
+      await refreshTodos();
+    }
+  }
+
   async function runPlan(prompt, metadata, route) {
     // "save that to my Vault": the answer on screen goes along ONLY for that request; the server uses it only when the request names no text of its own
     const savesToVault = ((routingDecisionOf(route, metadata).reasonCodes) || []).indexOf('VAULT_SAVE') >= 0;
@@ -1585,11 +1802,13 @@
       const suggestions = Array.isArray(result.advice.suggestions) ? result.advice.suggestions.filter((s) => typeof s === 'string' && s.trim()) : [];
       const markdown = [result.advice.summary]
         .concat(suggestions.length ? ['', '**' + mt('Suggested next moves') + '**'].concat(suggestions.map((s) => '- ' + s)) : [])
-        .concat(['', '_' + mt('No actions were taken. This is advice only.') + '_'])
+        .concat(['', '*' + mt('No actions were taken. This is advice only.') + '*'])
         .join(nl);
       rememberAnswer(result.advice.summary + nl + suggestions.join(nl));
       showThread(prompt, 'Answered', 'Advice', markdown, []);
       renderInlineActions([{ id: 'follow', label: 'Ask follow-up', action: () => focusComposer('') }]);
+      // a sentence of advice is addressed to the person, so it stays advice; when they asked for next steps / a to-do list, what NAgex can do for them is offered separately
+      offerConversationTodos(state.activeTurn, prompt, result.advice.summary + nl + suggestions.join(nl), { todosOnly: true });
       return;
     }
     if (!result || result.error || !result.plan) {
@@ -1891,6 +2110,7 @@
 
   function showResult(result) {
     state.result = result;
+    if (state.todoRun && result && result.artifactId && !state.todoRun.artifactId) state.todoRun.artifactId = result.artifactId;
     if (result && result.type === 'DOCUMENT' && /^art_[0-9a-f]{24}$/.test(String(result.artifactId || '')) && /^doc_[0-9a-f]{24}$/.test(String(result.documentId || ''))) {
       state.recentDocument = { artifactId: result.artifactId, documentId: result.documentId, title: result.title || '' };
     }
@@ -1921,7 +2141,7 @@
       }
     }
     // a research report is Markdown with headings, a source list and a method section: it is shown as such (safe DOM, no raw HTML), and its Sources tab shows where every source came from
-    if (preview && result.type === 'DOCUMENT' && result.researchRunId) {
+    if (preview && result.type === 'DOCUMENT') {
       const holder = preview.querySelector('.main-doc-page p');
       if (holder) {
         const body = document.createElement('div');
@@ -1990,7 +2210,7 @@
       type: projection.artifactType || 'ARTIFACT',
       imageUrl,
       title: projection.title || (document && document.title) || 'Stored artifact',
-      meta: [projection.artifactType || 'ARTIFACT', projection.state || 'ready'].filter(Boolean).join(' - '),
+      meta: [bt('mainArtifact.type.' + (projection.artifactType || 'ARTIFACT'), projection.artifactType || 'ARTIFACT'), bt('mainArtifact.state.' + String(projection.state || 'ready').toLowerCase(), projection.state || 'ready')].filter(Boolean).join(' - '),
       preview: (document && document.content) || projection.preview || projection.summary || 'This artifact has no inline preview.',
       artifactId,
       documentId,

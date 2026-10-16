@@ -79,6 +79,7 @@
       "enter_to_send_browser",
       "voice_input_browser",
       "canonical_domain_browser",
+      "todo_next_actions_browser",
       "calendar_reschedule_browser",
       "one_input_slides_chain_browser",
       "vault_save_approval_browser",
@@ -194,6 +195,8 @@
       "artifact_versions",
       "microsoft_integration_state",
       "public_url_config",
+      "response_quality",
+      "todo_next_actions",
       "structured_output_recovery",
       "time_context",
       "schedule_grounding"
@@ -455,7 +458,9 @@
       "artifact_versions",
       "microsoft_integration_state",
       "public_url_config",
+      "todo_next_actions",
       "canonical_domain_browser",
+      "todo_next_actions_browser",
       "research_source_fetcher"
     ]
   },
