@@ -1194,6 +1194,7 @@
       await createPresentation(prompt, metadata, { apiPrompt, ...(fromDocument ? { sourceArtifactIds: [state.recentDocument.artifactId] } : {}) });
     }
     else if (target === 'IMAGE') await createImage(prompt, metadata, { researchSkipped: (decision.reasonCodes || []).indexOf('RESEARCH_NOT_USED_FOR_IMAGE') >= 0 });
+    else if (target === 'VIDEO' && decision.supported !== false) await createVideo(prompt, metadata);
     else showUnsupported(prompt, decision);
   }
 
@@ -1430,6 +1431,237 @@
       openTarget: result.openTarget || imageUrl,
       projection,
     });
+  }
+
+  // ── Video: a price the person approves -> a real job at an outside service -> a stored MP4 ─────────────────────────────
+  // Everything on screen is what the server's job record says (priced, waiting for approval, queued, running, finished, failed, declined). There is no
+  // progress bar: the service does not report one, so none is drawn. The finished video is played and downloaded only from NAgex's own owner-checked path.
+  const VIDEO_MEDIA_PATH = /^\/api\/v1\/creations\/videos\/vid_[0-9a-f]{24}\/media$/;
+  const VIDEO_OPEN_PATH = /^\/api\/v1\/creations\/videos\/(vid_[0-9a-f]{24})$/;
+  const VIDEO_TERMINAL = ['COMPLETED', 'FAILED', 'CANCELLED', 'DECLINED', 'UNAVAILABLE'];
+  const VIDEO_STATE_TEXT = {
+    AWAITING_APPROVAL: ['mainVideo.state.awaiting', 'Waiting for your approval - nothing has been sent'],
+    SUBMITTING: ['mainVideo.state.submitting', 'Sending to the video service...'],
+    PENDING: ['mainVideo.state.pending', "Waiting in the video service's queue"],
+    RUNNING: ['mainVideo.state.running', 'The video service is making your video'],
+    COMPLETED: ['mainVideo.state.completed', 'Your video is ready'],
+    FAILED: ['mainVideo.state.failed', 'The video could not be made'],
+    CANCELLED: ['mainVideo.state.cancelled', 'Cancelled before it started'],
+    DECLINED: ['mainVideo.state.declined', 'Not started - nothing was sent'],
+    UNAVAILABLE: ['mainVideo.state.unavailable', "The video service can't take this right now"],
+  };
+  const VIDEO_ERROR_CODES = ['COST_LIMIT_EXCEEDED', 'COST_UNKNOWN', 'USER_DECLINED', 'APPROVAL_EXPIRED', 'APPROVAL_LOST', 'PROVIDER_UNCONFIGURED', 'PROVIDER_AUTH_FAILED', 'PROVIDER_QUOTA_EXCEEDED', 'PROVIDER_BILLING_REQUIRED',
+    'PROVIDER_INSUFFICIENT_CREDITS', 'PROVIDER_MODEL_NOT_FOUND', 'PROVIDER_UNAVAILABLE_ERROR', 'PROVIDER_REJECTED_REQUEST', 'CONTENT_REJECTED', 'SUBMIT_UNCERTAIN', 'WAIT_LIMIT_REACHED', 'MEDIA_INVALID', 'MEDIA_DOWNLOAD_FAILED',
+    'PROVIDER_JOB_FAILED', 'NO_CREATION_PROVIDER_AVAILABLE', 'IMAGE_NOT_FOUND', 'TIMEOUT', 'NETWORK_ERROR', 'MALFORMED_RESPONSE', 'UNSUPPORTED_ASPECT_RATIO'];
+
+  // "10초짜리 세로 영상" / "a 6 second vertical video": the length and shape the person asked for travel as numbers; the server clamps them to what the service offers.
+  function videoOptionsFrom(prompt) {
+    const text = String(prompt || '');
+    const options = {};
+    const seconds = /(\d{1,2})\s*(?:초|seconds?|secs?)/i.exec(text);
+    if (seconds) options.durationSeconds = Number(seconds[1]);
+    if (/(세로|vertical|portrait|9\s*:\s*16)/i.test(text)) options.aspectRatio = '9:16';
+    else if (/(정사각|square|1\s*:\s*1)/i.test(text)) options.aspectRatio = '1:1';
+    return options;
+  }
+
+  function videoErrorText(codeOrResult, fallback) {
+    const code = typeof codeOrResult === 'string' ? codeOrResult : (codeOrResult && (typeof codeOrResult.error === 'string' ? codeOrResult.error : codeOrResult.errorCode));
+    if (code && VIDEO_ERROR_CODES.indexOf(code) >= 0) return bt('mainVideo.err.' + code, fallback || code);
+    return fallback || (codeOrResult && (codeOrResult.errorMessage || codeOrResult.message)) || bt('mainVideo.err.generic', 'The video could not be made.');
+  }
+
+  function videoPriceText(view) {
+    const usd = view && view.estimate && typeof view.estimate.usd === 'number' ? view.estimate.usd : null;
+    return usd === null ? bt('mainVideo.priceUnknown', 'unknown') : '$' + usd.toFixed(2);
+  }
+
+  function videoBlockFor(turn) {
+    let block = turn.el.querySelector('.main-video-block');
+    if (!block) {
+      block = document.createElement('div');
+      block.className = 'main-video-block';
+      block.innerHTML = '<div class="main-video-head"><strong class="main-video-state"></strong></div><dl class="main-video-facts"></dl><p class="main-video-note"></p><div class="main-video-actions"></div>';
+      const anchor = turn.el.querySelector('.main-inline-approvals');
+      (anchor && anchor.parentNode ? anchor.parentNode : turn.el).insertBefore(block, anchor || null);
+    }
+    return block;
+  }
+
+  function videoResult(view, artifactId, projection) {
+    const mediaUrl = String(view.mediaUrl || '');
+    return {
+      type: 'VIDEO',
+      title: view.title || 'Video',
+      meta: ['MP4', view.durationSeconds + ' s', view.aspectRatio].join(' - '),
+      preview: view.prompt || '',
+      videoUrl: VIDEO_MEDIA_PATH.test(mediaUrl) ? mediaUrl : undefined,
+      artifactId: artifactId || view.artifactId,
+      openTarget: '/api/v1/creations/videos/' + view.jobId,
+      projection: projection || null,
+    };
+  }
+
+  function addVideoButton(host, label, className, onClick) {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'main-tool-btn ' + className;
+    button.textContent = label;
+    button.addEventListener('click', onClick);
+    host.appendChild(button);
+    return button;
+  }
+
+  // note: an optional sentence that replaces the default one (a refused action, a price that moved)
+  function renderVideo(turn, view, note) {
+    const block = videoBlockFor(turn);
+    turn.videoId = view.jobId;
+    block.dataset.videoState = view.status;
+    block.dataset.videoId = view.jobId;
+    const stateText = VIDEO_STATE_TEXT[view.status] || [null, view.status];
+    block.querySelector('.main-video-state').textContent = stateText[0] ? bt(stateText[0], stateText[1]) : stateText[1];
+
+    const facts = block.querySelector('.main-video-facts');
+    facts.textContent = '';
+    const addFact = (label, value) => {
+      const dt = document.createElement('dt'); dt.textContent = label;
+      const dd = document.createElement('dd'); dd.textContent = value;
+      facts.appendChild(dt); facts.appendChild(dd);
+    };
+    addFact(bt('mainVideo.fact.length', 'Length'), view.durationSeconds + ' ' + bt('mainVideo.fact.seconds', 'seconds'));
+    addFact(bt('mainVideo.fact.shape', 'Shape'), view.aspectRatio);
+    addFact(bt('mainVideo.fact.service', 'Made by'), view.serviceLabel);
+    addFact(bt('mainVideo.fact.price', 'Estimated price'),
+      videoPriceText(view) + ' (' + (view.estimate && view.estimate.basis === 'PROVIDER_QUOTE' ? bt('mainVideo.fact.quoted', "quoted by the service") : bt('mainVideo.fact.listed', 'from the published price list')) + ')');
+    if (view.sourceImageId) addFact(bt('mainVideo.fact.source', 'Starts from'), bt('mainVideo.fact.yourImage', 'your image'));
+
+    const noteEl = block.querySelector('.main-video-note');
+    let text = note || '';
+    if (!text && view.status === 'AWAITING_APPROVAL') text = bt('mainVideo.sendNote', 'Your description{image} is sent to {service}, an outside service, only if you approve. Nothing has been sent yet.')
+      .replace('{service}', view.serviceLabel).replace('{image}', view.sourceImageId ? bt('mainVideo.andImage', ' and image') : '');
+    if (!text && (view.status === 'PENDING' || view.status === 'RUNNING' || view.status === 'SUBMITTING')) text = bt('mainVideo.waitNote', 'This can take a few minutes. You can keep using NAgex; the video is saved when it is done.');
+    if (!text && view.status === 'COMPLETED') text = bt('mainVideo.doneNote', 'Saved to your creations. Play it or download it below.');
+    if (!text && (view.status === 'FAILED' || view.status === 'UNAVAILABLE' || view.status === 'DECLINED' || view.status === 'CANCELLED')) text = videoErrorText(view, view.errorMessage);
+    noteEl.textContent = text;
+    noteEl.hidden = !text;
+
+    const actions = block.querySelector('.main-video-actions');
+    actions.textContent = '';
+    if (view.status === 'AWAITING_APPROVAL') {
+      const approve = addVideoButton(actions, bt('mainVideo.approve', 'Approve and start') + ' (' + videoPriceText(view) + ')', 'main-video-approve', () => approveVideo(turn, view, approve, decline));
+      const decline = addVideoButton(actions, bt('mainVideo.decline', 'Decline'), 'main-video-decline', () => declineVideo(turn, view, approve, decline));
+    }
+    if (view.cancellable) {
+      const cancel = addVideoButton(actions, bt('mainVideo.cancel', 'Cancel'), 'main-video-cancel', async () => {
+        cancel.disabled = true;
+        const res = await api('/api/v1/creations/videos/' + encodeURIComponent(view.jobId) + '/cancel', { method: 'POST', body: JSON.stringify({}) });
+        if (res && !res.error && res.video) renderVideo(turn, res.video, res.cancelled ? '' : bt('mainVideo.cancelRefused', 'It has already started, so it can no longer be cancelled.'));
+        else { cancel.disabled = false; renderVideo(turn, view, videoErrorText(res, res && res.message)); }
+      });
+    }
+    if (view.status === 'COMPLETED') {
+      addVideoButton(actions, bt('mainVideo.open', 'Play video'), 'main-video-open', () => showResult(videoResult(view, view.artifactId, null)));
+      if (VIDEO_MEDIA_PATH.test(String(view.mediaUrl || ''))) {
+        const link = document.createElement('a');
+        link.className = 'main-tool-btn main-video-download';
+        link.href = view.mediaUrl + '?download=1';
+        link.download = '';
+        link.textContent = bt('mainVideo.download', 'Download video');
+        actions.appendChild(link);
+      }
+    }
+    scrollStreamToEnd();
+  }
+
+  async function approveVideo(turn, view, approve, decline) {
+    approve.disabled = true; decline.disabled = true;
+    const res = await api('/api/v1/creations/videos/' + encodeURIComponent(view.jobId) + '/approve', { method: 'POST', body: JSON.stringify({}) });
+    if (!res || res.error || !res.video) {
+      const expired = res && (res.error === 'APPROVAL_EXPIRED' || res.error === 'APPROVAL_LOST');
+      renderVideo(turn, expired ? Object.assign({}, view, { status: 'DECLINED', errorCode: res.error }) : view, videoErrorText(res, res && res.message));
+      if (!expired) { approve.disabled = false; decline.disabled = false; }
+      return;
+    }
+    if (res.reapprovalRequired) {
+      renderVideo(turn, res.video, bt('mainVideo.repriced', 'The price changed to about {price}. Please review it and approve again.').replace('{price}', videoPriceText(res.video)));
+      return;
+    }
+    renderVideo(turn, res.video);
+    if (VIDEO_TERMINAL.indexOf(res.video.status) < 0) watchVideo(turn, res.video.jobId);
+  }
+
+  async function declineVideo(turn, view, approve, decline) {
+    approve.disabled = true; decline.disabled = true;
+    const res = await api('/api/v1/creations/videos/' + encodeURIComponent(view.jobId) + '/decline', { method: 'POST', body: JSON.stringify({}) });
+    if (res && !res.error && res.video) renderVideo(turn, res.video);
+    else { approve.disabled = false; decline.disabled = false; renderVideo(turn, view, videoErrorText(res, res && res.message)); }
+  }
+
+  // The status is read from the server (which asks the service); a hiccup while reading is not an outcome, so it is waited out - within bounds.
+  async function watchVideo(turn, jobId) {
+    if (turn.videoWatching) return;
+    turn.videoWatching = true;
+    for (let i = 0; i < 600 && turn.el.isConnected; i += 1) {
+      await new Promise((resolve) => setTimeout(resolve, i < 5 ? 2000 : 4000));
+      if (!turn.el.isConnected) break;
+      const res = await api('/api/v1/creations/videos/' + encodeURIComponent(jobId));
+      if (!res || res.error || !res.video) continue;
+      renderVideo(turn, res.video);
+      if (VIDEO_TERMINAL.indexOf(res.video.status) >= 0) {
+        if (res.video.status === 'COMPLETED') showResult(videoResult(res.video, res.video.artifactId, null));
+        break;
+      }
+    }
+    turn.videoWatching = false;
+  }
+
+  async function createVideo(prompt, metadata) {
+    const result = await api('/api/v1/creations/videos', {
+      method: 'POST',
+      body: JSON.stringify(Object.assign({ prompt }, videoOptionsFrom(prompt))),
+      timeoutMs: 60000,
+    });
+    if (!result || result.error || !result.video) {
+      showThread(prompt, 'Unavailable', bt('mainVideo.unavailableTitle', 'Video could not be prepared'), videoErrorText(result, result && result.message), [
+        { state: 'done', label: 'Request captured', detail: 'Video' },
+        { state: 'running', label: bt('mainVideo.unavailableStep', 'Video service unavailable'), detail: (result && (result.error || result.status)) || '' },
+      ]);
+      return;
+    }
+    const view = result.video;
+    showThread(prompt, 'Needs approval', bt('mainVideo.approvalTitle', 'Review the price before the video is made'),
+      bt('mainVideo.approvalBody', 'Making a video costs money at an outside service. Nothing is sent until you approve.'), [
+        { state: 'done', label: 'Request captured', detail: 'Video' },
+        { state: 'running', label: bt('mainVideo.waitingStep', 'Waiting for your approval'), detail: '' },
+      ]);
+    if (state.activeTurn) {
+      renderVideo(state.activeTurn, view);
+      if (['PENDING', 'RUNNING', 'SUBMITTING'].indexOf(view.status) >= 0) watchVideo(state.activeTurn, view.jobId);
+    }
+  }
+
+  // After a refresh: unfinished videos (waiting for approval, queued or running) come back as cards, so the person can still approve or watch them.
+  async function resumeVideoJobs() {
+    if (state.activeTurn) return;
+    const list = await api('/api/v1/creations/videos');
+    const jobs = list && !list.error && Array.isArray(list.videos) ? list.videos : [];
+    const open = jobs.filter((job) => ['AWAITING_APPROVAL', 'SUBMITTING', 'PENDING', 'RUNNING'].indexOf(job.status) >= 0 && Date.now() - Date.parse(job.createdAt) < 6 * 3600 * 1000).slice(0, 3).reverse();
+    for (const job of open) {
+      showThread(job.prompt, 'Needs approval', job.status === 'AWAITING_APPROVAL' ? bt('mainVideo.approvalTitle', 'Review the price before the video is made') : bt('mainVideo.state.running', 'The video service is making your video'), '', []);
+      if (!state.activeTurn) continue;
+      const turn = state.activeTurn;
+      renderVideo(turn, job);
+      if (job.status !== 'AWAITING_APPROVAL') watchVideo(turn, job.jobId);
+      state.activeTurn = null;
+    }
+  }
+
+  async function initVideoSupport() {
+    const capability = await api('/api/v1/creations/videos/capability');
+    if (!capability || capability.error || capability.available !== true) return;
+    const mode = MODES.find((m) => m.id === 'VIDEO');
+    if (mode) { mode.enabled = true; mode.support = 'FULL'; mode.route = '/api/v1/creations/videos'; delete mode.reason; renderModes(); }
+    resumeVideoJobs();
   }
 
   // NAgex-owned presentation identity and download path; anything else is never rendered as a link
@@ -2135,6 +2367,8 @@
         const outline = (result.slides || []).map((slide, index) => `<li><strong>${esc(slide.title)}</strong><ul>${(slide.bullets || []).map((bullet) => `<li>${esc(bullet)}</li>`).join('')}</ul></li>`).join('');
         const link = result.downloadTarget ? `<p><a class="main-result-download" href="${esc(result.downloadTarget)}" download>${esc(bt('mainSlides.download', 'Download .pptx'))}</a></p>` : '';
         preview.innerHTML = `<article class="main-doc-page main-deck-page"><div><strong>NAgex</strong><br><small>${esc(mt('Your Personal AI'))}</small></div><h1>${esc(result.title || 'Presentation')}</h1>${result.subtitle ? `<p>${esc(result.subtitle)}</p>` : ''}${outline ? `<ol class="main-deck-outline">${outline}</ol>` : `<p>${esc(result.preview || '')}</p>`}${link}</article>`;
+      } else if (result.type === 'VIDEO' && result.videoUrl) {
+        preview.innerHTML = `<article class="main-doc-page main-video-page"><div><strong>NAgex</strong><br><small>${esc(mt('Your Personal AI'))}</small></div><h1>${esc(localizeAppText(result.title || 'Video'))}</h1><video class="main-video-player" controls preload="metadata" playsinline src="${esc(result.videoUrl)}"></video><p>${esc(localizeAppText(result.preview || ''))}</p><p><a class="main-result-download" href="${esc(result.videoUrl)}?download=1" download>${esc(bt('mainVideo.download', 'Download video'))}</a></p></article>`;
       } else if (result.type === 'IMAGE' && result.imageUrl) {
         preview.innerHTML = `<article class="main-doc-page main-image-page"><div><strong>NAgex</strong><br><small>${esc(mt('Your Personal AI'))}</small></div><h1>${esc(localizeAppText(result.title || 'Generated image'))}</h1><img src="${esc(result.imageUrl)}" alt="${esc(localizeAppText(result.title || 'Generated image'))}" loading="lazy"><p>${esc(localizeAppText(result.preview || 'Image artifact'))}</p>${imageDownloadLink(result)}</article>`;
       } else {
@@ -2203,6 +2437,14 @@
     const artifact = await api('/api/v1/artifacts/' + encodeURIComponent(artifactId));
     if (!artifact || artifact.error || !artifact.projection) return false;
     const projection = artifact.projection;
+    if (projection.artifactType === 'VIDEO') {
+      // a stored video is read from its own job record (owner-checked); only a finished one has a file to play
+      if (!VIDEO_OPEN_PATH.test(String(projection.openTarget || ''))) return false;
+      const detail = await api(projection.openTarget);
+      if (!detail || detail.error || !detail.video || detail.video.status !== 'COMPLETED') return false;
+      showResult(videoResult(detail.video, artifactId, projection));
+      return true;
+    }
     if (projection.artifactType === 'PRESENTATION' && PRESENTATION_VIEW_PATH.test(String(projection.openTarget || ''))) {
       const viewer = await api(projection.openTarget);
       if (!viewer || viewer.error || !viewer.presentation) return false;
@@ -3312,6 +3554,7 @@
     bind();
     wireAttentionBell();
     initHomeBriefing();
+    initVideoSupport();
     window.NAGEX_MAIN_SURFACE = Object.freeze({
       openArtifactResult,
       getControlMatrix: () => [

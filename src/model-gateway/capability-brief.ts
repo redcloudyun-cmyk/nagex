@@ -38,6 +38,18 @@ export const CAPABILITY_BRIEF: CapabilityBrief = Object.freeze({
   ],
 });
 
+const VIDEO_AVAILABLE_LINE = 'Short videos (about 3 to 15 seconds) from a description or from one of the person\'s own images: made by an outside video service, which takes minutes; the person sees the price and approves it first, and the finished video is saved so it can be played and downloaded.';
+
+// The brief for THIS installation: video is described as available only when a video service is really configured (the same fact the router uses),
+// and the "cannot make videos" line is dropped then - the model must never be told both.
+export function capabilityBriefFor(options: { video?: boolean } = {}): CapabilityBrief {
+  if (!options.video) return CAPABILITY_BRIEF;
+  return Object.freeze({
+    available: [...CAPABILITY_BRIEF.available, VIDEO_AVAILABLE_LINE],
+    notAvailable: CAPABILITY_BRIEF.notAvailable.filter((line) => !/^Video creation/.test(line)),
+  });
+}
+
 export function capabilityBriefLines(brief: CapabilityBrief = CAPABILITY_BRIEF): string[] {
   return [
     'WHAT NAGEX CAN REALLY DO (describe NAgex ONLY with this list - never with the general abilities of an AI model):',

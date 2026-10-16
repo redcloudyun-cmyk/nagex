@@ -52,6 +52,9 @@
       // placeholder below.
       return `<div class="ph-artifact-thumbnail" style="width:48px;height:48px;border-radius:6px;overflow:hidden;flex-shrink:0;background:#1e293b;margin-right:12px;position:relative;"><img src="${esc(proj.previewTarget)}" alt="" style="width:100%;height:100%;object-fit:cover;" onerror="this.style.display='none';this.nextElementSibling.style.display='flex';" /><span style="display:none;width:100%;height:100%;align-items:center;justify-content:center;background:#e2e8f0;color:#64748b;"><svg class="svg-icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg></span></div>`;
     }
+    if (proj.previewKind === 'VIDEO') {
+      return `<div class="ph-artifact-thumbnail" style="width:48px;height:48px;border-radius:8px;flex-shrink:0;margin-right:12px;display:flex;align-items:center;justify-content:center;background:#cffafe;color:#0e7490;"><svg viewBox="0 0 24 24" style="width:22px;height:22px;" fill="currentColor"><path d="M8 5v14l11-7z"/></svg></div>`;
+    }
     if (proj.previewKind === 'TEXT') {
       const upperType = String(proj.artifactType || '').toUpperCase();
       const isResearch = upperType === 'RESEARCH' || upperType === 'ANALYSIS';
@@ -459,6 +462,16 @@
   window.NAGEX.dispatchArtifactOpen = function (type, sourceRef, item) {
     const proj = item && item.artifactProjection;
     if (proj) {
+      if (proj.previewKind === 'VIDEO') {
+        // a finished video plays in the Main result panel (owner-checked path); without Main on this screen it is said plainly
+        if (window.NAGEX_MAIN_ACTIONS && typeof window.NAGEX_MAIN_ACTIONS.openArtifact === 'function') {
+          window.NAGEX_MAIN_ACTIONS.openArtifact(proj.artifactId);
+          return { handled: true, status: 'OPENED_IN_MAIN', artifactId: proj.artifactId, artifactType: proj.artifactType };
+        }
+        const unavailableMsg = locale() === 'ko' ? '이 화면에서는 영상을 열 수 없어요. 홈에서 열어 주세요.' : 'This screen cannot play the video. Open it from Home.';
+        if (typeof window.alert === 'function') window.alert(unavailableMsg);
+        return { handled: true, status: 'VIDEO_NOT_OPENABLE', message: unavailableMsg };
+      }
       if (proj.previewKind === 'PLANNED') {
         const msg = locale() === 'ko' ? '해당 기능은 향후 업데이트에서 지원될 예정입니다.' : 'This artifact type is planned for a future update.';
         if (typeof window.alert === 'function') window.alert(msg);

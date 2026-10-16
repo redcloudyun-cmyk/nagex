@@ -4454,6 +4454,41 @@
         "NAGEX_DEPLOYED_URL"
       ]
     },
+    "video_generation": {
+      "milestone": "IMAGE-VIDEO-20261016",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "creation-runtime",
+        "videos",
+        "model-routing",
+        "security"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "A video is priced and approved before anything is sent: prepare sends nothing to the provider, the approval (the existing ActionApprovalStore) binds the exact request and price, a price that rose needs a new approval, a declined / expired / lost approval never starts a job, a double approve or a repeated identical request starts one paid job, and the provider call carries a stable idempotency key (a lost answer is retried once with it where the provider de-duplicates, otherwise reported as uncertain; a restart mid-submission is resolved the same way); states come only from the provider (PENDING -> RUNNING -> COMPLETED), waiting is bounded, a download is accepted only if it is a structurally valid MP4 and is stored for its owner (another person / tenant gets nothing, Range playback and download work), provider errors (credentials, credits, quota, billing, content, busy, unreachable) are distinct and truthful, the Higgsfield adapter follows its documented REST contract and never follows a status address from a response, the Veo adapter is offered only when the operator enabled it and prices from the published table, and image-to-video uploads the person's own image only after approval.",
+      "notes": "Loopback HTTP stand-ins written from the providers' public documentation; no network, no real provider, no spend. A pass proves NAgex's side of the contract, not that Higgsfield or Google answer this way today and not what a real model draws."
+    },
+    "video_generation_browser": {
+      "milestone": "IMAGE-VIDEO-20261016",
+      "classification": "REAL_BROWSER_CERT",
+      "canonical": true,
+      "scopes": [
+        "browser",
+        "ux",
+        "creation-runtime",
+        "videos"
+      ],
+      "externalDependencies": [],
+      "realBrowser": true,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "In real Chromium against the production server (front end, input router, video routes, job service, the real Higgsfield adapter): a video request first shows the price and the outside service and sends NOTHING until the person approves; declining sends nothing; approving (even a double click) starts one paid job with an idempotency key; the on-screen states are the job record's; a finished MP4 is stored, played and downloaded only from NAgex's owner-checked path (Range playback works, another account gets 404), listed in the creation history and still there after a refresh; a waiting approval comes back after a refresh; a service refusal (no credit) and a content rejection are said plainly in the screen's language with no raw provider text and no video; the card fits a 390px phone with touch-size buttons.",
+      "notes": "The Higgsfield API is a loopback stand-in written from its public documentation (NAGEX_VIDEO_HIGGSFIELD_BASE_URL); every real provider credential is scrubbed. Proves NAgex's own chain, not a live Higgsfield or Google video.",
+      "writesRepositoryArtifacts": false
+    },
     "google_image_adapter": {
       "milestone": "IMAGE-VIDEO-20261016",
       "classification": "CANONICAL_BEHAVIOR",

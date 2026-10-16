@@ -159,6 +159,18 @@ NAgex should own:
 
 NAgex should not attempt to build a foundation video model merely to own the workflow.
 
+### 9.1 Implemented video runtime (2026-10-16)
+
+A video is an asynchronous, paid job at an outside service, so `VideoProviderPort` is a job port (price estimate, submit with an idempotency key, poll, optional cancel while queued, download), not a blocking call. The runtime lives in `VideoJobService`:
+
+```text
+Request → Price (provider quote or published price list, labelled) → Approval (the existing ActionApprovalStore, bound to provider, model,
+prompt, length, shape, source image and price) → Submit once → Bounded polling (provider states only) → Download (outbound-URL policy)
+→ Validate a real MP4 → Store (owner-checked) → Artifact (VIDEO) → Play / download
+```
+
+Rules: nothing is sent to a provider before the approval; a price that rose by more than 10 % needs a new approval; the same paid job is never started twice (identical active requests are one job, the approval is consumed once, the provider call carries the job's idempotency key, a restart mid-submission is resolved or reported as uncertain, never repeated blindly); `COMPLETED` exists only after a valid MP4 is stored; no progress percentage is shown because providers do not report one; a provider or price change is a new request with a new approval. Video is offered (router, capability brief, UI) only when a provider is really configured. Adapters: Higgsfield (REST, server-side key pair) and Google Veo (paid; offered only when the operator enables it). Evidence and live-run requirements: `docs/evidence/NAGEX_VIDEO_GENERATION_20261016.md`.
+
 ## 10. Provider Capability & Availability
 
 Provider selection must be capability-aware and availability-aware.
