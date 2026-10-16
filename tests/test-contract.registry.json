@@ -6598,6 +6598,38 @@
       "notes": "Production server in-process with disposable signed-in users; no model, no network.",
       "writesRepositoryArtifacts": false
     },
+    "artifact_versions": {
+      "milestone": "R26D-ARTIFACT-VERSIONS",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "runtime",
+        "security",
+        "ux"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "Every revision of a report or a deck is a version that stays retrievable and unchanged: the differences between two versions are computed by NAgex (line diff for a document, slide-by-slide for a deck; a paragraph inserted in the middle is ONE addition); bringing an older version back creates a NEW version (the next revision of the same family, with its own artifact and, for a deck, its own copy of the file) and never overwrites any version - the stored records and files of the existing versions are byte-for-byte identical afterwards; restoring what already is the newest text is refused (VERSION_ALREADY_CURRENT, no second identical version from a double click); another person, another tenant, a malformed and an unknown id are the same \"not found\" (404) for list, compare and restore, a foreign version cannot be smuggled into a comparison, unrelated documents are VERSIONS_NOT_RELATED (400); the audit trail carries ids, never the text; the words \"compare the versions / restore the previous version\" are recognised only when a document or deck is in play and never when the person asks to create something.",
+      "notes": "Real document / presentation stores, artifact store, executors, version service and route handlers on isolated directories; no model."
+    },
+    "artifact_versions_browser": {
+      "milestone": "R26D-ARTIFACT-VERSIONS",
+      "classification": "REAL_BROWSER_CERT",
+      "canonical": true,
+      "scopes": [
+        "browser",
+        "ux"
+      ],
+      "externalDependencies": [],
+      "realBrowser": true,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "In Main (Korean and English), \"지난번 보고서 수정 전 버전과 지금 버전을 비교해줘\" shows what changed between the version before and the current one (added and removed lines told by mark and colour), the Versions tab lists every version with the current one marked, bringing an older version back adds a NEW current version and leaves the stored files of the older ones byte-for-byte unchanged, restoring the same text again is refused with the reason, a request to \"restore\" only opens the list (never acts on words alone), a report with no earlier version says so, a deck shows added / removed / changed slides and its older version comes back as a new deck; another signed-in person gets 404 for list, compare and restore and finds nothing from the same sentence; no raw i18n keys or internal ids are shown.",
+      "notes": "Production server in-process with disposable signed-in users and seeded version families; no model, no network.",
+      "writesRepositoryArtifacts": false
+    },
     "memory_supersession": {
       "milestone": "SPRINT03-MEMORY-SUPERSESSION",
       "classification": "CANONICAL_BEHAVIOR",

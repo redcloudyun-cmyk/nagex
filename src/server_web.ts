@@ -783,6 +783,7 @@ export async function handleAsyncApiRequest(
         creationRuntime: app.creationRuntime,
         documentExecutor: app.documentExecutor,
         documentStore: app.documentStore,
+        versionService: app.artifactVersionService,
       });
       if (docCreationResult) return docCreationResult;
     }
@@ -793,6 +794,7 @@ export async function handleAsyncApiRequest(
         creationRuntime: app.creationRuntime,
         presentationStore: app.presentationStore,
         presentationExecutor: app.presentationExecutor,
+        versionService: app.artifactVersionService,
       });
       if (presentationResult) return presentationResult;
     }

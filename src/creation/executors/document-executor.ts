@@ -142,7 +142,7 @@ export class DocumentExecutor implements CreationExecutor<CreationRequest, Creat
   }
 
   // Canonical document + its thin projection for Recent Creations + the governance audit event. Shared by model-written documents (execute) and documents NAgex composed itself (createFromContent).
-  private persist(docRecord: DocumentRecord, requestId: string, details: Record<string, unknown>): { artifactId: string } | undefined {
+  private persist(docRecord: DocumentRecord, requestId: string, details: Record<string, unknown>, action = 'document.created'): { artifactId: string } | undefined {
     this.deps.documentStore.save(docRecord);
     let artifactRecord: { artifactId: string } | undefined;
     if (this.deps.artifactStore) {
@@ -162,13 +162,61 @@ export class DocumentExecutor implements CreationExecutor<CreationRequest, Creat
     this.deps.auditLogger?.logEvent({
       actor: { type: 'user', id: docRecord.ownerId },
       tenant_id: docRecord.tenantId,
-      action: 'document.created',
+      action,
       resource: { type: 'DocumentRecord', id: docRecord.documentId },
       result: 'SUCCESS',
       request_id: requestId,
       details: { title: docRecord.title, documentKind: docRecord.documentKind, ...details },
     });
     return artifactRecord;
+  }
+
+  // Bringing an older version back: a NEW version (the next revision of the family) whose text is the older one's. Nothing is overwritten - not the older version, not the newest - and no model is asked.
+  // Restoring what is already the newest text is refused (there is nothing to bring back), so a double click cannot add a second identical version.
+  public restoreVersion(params: { sourceDocumentId: string; tenantId: string; ownerId: string; requestId: string }): CreationResult {
+    const fail = (errorCode: string, errorMessage: string): CreationResult => ({
+      status: 'FAILED', creationId: '', creationKind: 'DOCUMENT', title: '', summary: '', content: '', openTarget: '', mimeType: 'text/markdown', createdAt: new Date().toISOString(), errorCode, errorMessage,
+    });
+    const source = this.deps.documentStore.get(params.sourceDocumentId, params.tenantId, params.ownerId);
+    if (!source) return fail('DOCUMENT_NOT_FOUND', `Document ${params.sourceDocumentId} not found.`);
+    const root = source.parentDocumentId || source.documentId;
+    const family = this.deps.documentStore.getRevisions(root, params.tenantId, params.ownerId);
+    const newest = [...family].sort((a, b) => a.revisionIndex - b.revisionIndex || Date.parse(a.createdAt) - Date.parse(b.createdAt)).pop() ?? source;
+    if (newest.documentId === source.documentId || newest.content === source.content) return fail('VERSION_ALREADY_CURRENT', 'This version is already the current one.');
+    const documentId = `doc_${crypto.createHash('sha256').update(`${params.tenantId}:${params.ownerId}:restore:${source.documentId}:${newest.documentId}`).digest('hex').slice(0, 24)}`;
+    const now = new Date().toISOString();
+    const record: DocumentRecord = {
+      documentId,
+      tenantId: params.tenantId,
+      ownerId: params.ownerId,
+      title: source.title,
+      summary: source.summary,
+      content: source.content,
+      documentKind: source.documentKind,
+      locale: source.locale,
+      format: source.format,
+      sourceRefs: source.sourceRefs,
+      ...(source.researchRunId ? { researchRunId: source.researchRunId } : {}),
+      parentDocumentId: root,
+      restoredFromDocumentId: source.documentId,
+      revisionIndex: newest.revisionIndex + 1,
+      createdAt: now,
+      updatedAt: now,
+    };
+    const artifact = this.persist(record, params.requestId, { composedBy: 'NAGEX', restoredFrom: source.documentId, revisionIndex: record.revisionIndex }, 'document.restored');
+    return {
+      status: 'SUCCESS',
+      creationId: documentId,
+      creationKind: 'DOCUMENT',
+      title: record.title,
+      summary: record.summary,
+      content: record.content,
+      openTarget: `/api/v1/creations/documents/${documentId}`,
+      artifactId: artifact?.artifactId,
+      mimeType: 'text/markdown',
+      metadata: { documentKind: record.documentKind, restoredFrom: source.documentId, revisionIndex: record.revisionIndex },
+      createdAt: now,
+    };
   }
 
   // A document whose text was composed by NAgex itself (a verified research report): nothing is asked of a model here. The id is derived from the run that produced it, so the same run is never stored twice.

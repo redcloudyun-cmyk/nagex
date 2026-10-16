@@ -1026,6 +1026,12 @@
       return;
     }
 
+    // "지난번 보고서 수정 전 버전과 지금 버전을 비교해줘": about the versions of a report or a deck - answered from the stored versions, nothing is created
+    if (decision.kind === 'CONVERSATION' && ((decision.reasonCodes || []).indexOf('COMPARE_VERSIONS') >= 0 || (decision.reasonCodes || []).indexOf('RESTORE_VERSION') >= 0)) {
+      await runVersionRequest(prompt, decision);
+      return;
+    }
+
     // "Revise" was pressed on a document: the next request is its instruction. Only an action or something unavailable is kept out of that path.
     if (state.revisionTarget && decision.kind !== 'ACTION_PLAN' && decision.kind !== 'UNSUPPORTED' && decision.kind !== 'CLARIFY') {
       await reviseDocument(prompt, metadata, state.revisionTarget);
@@ -1885,6 +1891,12 @@
     const previewTab = document.getElementById('main-result-preview-tab');
     if (previewTab) previewTab.classList.add('active');
     if (sourcesTab) sourcesTab.classList.remove('active');
+    // a report or a deck has versions (a new one with every revision); the tab is only enabled for something that can have them
+    const versionsTab = document.getElementById('main-result-versions');
+    if (versionsTab) {
+      versionsTab.disabled = !versionSubject();
+      versionsTab.classList.remove('active');
+    }
     const openButton = document.getElementById('main-result-open');
     if (openButton) {
       // a presentation opens in this panel (outline + download); there is no separate Canvas viewer for decks
@@ -1995,6 +2007,274 @@
       article.appendChild(none);
     }
     preview.appendChild(article);
+  }
+
+  // ── Versions (R26-D) ──────────────────────────────────────────────────────────────────────────────────────
+  // Every revision of a report or a deck is a version that stays retrievable. The Versions tab lists them, shows what changed between two of them (computed by the server from the stored text) and
+  // brings an older one back as a NEW version - nothing is ever overwritten. All text from the server is shown with textContent, never as HTML.
+  const VERSION_DOC_ID = /^doc_[0-9a-f]{24}$/;
+
+  function versionSubject() {
+    const r = state.result;
+    if (!r) return null;
+    if (r.type === 'DOCUMENT' && VERSION_DOC_ID.test(String(r.documentId || ''))) return { kind: 'DOCUMENT', id: r.documentId };
+    const presentationId = openPresentationId();
+    if (r.type === 'PRESENTATION' && presentationId) return { kind: 'PRESENTATION', id: presentationId };
+    return null;
+  }
+
+  function versionBase(kind) {
+    return kind === 'PRESENTATION' ? '/api/v1/creations/presentations/' : '/api/v1/creations/documents/';
+  }
+
+  function versionErrorCode(response) {
+    if (!response) return 'UNAVAILABLE';
+    if (typeof response.error === 'string') return response.error;
+    return response.error && response.error.code ? response.error.code : '';
+  }
+
+  function versionEl(tag, className, text) {
+    const node = document.createElement(tag);
+    if (className) node.className = className;
+    if (text != null) node.textContent = text;
+    return node;
+  }
+
+  function setResultTab(name) {
+    ['preview-tab', 'sources', 'versions'].forEach((id) => {
+      const tab = document.getElementById('main-result-' + id);
+      if (tab) tab.classList.toggle('active', id === name || (name === 'preview' && id === 'preview-tab'));
+    });
+  }
+
+  function versionLabel(version) {
+    return bt('mainVersions.label', 'Version {n}').replace('{n}', String(version.revisionIndex));
+  }
+
+  function versionSize(version) {
+    return version.kind === 'PRESENTATION'
+      ? bt('mainVersions.slides', '{n} slides').replace('{n}', String(version.size))
+      : bt('mainVersions.chars', '{n} characters').replace('{n}', String(version.size));
+  }
+
+  function versionsPanel(preview, heading) {
+    setResultTab('versions');
+    preview.textContent = '';
+    const article = versionEl('article', 'main-doc-page main-versions');
+    article.appendChild(versionEl('h1', '', heading || bt('mainText.Versions', 'Versions')));
+    preview.appendChild(article);
+    return article;
+  }
+
+  async function showVersions(subject, notice) {
+    const preview = document.getElementById('main-result-preview');
+    if (!preview || !subject) return;
+    const response = await api(versionBase(subject.kind) + encodeURIComponent(subject.id) + '/versions');
+    const article = versionsPanel(preview);
+    if (notice) {
+      const note = versionEl('p', 'main-versions-notice', notice);
+      note.setAttribute('role', 'status');
+      article.appendChild(note);
+    }
+    if (!response || response.error || !Array.isArray(response.versions)) {
+      article.appendChild(versionEl('p', '', bt('mainVersions.loadFailed', 'The versions could not be loaded.')));
+      return;
+    }
+    const versions = response.versions;
+    if (versions.length < 2) article.appendChild(versionEl('p', '', bt('mainVersions.onlyOne', 'There is only one version so far. Revise it and the earlier version stays here.')));
+    const list = versionEl('ol', 'main-versions-list');
+    versions.forEach((version) => {
+      const item = versionEl('li', 'main-version-item' + (version.current ? ' current' : ''));
+      item.dataset.versionId = version.id;
+      const head = versionEl('div', 'main-version-head');
+      head.appendChild(versionEl('strong', '', versionLabel(version)));
+      if (version.current) head.appendChild(versionEl('span', 'main-version-tag', bt('mainVersions.current', 'Current')));
+      item.appendChild(head);
+      const from = version.restoredFromId ? versions.find((v) => v.id === version.restoredFromId) : null;
+      const meta = [new Date(version.createdAt).toLocaleString(), versionSize(version)];
+      if (from) meta.push(bt('mainVersions.restoredFrom', 'Brought back from version {n}').replace('{n}', String(from.revisionIndex)));
+      item.appendChild(versionEl('div', 'main-version-meta', meta.join(' · ')));
+      if (version.title) item.appendChild(versionEl('div', 'main-version-title', version.title));
+      if (!version.current) {
+        const actions = versionEl('div', 'main-version-actions');
+        const compare = versionEl('button', 'btn-secondary main-version-compare', bt('mainVersions.compare', 'Compare with current'));
+        compare.type = 'button';
+        compare.addEventListener('click', () => showVersionCompare(subject, version.id, versions[0].id));
+        const view = versionEl('button', 'btn-secondary main-version-view', bt('mainVersions.view', 'View'));
+        view.type = 'button';
+        view.disabled = !version.artifactId;
+        view.addEventListener('click', () => viewVersion(version));
+        const restore = versionEl('button', 'btn-primary main-version-restore', bt('mainVersions.restore', 'Bring this version back'));
+        restore.type = 'button';
+        restore.addEventListener('click', () => restoreVersion(subject, version, restore));
+        actions.appendChild(compare);
+        actions.appendChild(view);
+        actions.appendChild(restore);
+        item.appendChild(actions);
+      }
+      list.appendChild(item);
+    });
+    article.appendChild(list);
+    if (versions.length > 1) article.appendChild(versionEl('p', 'main-versions-hint', bt('mainVersions.hint', 'Bringing a version back adds it as a new version. No earlier version is changed or removed.')));
+  }
+
+  async function viewVersion(version) {
+    if (!version.artifactId) return;
+    const opened = await openArtifactResult(version.artifactId);
+    const subject = versionSubject();
+    if (opened && subject) await showVersions(subject);
+  }
+
+  function diffRow(kind, text) {
+    const row = versionEl('div', 'main-diff-line ' + kind);
+    row.appendChild(versionEl('span', 'main-diff-mark', kind === 'added' ? '+' : kind === 'removed' ? '−' : ''));
+    row.appendChild(versionEl('span', 'main-diff-text', text));
+    return row;
+  }
+
+  function renderDocumentDiff(container, comparison) {
+    const diff = comparison.diff;
+    if (comparison.titleChanged) {
+      container.appendChild(versionEl('p', 'main-diff-title', bt('mainVersions.titleChanged', 'Title: {a} → {b}').replace('{a}', comparison.titleChanged.from).replace('{b}', comparison.titleChanged.to)));
+    }
+    if (diff.identical) { container.appendChild(versionEl('p', '', bt('mainVersions.identical', 'These two versions have the same content.'))); return; }
+    if (diff.tooLarge) { container.appendChild(versionEl('p', '', bt('mainVersions.tooLarge', 'These versions are too long to compare line by line.'))); return; }
+    const box = versionEl('div', 'main-diff');
+    diff.lines.forEach((line) => {
+      if (line.kind === 'fold') box.appendChild(versionEl('div', 'main-diff-fold', bt('mainVersions.unchangedLines', '{n} unchanged lines').replace('{n}', String(line.hidden))));
+      else box.appendChild(diffRow(line.kind, line.text || ' '));
+    });
+    container.appendChild(box);
+  }
+
+  function renderDeckDiff(container, comparison) {
+    const diff = comparison.diff;
+    if (diff.titleChanged) {
+      container.appendChild(versionEl('p', 'main-diff-title', bt('mainVersions.titleChanged', 'Title: {a} → {b}').replace('{a}', diff.titleChanged.from).replace('{b}', diff.titleChanged.to)));
+    }
+    if (diff.identical) { container.appendChild(versionEl('p', '', bt('mainVersions.identical', 'These two versions have the same content.'))); return; }
+    const labels = {
+      added: bt('mainVersions.slideAdded', 'Slide added'),
+      removed: bt('mainVersions.slideRemoved', 'Slide removed'),
+      changed: bt('mainVersions.slideChanged', 'Slide changed'),
+      unchanged: bt('mainVersions.slideSame', 'Slide unchanged'),
+    };
+    diff.slides.forEach((slide) => {
+      const box = versionEl('div', 'main-diff-slide ' + slide.change);
+      const head = versionEl('div', 'main-diff-slide-head');
+      head.appendChild(versionEl('strong', '', slide.toTitle || slide.fromTitle || ''));
+      head.appendChild(versionEl('span', 'main-version-tag', labels[slide.change]));
+      box.appendChild(head);
+      if (slide.change !== 'unchanged') slide.bullets.forEach((bullet) => box.appendChild(diffRow(bullet.kind, bullet.text)));
+      container.appendChild(box);
+    });
+  }
+
+  async function showVersionCompare(subject, fromId, toId) {
+    const preview = document.getElementById('main-result-preview');
+    if (!preview || !subject) return;
+    const response = await api(versionBase(subject.kind) + encodeURIComponent(fromId) + '/compare?to=' + encodeURIComponent(toId));
+    const article = versionsPanel(preview, bt('mainVersions.comparing', 'What changed'));
+    const comparison = response && response.comparison ? response.comparison : null;
+    const back = versionEl('button', 'btn-secondary main-version-back', bt('mainVersions.back', 'All versions'));
+    back.type = 'button';
+    back.addEventListener('click', () => showVersions(subject));
+    if (!comparison) {
+      article.appendChild(versionEl('p', '', bt('mainVersions.compareFailed', 'These versions could not be compared.')));
+      article.appendChild(back);
+      return;
+    }
+    const to = comparison.to;
+    const from = comparison.from;
+    article.appendChild(versionEl('p', 'main-diff-head', bt('mainVersions.fromTo', '{a} ({da}) → {b} ({db})')
+      .replace('{a}', versionLabel(from)).replace('{da}', new Date(from.createdAt).toLocaleString())
+      .replace('{b}', versionLabel(to) + (to.current ? ' · ' + bt('mainVersions.current', 'Current') : '')).replace('{db}', new Date(to.createdAt).toLocaleString())));
+    const stats = comparison.diff.stats;
+    const summary = comparison.kind === 'PRESENTATION'
+      ? bt('mainVersions.deckStats', '{a} slides added, {r} removed, {c} changed, {u} unchanged').replace('{a}', String(stats.added)).replace('{r}', String(stats.removed)).replace('{c}', String(stats.changed)).replace('{u}', String(stats.unchanged))
+      : bt('mainVersions.docStats', '{a} lines added, {r} removed, {u} unchanged').replace('{a}', String(stats.added)).replace('{r}', String(stats.removed)).replace('{u}', String(stats.unchanged));
+    const stat = versionEl('p', 'main-diff-stats', summary);
+    stat.setAttribute('role', 'status');
+    article.appendChild(stat);
+    if (comparison.kind === 'PRESENTATION') renderDeckDiff(article, comparison); else renderDocumentDiff(article, comparison);
+    const actions = versionEl('div', 'main-version-actions');
+    actions.appendChild(back);
+    if (!from.current) {
+      const restore = versionEl('button', 'btn-primary main-version-restore', bt('mainVersions.restoreN', 'Bring {n} back').replace('{n}', versionLabel(from)));
+      restore.type = 'button';
+      restore.addEventListener('click', () => restoreVersion(subject, from, restore));
+      actions.appendChild(restore);
+    }
+    article.appendChild(actions);
+  }
+
+  async function restoreVersion(subject, version, button) {
+    if (button) button.disabled = true;
+    const response = await api(versionBase(subject.kind) + encodeURIComponent(version.id) + '/restore', { method: 'POST', body: JSON.stringify({}) });
+    const code = versionErrorCode(response);
+    if (!response || code || response.status === 'FAILED') {
+      if (button) button.disabled = false;
+      const message = code === 'VERSION_ALREADY_CURRENT' ? bt('mainVersions.alreadyCurrent', 'This version is already the current one.')
+        : code === 'PRESENTATION_FILE_MISSING' ? bt('mainVersions.fileMissing', 'The file of that version is no longer available.')
+        : bt('mainVersions.restoreFailed', 'The version could not be brought back.');
+      await showVersions(subject, message);
+      return;
+    }
+    const opened = response.artifactId ? await openArtifactResult(response.artifactId) : false;
+    const next = opened ? versionSubject() : subject;
+    const newest = response.metadata && response.metadata.revisionIndex ? response.metadata.revisionIndex : '';
+    await showVersions(next || subject, bt('mainVersions.restored', '{a} was brought back as version {b}. The earlier versions are unchanged.').replace('{a}', versionLabel(version)).replace('{b}', String(newest)));
+  }
+
+  // "지난번 보고서 수정 전 버전과 지금 버전을 비교해줘" / "이전 버전으로 되돌려줘": the server only recognised the words (reason codes COMPARE_VERSIONS / RESTORE_VERSION). The comparison is read from the
+  // stored versions; restoring is never done from words alone - the person picks the version in the list and presses the button.
+  async function runVersionRequest(prompt, decision) {
+    const wantsRestore = (decision.reasonCodes || []).indexOf('RESTORE_VERSION') >= 0;
+    const steps = (outcome) => [
+      { state: 'done', label: 'Request captured', detail: '' },
+      { state: 'done', label: bt('mainVersions.stepFound', 'Versions found'), detail: outcome || '' },
+    ];
+    const none = (kind) => showThread(prompt, 'Unavailable', bt('mainVersions.noneTitle', 'No earlier version'),
+      kind === 'PRESENTATION' ? bt('mainVersions.noneDeck', 'There is no presentation with an earlier version yet. A revision keeps the version before it here.') : bt('mainVersions.noneDoc', 'There is no report with an earlier version yet. A revision keeps the version before it here.'), [
+        { state: 'done', label: 'Request captured', detail: '' },
+        { state: 'running', label: bt('mainVersions.stepNone', 'No earlier version found'), detail: '' },
+      ]);
+
+    const open = versionSubject();
+    const wanted = decision.targetArtifactType === 'PRESENTATION' || decision.targetArtifactType === 'DOCUMENT' ? decision.targetArtifactType : null;
+    let subject = open && (!wanted || open.kind === wanted) ? open : null;
+    let family = null;
+    if (subject) {
+      const response = await api(versionBase(subject.kind) + encodeURIComponent(subject.id) + '/versions');
+      family = response && Array.isArray(response.versions) ? response : null;
+    }
+    if (!family) {
+      // nothing (matching) is open: the newest report - or deck - that has an earlier version is what "지난번" means
+      const kinds = wanted ? [wanted] : ['DOCUMENT', 'PRESENTATION'];
+      for (const kind of kinds) {
+        const response = await api('/api/v1/creations/versions/latest?kind=' + kind);
+        if (response && Array.isArray(response.versions) && response.versions.length > 1) { family = response; subject = { kind, id: response.versions[0].id }; break; }
+      }
+    }
+    if (!family || !subject || family.versions.length < 2) { none(wanted || (open && open.kind) || 'DOCUMENT'); return; }
+
+    const versions = family.versions;
+    const newest = versions[0];
+    // make sure the panel shows the report (or deck) the versions belong to: the version that is open (sending a request closes the panel), otherwise the newest one
+    const shown = open ? versions.find((v) => v.id === open.id) : null;
+    const toShow = shown || newest;
+    if (toShow.artifactId) await openArtifactResult(toShow.artifactId);
+    const current = versionSubject() || { kind: subject.kind, id: newest.id };
+    if (wantsRestore) {
+      showThread(prompt, 'Completed', bt('mainVersions.restoreTitle', 'Pick the version to bring back'), bt('mainVersions.restoreBody', 'The versions are listed in the right panel. Press "Bring this version back" on the one you want - it is added as a new version and nothing is overwritten.'), steps(String(versions.length)));
+      await showVersions(current);
+      return;
+    }
+    // the version before the current one is "수정 전"; if an older version is open, that one is compared with the current one
+    const openOlder = open && versions.find((v) => v.id === open.id && !v.current);
+    const from = openOlder || versions[1];
+    showThread(prompt, 'Completed', bt('mainVersions.compareTitle', 'Comparing the versions'), bt('mainVersions.compareBody', 'What changed between {a} and {b} is shown in the right panel.').replace('{a}', versionLabel(from)).replace('{b}', versionLabel(newest)), steps(String(versions.length)));
+    await showVersionCompare(current, from.id, newest.id);
   }
 
   function parseDocumentId(openTarget) {
@@ -2110,6 +2390,7 @@
     document.getElementById('main-result-close')?.addEventListener('click', hideResult);
     document.getElementById('main-result-sources')?.addEventListener('click', (event) => { const run = event.currentTarget && event.currentTarget.dataset ? event.currentTarget.dataset.run : ''; if (run) showResearchSources(run); });
     document.getElementById('main-result-preview-tab')?.addEventListener('click', () => { if (state.result) showResult(state.result); });
+    document.getElementById('main-result-versions')?.addEventListener('click', () => { const subject = versionSubject(); if (subject) showVersions(subject); });
     document.getElementById('main-result-expand')?.addEventListener('click', () => document.body.classList.toggle('main-result-fullscreen'));
     document.getElementById('main-result-open')?.addEventListener('click', openResult);
     document.getElementById('main-result-revise')?.addEventListener('click', reviseResult);

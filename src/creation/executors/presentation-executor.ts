@@ -117,6 +117,76 @@ export class PresentationExecutor implements CreationExecutor<CreationRequest, C
    * Revises a deck the person owns. The parent is never changed: the revision is a NEW deck (its own id, file and artifact) that points back to it, like a document revision.
    * The size follows from the instruction by NAgex's own arithmetic ("한 장 추가" = one content slide more than the deck has now); the model restructures the content.
    */
+  // Bringing an older version of a deck back: a NEW deck (the next revision of the family) with the older deck's slides and a copy of its file. The older deck and its file are untouched, no model is asked,
+  // and restoring what already is the newest deck is refused.
+  public restoreVersion(params: { sourcePresentationId: string; tenantId: string; ownerId: string; requestId: string }): CreationResult {
+    const { tenantId, ownerId, requestId } = params;
+    const source = this.deps.presentationStore.get(params.sourcePresentationId, tenantId, ownerId);
+    if (!source) return failure('PRESENTATION_NOT_FOUND', `Presentation ${params.sourcePresentationId} not found.`);
+    const root = source.parentPresentationId || source.presentationId;
+    const family = this.deps.presentationStore.list(tenantId, ownerId, 10_000).filter((p) => p.presentationId === root || p.parentPresentationId === root);
+    const newest = [...family].sort((a, b) => (a.revisionIndex ?? 1) - (b.revisionIndex ?? 1) || Date.parse(a.createdAt) - Date.parse(b.createdAt)).pop() ?? source;
+    if (newest.presentationId === source.presentationId || JSON.stringify([newest.title, newest.slides]) === JSON.stringify([source.title, source.slides])) {
+      return failure('VERSION_ALREADY_CURRENT', 'This version is already the current one.');
+    }
+    const bytes = this.deps.presentationStore.getBinary(source.binaryStoragePath);
+    if (!bytes || bytes.length === 0) return failure('PRESENTATION_FILE_MISSING', 'The file of that version is no longer available.');
+    const presentationId = `pres_${crypto.randomBytes(12).toString('hex')}`;
+    const now = new Date().toISOString();
+    const openTarget = `/api/v1/creations/presentations/${presentationId}`;
+    const record: PresentationRecord = {
+      presentationId,
+      tenantId,
+      ownerId,
+      title: source.title,
+      subtitle: source.subtitle,
+      summary: source.summary,
+      locale: source.locale,
+      slides: source.slides,
+      mimeType: source.mimeType,
+      byteLength: bytes.length,
+      binaryStoragePath: this.deps.presentationStore.saveBinary(presentationId, bytes),
+      sourceRefs: source.sourceRefs,
+      providerExecutionMetadata: source.providerExecutionMetadata,
+      parentPresentationId: root,
+      revisedFromPresentationId: newest.presentationId,
+      restoredFromPresentationId: source.presentationId,
+      revisionIndex: (newest.revisionIndex ?? 1) + 1,
+      createdAt: now,
+      updatedAt: now,
+    };
+    this.deps.presentationStore.save(record);
+    let artifactId: string | undefined;
+    if (this.deps.artifactStore) {
+      const artifact = this.deps.artifactStore.saveCompleted({ tenantId, ownerId, type: 'PRESENTATION', title: record.title, preview: record.summary.slice(0, 500), sourceType: 'CAPTURE', sourceId: presentationId, openTarget });
+      artifactId = artifact.artifactId;
+      record.artifactId = artifactId;
+      this.deps.presentationStore.save(record);
+    }
+    this.deps.auditLogger?.logEvent({
+      actor: { type: 'user', id: ownerId },
+      tenant_id: tenantId,
+      action: 'presentation.restored',
+      resource: { type: 'PresentationRecord', id: presentationId },
+      result: 'SUCCESS',
+      request_id: requestId,
+      details: { title: record.title, slides: record.slides.length, restoredFrom: source.presentationId, revisionIndex: record.revisionIndex },
+    });
+    return {
+      status: 'SUCCESS',
+      creationId: presentationId,
+      creationKind: 'PRESENTATION',
+      title: record.title,
+      summary: record.summary,
+      content: '',
+      openTarget,
+      artifactId,
+      mimeType: record.mimeType,
+      metadata: { slideCount: record.slides.length, downloadTarget: `${openTarget}/download`, byteLength: bytes.length, restoredFrom: source.presentationId, revisionIndex: record.revisionIndex },
+      createdAt: now,
+    };
+  }
+
   public executeRevision(params: RevisionParams): Promise<CreationResult> {
     const key = crypto.createHash('sha256').update(JSON.stringify([params.tenantId, params.ownerId, params.parentPresentationId, params.instruction])).digest('hex');
     const running = this.revisionsInFlight.get(key);
