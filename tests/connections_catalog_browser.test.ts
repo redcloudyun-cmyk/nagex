@@ -37,6 +37,24 @@ beforeEach(() => { testServer.setToken('ui-token'); });
 afterEach(() => { clearGitHubOAuthStatesForTesting(); });
 
 type User = ReturnType<CanvasAskHarness['user']>;
+
+// what the page looked like when a wait for the connections screen ran out (page.waitForSelector says only "Timeout exceeded")
+async function explainOpenTimeout(page: Page, error: unknown): Promise<never> {
+  let where = '';
+  try {
+    const facts = await page.evaluate(async () => {
+      const q = (sel: string) => document.querySelector(sel) as any;
+      const box = q('#nagex-connections');
+      const chain: string[] = [];
+      for (let el: any = q('#nagex-connections .nagex-conn-card') || box; el && chain.length < 12; el = el.parentElement) { const s = window.getComputedStyle(el); chain.push((el.id ? '#' + el.id : el.tagName.toLowerCase()) + ':' + s.display + '/' + s.visibility + '/' + (el.hidden ? 'hidden' : 'shown')); }
+      const frames = await new Promise<number>((resolve) => { let n = 0; const start = performance.now(); const tick = () => { n += 1; if (performance.now() - start > 1000) resolve(n); else window.requestAnimationFrame(tick); }; window.requestAnimationFrame(tick); });
+      return { hash: window.location.hash, visibility: document.visibilityState, hasFocus: document.hasFocus(), readyState: document.readyState, cards: document.querySelectorAll('#nagex-connections .nagex-conn-card').length, hasBox: Boolean(box), boxRect: box ? JSON.stringify(box.getBoundingClientRect()) : null, framesInOneSecond: frames, chain };
+    });
+    where = ' | PAGE_STATE=' + JSON.stringify(facts);
+  } catch (inner) { where = ' | (no page state: ' + (inner instanceof Error ? inner.message : String(inner)) + ')'; }
+  throw new Error((error instanceof Error ? error.message : String(error)) + where);
+}
+
 async function open(label: string, locale: 'en' | 'ko' = 'en', size = { width: 1440, height: 900 }, tweakCatalog?: (body: any) => any): Promise<{ ctx: BrowserContext; page: Page; errors: string[]; user: User }> {
   const user = h.user(label);
   if (locale === 'ko') h.setLocale(user, 'ko');
@@ -57,7 +75,7 @@ async function open(label: string, locale: 'en' | 'ko' = 'en', size = { width: 1
     });
   }
   await page.goto(`${h.origin}/#settings/connections`, { waitUntil: 'domcontentloaded' });
-  await page.waitForSelector('#nagex-connections .nagex-conn-card', { timeout: 15000 });
+  await page.waitForSelector('#nagex-connections .nagex-conn-card', { timeout: 15000 }).catch((error) => explainOpenTimeout(page, error));
   return { ctx, page, errors, user };
 }
 const card = (page: Page, app: string) => page.locator(`.nagex-conn-card[data-app="${app}"]`);
