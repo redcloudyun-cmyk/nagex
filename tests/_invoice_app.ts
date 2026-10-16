@@ -126,11 +126,11 @@ el('continue').addEventListener('click', function(){
   var s = recalc();
   fetch('/api/drafts', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ customerId: customer.id, items: s.items, taxRate: s.rate, date: el('invoice-date').value }) })
     .then(function(r){ return r.json().then(function(b){ return { ok: r.ok, body: b }; }); })
-    .then(function(res){ if (res.ok) { location.href = '/invoices/review/' + res.body.id; } else { el('form-errors').textContent = (res.body.errors || ['The server rejected the invoice.']).join(' '); } });
+    .then(function(res){ if (res.ok) { setTimeout(function(){ location.href = '/invoices/review/' + res.body.id; }, __NAV_DELAY__); } else { el('form-errors').textContent = (res.body.errors || ['The server rejected the invoice.']).join(' '); } });
 });
 </script>`);
 
-export async function startInvoiceApp(options: { requireLogin?: boolean } = {}): Promise<InvoiceApp> {
+export async function startInvoiceApp(options: { requireLogin?: boolean; navigationDelayMs?: number } = {}): Promise<InvoiceApp> {
   const state: InvoiceApp['state'] = { drafts: new Map(), searches: [], saves: [], issued: [], requests: [], logins: 0 };
   let counter = 0;
 
@@ -155,7 +155,7 @@ export async function startInvoiceApp(options: { requireLogin?: boolean } = {}):
       send(res, 200, LAYOUT('Invoices', `<h1>Invoices</h1><table><thead><tr><th>Number</th><th>Customer</th><th>Total</th><th>Status</th></tr></thead><tbody>${rows || '<tr><td colspan="4">No invoices yet.</td></tr>'}</tbody></table>`));
       return;
     }
-    if (path === '/invoices/new') { send(res, 200, NEW_INVOICE_PAGE); return; }
+    if (path === '/invoices/new') { send(res, 200, NEW_INVOICE_PAGE.replace('__NAV_DELAY__', String(Math.max(0, Math.floor(options.navigationDelayMs ?? 0))))); return; }
     if (path === '/api/customers') {
       const q = (url.searchParams.get('q') || '').toLowerCase();
       state.searches.push(q);

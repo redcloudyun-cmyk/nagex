@@ -104,6 +104,14 @@ export interface BrowserRuntime {
 // still bounding memory/serialization size — a "sane maximum," not
 // unbounded. Never silently discards how much was cut: see truncateWithMeta.
 const MAX_SNAPSHOT_TEXT_LENGTH = 20_000;
+/** a page read that meets a navigation in progress is repeated this many times (each after the new document has loaded) before the error is raised */
+const NAVIGATION_READ_RETRIES = 3;
+const NAVIGATION_READ_PAUSE_MS = 120;
+/** the browser's own wording when the document under a read was replaced mid-read */
+function isNavigationRace(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : '';
+  return /Execution context was destroyed|Cannot find context with specified id|Frame was detached|frame got detached/i.test(message);
+}
 const MAX_WAIT_MS = 15_000;
 // How many page elements one element-map pass lists (find) and how many of them the snapshot reports.
 const ELEMENT_MAP_SCAN_LIMIT = 400;
@@ -286,6 +294,24 @@ export class PlaywrightBrowserRuntime implements BrowserRuntime {
     }
   }
 
+  // A click can start a navigation a moment later (a form posts and then redirects): a read of the page that lands in between fails with "Execution context was destroyed". That says nothing about the
+  // page or the task, so the read waits for the new document and is made again - a few times at most, then the real error is raised.
+  private async acrossNavigation<T>(sessionId: string, read: () => Promise<T>): Promise<T> {
+    let last: unknown;
+    for (let attempt = 0; attempt <= NAVIGATION_READ_RETRIES; attempt += 1) {
+      try {
+        return await read();
+      } catch (error) {
+        if (!isNavigationRace(error)) throw error;
+        last = error;
+        const page = this.pages.get(sessionId);
+        if (page) await page.waitForLoadState('domcontentloaded', { timeout: 5_000 }).catch(() => undefined);
+        await new Promise((resolve) => setTimeout(resolve, NAVIGATION_READ_PAUSE_MS));
+      }
+    }
+    throw last;
+  }
+
   private requirePage(sessionId: string): Page {
     const page = this.pages.get(sessionId);
     if (!page) {
@@ -313,6 +339,10 @@ export class PlaywrightBrowserRuntime implements BrowserRuntime {
   }
 
   public async snapshot(sessionId: string): Promise<BrowserSnapshot> {
+    return this.acrossNavigation(sessionId, () => this.snapshotOnce(sessionId));
+  }
+
+  private async snapshotOnce(sessionId: string): Promise<BrowserSnapshot> {
     const page = this.requirePage(sessionId);
     const title = await page.title();
     // Runs inside the browser page, not Node — this file's tsconfig has no
@@ -326,6 +356,10 @@ export class PlaywrightBrowserRuntime implements BrowserRuntime {
   }
 
   public async structuredSnapshot(sessionId: string): Promise<StructuredBrowserSnapshot> {
+    return this.acrossNavigation(sessionId, () => this.structuredSnapshotOnce(sessionId));
+  }
+
+  private async structuredSnapshotOnce(sessionId: string): Promise<StructuredBrowserSnapshot> {
     const page = this.requirePage(sessionId);
     const title = await page.title();
     const url = page.url();
@@ -490,6 +524,10 @@ export class PlaywrightBrowserRuntime implements BrowserRuntime {
   // Hidden controls are not candidates (they are only counted). `bestMatch` is set when one candidate is clearly ahead; two close candidates are left to the caller, who can tell them apart by
   // their `context`. Finding is not permission: acting on a candidate still needs exactly one match and, for a consequential click, Human Approval.
   public async find(sessionId: string, query: string): Promise<FindResult> {
+    return this.acrossNavigation(sessionId, () => this.findOnce(sessionId, query));
+  }
+
+  private async findOnce(sessionId: string, query: string): Promise<FindResult> {
     const page = this.requirePage(sessionId);
     const scan = await this.scanAll(page, query);
     const { ranked, hiddenMatches } = rankMapElements(scan.elements, query);
@@ -582,6 +620,10 @@ export class PlaywrightBrowserRuntime implements BrowserRuntime {
   }
 
   public async resolveSelector(sessionId: string, selector: string): Promise<BrowserElementMatch> {
+    return this.acrossNavigation(sessionId, () => this.resolveSelectorOnce(sessionId, selector));
+  }
+
+  private async resolveSelectorOnce(sessionId: string, selector: string): Promise<BrowserElementMatch> {
     const page = this.requirePage(sessionId);
     const frameSegments = splitFramePath(selector).slice(0, -1);
     if (frameSegments.length > 0 && !(await this.assertFramePathAllowed(sessionId, page, frameSegments))) return { count: 0, role: null, text: null, isFormControl: false };
@@ -590,11 +632,11 @@ export class PlaywrightBrowserRuntime implements BrowserRuntime {
     if (count === 0) return { count: 0, role: null, text: null, isFormControl: false };
     const first = locator.first();
     const [text, tagName, roleAttr, typeAttr, autocompleteAttr] = await Promise.all([
-      first.innerText().catch(() => first.getAttribute('aria-label').then((v) => v || '').catch(() => '')),
-      first.evaluate((el) => el.tagName.toLowerCase()).catch(() => ''),
-      first.getAttribute('role').catch(() => null),
-      first.getAttribute('type').catch(() => null),
-      first.getAttribute('autocomplete').catch(() => null),
+      first.innerText().catch((error) => { if (isNavigationRace(error)) throw error; return first.getAttribute('aria-label').then((v) => v || '').catch((inner) => { if (isNavigationRace(inner)) throw inner; return ''; }); }),
+      first.evaluate((el) => el.tagName.toLowerCase()).catch((error) => { if (isNavigationRace(error)) throw error; return ''; }),
+      first.getAttribute('role').catch((error) => { if (isNavigationRace(error)) throw error; return null; }),
+      first.getAttribute('type').catch((error) => { if (isNavigationRace(error)) throw error; return null; }),
+      first.getAttribute('autocomplete').catch((error) => { if (isNavigationRace(error)) throw error; return null; }),
     ]);
     const sensitiveField = tagName === 'input' && ((typeAttr || '').toLowerCase() === 'password' || /(one-time-code|current-password|new-password|cc-number|cc-csc)/i.test(autocompleteAttr || ''));
     const role = roleAttr || (tagName === 'button' ? 'button' : tagName === 'a' ? 'link' : tagName === 'select' ? 'select' : tagName === 'input' || tagName === 'textarea' ? 'textbox' : tagName);
@@ -645,6 +687,10 @@ export class PlaywrightBrowserRuntime implements BrowserRuntime {
   }
 
   public async readExpectationSurface(sessionId: string, selector: string | null): Promise<ExpectationSurface> {
+    return this.acrossNavigation(sessionId, () => this.readExpectationSurfaceOnce(sessionId, selector));
+  }
+
+  private async readExpectationSurfaceOnce(sessionId: string, selector: string | null): Promise<ExpectationSurface> {
     const page = this.requirePage(sessionId);
     const locator = selector ? this.locate(page, selector) : page.locator('body');
     if ((await locator.count()) !== 1) return { found: false, texts: [], truncated: false };
@@ -652,6 +698,10 @@ export class PlaywrightBrowserRuntime implements BrowserRuntime {
   }
 
   public async describeKeyActivation(sessionId: string, key: string): Promise<KeyActivation> {
+    return this.acrossNavigation(sessionId, () => this.describeKeyActivationOnce(sessionId, key));
+  }
+
+  private async describeKeyActivationOnce(sessionId: string, key: string): Promise<KeyActivation> {
     const page = this.requirePage(sessionId);
     const handle = await page.evaluateHandle(keyActivationInPage as (key: string) => { kind: KeyActivationKind; el: unknown }, key);
     try {
@@ -670,6 +720,10 @@ export class PlaywrightBrowserRuntime implements BrowserRuntime {
 
   // What the page shows right now: address, title, a signature of its content, visible alert / status / error / success messages, invalid form fields, an open dialog. Read-only; the page is not touched.
   public async observePage(sessionId: string): Promise<PageObservation> {
+    return this.acrossNavigation(sessionId, () => this.observePageOnce(sessionId));
+  }
+
+  private async observePageOnce(sessionId: string): Promise<PageObservation> {
     const page = this.requirePage(sessionId);
     await page.waitForLoadState('domcontentloaded', { timeout: 2_000 }).catch(() => {});
     const observed = await page.evaluate(observePageInPage, OBSERVE_PAGE_ARGS);
@@ -678,24 +732,34 @@ export class PlaywrightBrowserRuntime implements BrowserRuntime {
 
   // The state of one control (null when it is no longer on the page): connected, visible, enabled, checked / expanded / pressed / selected, a link's destination.
   public async observeTarget(sessionId: string, selector: string): Promise<TargetObservation | null> {
+    return this.acrossNavigation(sessionId, () => this.observeTargetOnce(sessionId, selector));
+  }
+
+  private async observeTargetOnce(sessionId: string, selector: string): Promise<TargetObservation | null> {
     const page = this.requirePage(sessionId);
     try {
       const locator = this.locate(page, selector);
       if ((await locator.count()) !== 1) return null;
       return await locator.first().evaluate(observeTargetInPage as (el: any) => TargetObservation);
-    } catch {
+    } catch (error) {
+      if (isNavigationRace(error)) throw error;
       return null;
     }
   }
 
   // Reads a field back and compares it, inside the page, with the text that was written; the value itself never leaves the page (a password stays private).
   public async readFieldState(sessionId: string, selector: string, expected: string): Promise<FieldState | null> {
+    return this.acrossNavigation(sessionId, () => this.readFieldStateOnce(sessionId, selector, expected));
+  }
+
+  private async readFieldStateOnce(sessionId: string, selector: string, expected: string): Promise<FieldState | null> {
     const page = this.requirePage(sessionId);
     try {
       const locator = this.locate(page, selector);
       if ((await locator.count()) !== 1) return null;
       return await locator.first().evaluate(readFieldInPage as (el: any, expected: string) => FieldState, expected);
-    } catch {
+    } catch (error) {
+      if (isNavigationRace(error)) throw error;
       return null;
     }
   }

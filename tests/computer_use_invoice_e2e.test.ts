@@ -57,7 +57,7 @@ after(async () => {
   for (const a of apps) await a.close();
 });
 
-async function freshApp(options: { requireLogin?: boolean } = {}): Promise<InvoiceApp> {
+async function freshApp(options: { requireLogin?: boolean; navigationDelayMs?: number } = {}): Promise<InvoiceApp> {
   app = await startInvoiceApp(options);
   apps.push(app);
   return app;
@@ -70,6 +70,18 @@ const run = (loop: DeviceControlService, site: InvoiceApp, requestId = 'req_inv'
 const asCompleted = (outcome: DeviceControlOutcome) => { assert.equal(outcome.kind, 'COMPLETED', JSON.stringify(outcome)); return outcome as Extract<DeviceControlOutcome, { kind: 'COMPLETED' }>; };
 
 describe('prepare the invoice, stop before issuance (the stand-in planner drives the real loop)', () => {
+  it('a page that only navigates a moment after the click still ends as a verified, saved draft with every check made on the right page', async () => {
+    // found on CI: when the review page had not opened yet by the time the click was judged, the form's own total check was mistaken for a check of the review page
+    const site = await freshApp({ navigationDelayMs: 900 });
+    const done = asCompleted(await run(loopFor(new InvoiceStandInPlanner(site.baseUrl, 'HAPPY')), site));
+    assert.equal(site.state.issued.length, 0);
+    assert.equal(site.state.drafts.size, 1);
+    const completion = (done.result as any).completion;
+    const trace = (sessions.getOwned(done.deviceExecutionSessionId, T, O)?.steps ?? []).map((s: any) => `${s.n}:${s.action}:${s.verification ?? '-'}`).join(' ');
+    assert.equal(completion.expectationsMet, 3, `form total, review total and review customer were each checked - steps: ${trace}`);
+    assert.equal(completion.expectationsNotMet, 0);
+  });
+
   it('completes the whole journey: dashboard -> new invoice -> review, dynamic customer search, validation-free entry, totals VERIFIED by NAgex, draft saved, nothing issued', async () => {
     const site = await freshApp();
     const planner = new InvoiceStandInPlanner(site.baseUrl, 'HAPPY');
@@ -94,7 +106,8 @@ describe('prepare the invoice, stop before issuance (the stand-in planner drives
     // NAgex's report is backed by evidence, not by the model's word
     const completion = (done.result as any).completion;
     assert.equal(completion.outcome, 'VERIFIED');
-    assert.equal(completion.expectationsMet, 3, 'the totals and the customer were checked against the page by NAgex (form total, review total, review customer)');
+    const trace = (sessions.getOwned(done.deviceExecutionSessionId, T, O)?.steps ?? []).map((s: any) => `${s.n}:${s.action}:${s.verification ?? '-'}`).join(' ');
+    assert.equal(completion.expectationsMet, 3, `the totals and the customer were checked against the page by NAgex (form total, review total, review customer) - steps: ${trace}`);
     assert.equal(completion.expectationsNotMet, 0);
     assert.match(String((done.result as any).reason), /stopped before issuing/i);
 
