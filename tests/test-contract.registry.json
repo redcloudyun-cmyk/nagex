@@ -5237,7 +5237,7 @@
       "realBrowser": true,
       "sourceImplementationAssertions": false,
       "deterministic": true,
-      "assertionIntent": "From ONE natural-language request (Korean or English, no mode selected, screen language deliberately different) the production server routes to the document route, writes in the language of the request, stores the document and its Recent artifact, and a brand-new browser lists and opens it again; another signed-in person sees nothing and cannot fetch it by id; a failing, non-JSON or empty model answer is never shown as created and stores nothing; a double click makes one document; research then report asks research first and the report prompt and stored report carry only the returned findings and links, and with the search provider down no report is written; a store that cannot save makes creation fail with no artifact.",
+      "assertionIntent": "From ONE natural-language request (Korean or English, no mode selected, screen language deliberately different) the production server routes to the document route, writes in the language of the request, stores the document and its Recent artifact, and a brand-new browser lists and opens it again; another signed-in person sees nothing and cannot fetch it by id; a failing, non-JSON or empty model answer is never shown as created and stores nothing; a double click makes one document; a research request writes a report only from statements verified against pages that were retrieved (the stored report carries those sources as links and the Sources tab shows how each was read), and with the search provider down - or too little verifiable evidence - no report is written and the stop is stated; a store that cannot save makes creation fail with no artifact.",
       "notes": "Production server in-process with a LOCAL deterministic model and search endpoint on 127.0.0.1 (tests/_local_ai_world.ts): proves NAgex's own chain, not that a real model or search provider answered (the real Nemotron run is scripts/document-roundtrip-live-cert.mjs).",
       "writesRepositoryArtifacts": false
     },
@@ -6629,6 +6629,21 @@
       "assertionIntent": "In Main (Korean and English), \"지난번 보고서 수정 전 버전과 지금 버전을 비교해줘\" shows what changed between the version before and the current one (added and removed lines told by mark and colour), the Versions tab lists every version with the current one marked, bringing an older version back adds a NEW current version and leaves the stored files of the older ones byte-for-byte unchanged, restoring the same text again is refused with the reason, a request to \"restore\" only opens the list (never acts on words alone), a report with no earlier version says so, a deck shows added / removed / changed slides and its older version comes back as a new deck; another signed-in person gets 404 for list, compare and restore and finds nothing from the same sentence; no raw i18n keys or internal ids are shown.",
       "notes": "Production server in-process with disposable signed-in users and seeded version families; no model, no network.",
       "writesRepositoryArtifacts": false
+    },
+    "microsoft_integration_state": {
+      "milestone": "R26E-MICROSOFT-ASSESSMENT",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "runtime",
+        "security"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "Microsoft is sign-in only and says so: a Microsoft sign-in calls exactly the token and OIDC userinfo endpoints and keeps none of the tokens it received (nothing on disk, nothing returned to the browser); an existing password account is never linked by an e-mail Microsoft did not verify (link-required, no session, nothing linked); the connections API never reports Microsoft as connected and connect-style actions answer not-supported (501) instead of success; Outlook, OneDrive / SharePoint and Teams are PLANNED in the catalog and no brokered capability belongs to Microsoft. When a Graph capability is really added this test must change in the same commit.",
+      "notes": "Scripted Microsoft endpoints, real route handlers and stores; no Microsoft account, application registration or network is involved. LIVE_E2E is BLOCKED by design (no credentials may be registered)."
     },
     "memory_supersession": {
       "milestone": "SPRINT03-MEMORY-SUPERSESSION",
