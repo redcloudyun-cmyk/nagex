@@ -629,7 +629,8 @@ export function createNagexApplication(): NagexApplication {
   const researchReportService = new ResearchReportService({
     aiService,
     evidencePackService,
-    fetcher: new SourceFetcher(),
+    // loopback fixtures are reachable only behind the established test-only switch (also honoured by the browser runtime and the capture processor); real runs never set it
+    fetcher: new SourceFetcher(process.env.NAGEX_ALLOW_LOCAL_TEST_URLS === '1' ? { allowLocalTestDestinations: true, perHostIntervalMs: 0 } : {}),
     runStore: researchRunStore,
     documentExecutor,
     providerName: () => webSearchService.getProviderName(),

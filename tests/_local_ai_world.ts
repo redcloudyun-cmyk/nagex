@@ -4,7 +4,7 @@
 import http from 'node:http';
 import type { AddressInfo } from 'node:net';
 
-export interface LocalModelRequest { kind: 'document' | 'presentation' | 'plan-advice' | 'plan-action' | 'research' | 'chat' | 'other'; system: string; user: string; korean: boolean }
+export interface LocalModelRequest { kind: 'document' | 'presentation' | 'plan-advice' | 'plan-action' | 'research' | 'research-plan' | 'research-extract' | 'research-report' | 'chat' | 'other'; system: string; user: string; korean: boolean }
 
 export interface LocalAiWorld {
   env: Record<string, string>;
@@ -12,6 +12,10 @@ export interface LocalAiWorld {
   searchQueries: string[];
   failDocuments: (mode: 'off' | 'http500' | 'empty-content' | 'not-json') => void;
   failSearch: (on: boolean) => void;
+  // The search results point at pages served by this world (loopback; the research report path may fetch them behind NAGEX_ALLOW_LOCAL_TEST_URLS) instead of the unreachable example.com addresses.
+  useLocalPages: (on: boolean) => void;
+  /** the address of a fixture page served by this world */
+  pageUrl: (name: 'ai-adoption-survey' | 'ai-investment') => string;
   setChatDelayMs: (ms: number) => void;
   // OPT-IN: slides are not a Nemotron task, so they go to another provider. The Gemini endpoint is a fixed public URL; this redirects ONLY that host to the local model for the
   // IN-PROCESS production server (global fetch, restored on close) and returns the fake key env to start the harness with. Nothing leaves the machine.
@@ -27,6 +31,8 @@ export async function startLocalAiWorld(): Promise<LocalAiWorld> {
   const searchQueries: string[] = [];
   let documentMode: 'off' | 'http500' | 'empty-content' | 'not-json' = 'off';
   let searchDown = false;
+  let localPages = false;
+  let searchPort = 0;
   let chatDelayMs = 0;
 
   const model = http.createServer(async (req, res) => {
@@ -40,8 +46,42 @@ export async function startLocalAiWorld(): Promise<LocalAiWorld> {
       : Array.isArray(body.messages) ? body.messages : [];
     const system = String(messages.find((m) => m.role === 'system')?.content ?? '');
     const user = String(messages.filter((m) => m.role === 'user').slice(-1)[0]?.content ?? '');
-    const korean = /written in Korean|반드시 한국어로/.test(system);
+    const korean = /written in Korean|반드시 한국어로|Write in Korean/.test(system);
     const reply = (content: string) => { res.writeHead(200, { 'content-type': 'application/json' }); res.end(gemini ? JSON.stringify({ candidates: [{ content: { parts: [{ text: content }] } }], usageMetadata: { promptTokenCount: 10, candidatesTokenCount: 10, totalTokenCount: 20 } }) : JSON.stringify({ model: body.model, choices: [{ message: { content }, finish_reason: 'stop' }], usage: { prompt_tokens: 10, completion_tokens: 10, total_tokens: 20 } })); };
+    // ---- the cited research report: three model steps (the model only proposes; NAgex verifies against the pages it fetched from the search server below)
+    if (/You plan web searches for a research question/.test(system)) {
+      modelRequests.push({ kind: 'research-plan', system, user, korean });
+      reply(JSON.stringify({ queries: ['ai assistant adoption 2026', 'ai tools investment 2026'] }));
+      return;
+    }
+    if (/You extract verifiable facts for a research question/.test(system)) {
+      modelRequests.push({ kind: 'research-extract', system, user, korean });
+      const claims: Array<Record<string, unknown>> = [];
+      for (const m of user.matchAll(/<source id="(S\d+)"[^>]*>\n([\s\S]*?)\n<\/source>/g)) {
+        if (m[2].includes('Adoption of AI assistants grew sharply among knowledge workers')) claims.push({ sourceId: m[1], statement: 'Adoption of AI assistants grew sharply among knowledge workers.', quote: 'Adoption of AI assistants grew sharply among knowledge workers', relevance: 5 });
+        if (m[2].includes('Investment in AI tools increased by 18% in 2025')) claims.push({ sourceId: m[1], statement: 'Investment in AI tools increased by 18% in 2025.', quote: 'Investment in AI tools increased by 18% in 2025', relevance: 5 });
+        // a statement the page does not contain: it must be refused by NAgex, never reach the report
+        claims.push({ sourceId: m[1], statement: 'Every company replaced its staff with assistants in 2025.', quote: 'every company replaced its entire staff with AI assistants during 2025', relevance: 5 });
+      }
+      reply(JSON.stringify({ claims }));
+      return;
+    }
+    if (/You write a cited research report/.test(system)) {
+      modelRequests.push({ kind: 'research-report', system, user, korean });
+      const idOf = (re: RegExp) => /^(C\d+) \(.*?\): (.*)$/m.exec(user.split('\n').filter((l) => re.test(l)).join('\n'))?.[1];
+      const adoption = idOf(/Adoption of AI assistants/);
+      const investment = idOf(/Investment in AI tools/);
+      reply(JSON.stringify({
+        title: korean ? 'AI 동향 보고서' : 'AI trends report',
+        summary: adoption ? { kind: 'FACT', text: 'Adoption of AI assistants grew sharply among knowledge workers.', claimIds: [adoption] } : undefined,
+        sections: [
+          ...(adoption ? [{ heading: korean ? '도입 현황' : 'Adoption', paragraphs: [{ kind: 'FACT', text: 'Adoption of AI assistants grew sharply among knowledge workers.', claimIds: [adoption] }] }] : []),
+          ...(investment ? [{ heading: korean ? '투자 현황' : 'Investment', paragraphs: [{ kind: 'FACT', text: 'Investment in AI tools increased by 18% in 2025.', claimIds: [investment] }] }] : []),
+        ],
+        conflicts: [],
+      }));
+      return;
+    }
     if (/plans clear presentation decks/.test(system)) {
       modelRequests.push({ kind: 'presentation', system, user, korean });
       const asked = user.replace(/^Presentation Request:\s*/, '');
@@ -106,18 +146,25 @@ export async function startLocalAiWorld(): Promise<LocalAiWorld> {
     reply(korean ? '안녕하세요. 질문에 답변드립니다.' : 'Hello. Here is the answer.');
   });
 
+  const PAGES: Record<string, string> = {
+    '/pages/ai-adoption-survey': '<html><head><title>AI Adoption Survey 2026</title><meta name="date" content="2026-09-01"></head><body><article><h1>AI Adoption Survey 2026</h1><p>Adoption of AI assistants grew sharply among knowledge workers. The survey covered several thousand respondents across many industries.</p><p>Respondents described faster drafting, better preparation for meetings and fewer repetitive tasks as the main benefits of daily assistant use.</p></article></body></html>',
+    '/pages/ai-investment': '<html><head><title>AI Investment Report</title><meta name="date" content="2026-08-20"></head><body><article><h1>AI Investment Report</h1><p>Investment in AI tools increased by 18% in 2025 according to the fixture report, with most of the growth coming from small and medium businesses.</p><p>The report also notes that spending shifted from experiments toward assistants that are used every day.</p></article></body></html>',
+  };
   const search = http.createServer((req, res) => {
     const url = new URL(req.url || '/', 'http://127.0.0.1');
+    if (PAGES[url.pathname]) { res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' }); res.end(PAGES[url.pathname]); return; }
+    if (url.pathname === '/robots.txt') { res.writeHead(404); res.end('none'); return; }
     searchQueries.push(url.searchParams.get('q') ?? '');
     if (searchDown) { res.writeHead(503, { 'content-type': 'application/json' }); res.end('{}'); return; }
     res.writeHead(200, { 'content-type': 'application/json' });
     res.end(JSON.stringify({ results: [
-      { title: 'AI Adoption Survey 2026', url: 'https://example.com/ai-adoption-survey', snippet: 'Adoption of AI assistants grew sharply among knowledge workers.', publishedAt: new Date(Date.now() - 5 * 86400_000).toISOString(), source: 'example.com' },
-      { title: 'AI Investment Report', url: 'https://example.org/ai-investment', snippet: 'Investment in AI tools increased again this year.', publishedAt: new Date(Date.now() - 9 * 86400_000).toISOString(), source: 'example.org' },
+      { title: 'AI Adoption Survey 2026', url: localPages ? `http://127.0.0.1:${searchPort}/pages/ai-adoption-survey` : 'https://example.com/ai-adoption-survey', snippet: 'Adoption of AI assistants grew sharply among knowledge workers.', publishedAt: new Date(Date.now() - 5 * 86400_000).toISOString(), source: 'example.com' },
+      { title: 'AI Investment Report', url: localPages ? `http://127.0.0.1:${searchPort}/pages/ai-investment` : 'https://example.org/ai-investment', snippet: 'Investment in AI tools increased again this year.', publishedAt: new Date(Date.now() - 9 * 86400_000).toISOString(), source: 'example.org' },
     ] }));
   });
 
-  const [modelPort, searchPort] = [await listen(model), await listen(search)];
+  const modelPort = await listen(model);
+  searchPort = await listen(search);
   const realFetch = globalThis.fetch;
   let bridged = false;
   return {
@@ -139,11 +186,15 @@ export async function startLocalAiWorld(): Promise<LocalAiWorld> {
       NAGEX_PROVIDER_PRIORITY: 'nebius',
       NAGEX_WEB_SEARCH_PROVIDER: 'custom_http',
       NAGEX_WEB_SEARCH_ENDPOINT: `http://127.0.0.1:${searchPort}/search`,
+      // the established test-only switch: loopback fixture pages may be fetched by the research report path
+      NAGEX_ALLOW_LOCAL_TEST_URLS: '1',
     },
     modelRequests,
     searchQueries,
     failDocuments: (mode) => { documentMode = mode; },
     failSearch: (on) => { searchDown = on; },
+    useLocalPages: (on) => { localPages = on; },
+    pageUrl: (name) => `http://127.0.0.1:${searchPort}/pages/${name}`,
     setChatDelayMs: (ms) => { chatDelayMs = ms; },
     close: async () => { globalThis.fetch = realFetch; model.closeAllConnections?.(); search.closeAllConnections?.(); await Promise.all([new Promise((r) => model.close(() => r(null))), new Promise((r) => search.close(() => r(null)))]); },
   };

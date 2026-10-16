@@ -170,7 +170,7 @@ export class EvidencePackService {
 
   public async isValidPublicUrl(urlString: string): Promise<boolean> {
     try {
-      await validateOutboundUrl(urlString);
+      await validateOutboundUrl(urlString, { allowLocalTestDestinations: process.env.NAGEX_ALLOW_LOCAL_TEST_URLS === '1' });
       return true;
     } catch {
       return false;

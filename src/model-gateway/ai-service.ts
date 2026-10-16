@@ -835,7 +835,8 @@ export class AiService {
       requestId,
       jsonMode: true,
       validationRetries: 1,
-      routingContext: { taskKind: 'STRUCTURED_EXTRACTION', requiresJson: true, requestId },
+      // a research task, routed like research synthesis (Nemotron first): whatever the model proposes is verified against the retrieved text by NAgex, so the answer needs no stricter provider
+      routingContext: { taskKind: 'RESEARCH_SYNTHESIS', requiresJson: true, requiresEvidenceGrounding: true, requestId },
       validate: (text) => {
         const parsed = parseJsonObject(text, requestId, 'research claims');
         if (!Array.isArray(parsed.claims)) invalidPlan('The model response is missing claims.', requestId);
