@@ -28,11 +28,23 @@ export interface FakeCalendarEvent {
 
 export interface FakeCalendarCall { method: string; path: string; query: string; body: any }
 
+export interface FakeSeedEvent {
+  id: string;
+  summary: string;
+  /** a wall-clock time (read in timeZone) or a time with an offset */
+  start: string;
+  end: string;
+  timeZone?: string;
+  description?: string;
+  attendees?: FakeCalendarEvent['attendees'];
+  extendedProperties?: FakeCalendarEvent['extendedProperties'];
+}
+
 export interface FakeGoogleCalendar {
   fetch: typeof fetch;
   calls: FakeCalendarCall[];
   events: () => FakeCalendarEvent[];
-  seed: (event: Partial<FakeCalendarEvent> & { id: string; summary: string; start: string; end: string; timeZone?: string }) => FakeCalendarEvent;
+  seed: (event: FakeSeedEvent) => FakeCalendarEvent;
   /** the person deletes the event in the Google Calendar app (the id stays reserved) */
   deleteBehindNagex: (id: string) => void;
   faults: {

@@ -24,6 +24,8 @@ export { queryFreeBusy, computeFreeSlots } from './calendar.client.js';
 
 export type { NormalizedExecutionResult } from './google-calendar.service.js';
 export type { CalendarVerification, CalendarVerificationOutcome } from './calendar-verification.js';
+// A payload's start / end as an instant (a wall-clock value is read in the payload's timezone); used by the reschedule planning to read what NAgex approved.
+export { instantOf } from './calendar-verification.js';
 export type { CalendarEventPayload } from './calendar.client.js';
 // R23.2D — CurrentPersonalContextService's CalendarEventsSource interface
 // (and the demo-mode implementation that satisfies it) is typed against

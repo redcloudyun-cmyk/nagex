@@ -48,6 +48,7 @@ import { handleGovernanceRoutes, executionHistory } from './http/routes/governan
 import { handleProvidersRoutes } from './http/routes/providers.routes.js';
 import { handleSafetyRoutes } from './http/routes/safety.routes.js';
 import { handleConversationRoutes, handleSessionRoutes } from './http/routes/conversation.routes.js';
+import { CalendarEventDirectory } from './planning/calendar-event-directory.js';
 import { handleResearchRoutes } from './http/routes/research.routes.js';
 import { handleArtifactRoutes } from './http/routes/artifact.routes.js';
 import { ArtifactContextResolver } from './artifacts/artifact-context.resolver.js';
@@ -556,6 +557,15 @@ export async function handleAsyncApiRequest(
           const read = await calendarConnectionFor(calendarService).readEvents({ tenantId, principalId, requestId }, { timeMin, timeMax, maxResults: 20 });
           return { state: read.connection.state, events: read.events };
         },
+        // the events "방금 만든 회의를 한 시간 늦춰줘" can mean: NAgex's own recent creations (its execution records) + the person's calendar window
+        rescheduleCandidates: (input) => new CalendarEventDirectory({
+          executions: app.executionStore,
+          approvals: actionApprovals,
+          readCalendarWindow: async ({ tenantId, principalId, timeMin, timeMax, requestId }) => {
+            const read = await calendarConnectionFor(calendarService).readEvents({ tenantId, principalId, requestId }, { timeMin, timeMax, maxResults: 50 });
+            return { state: read.connection.state, events: read.events };
+          },
+        }).candidates(input),
       });
       if (conversationResult) return conversationResult;
     }

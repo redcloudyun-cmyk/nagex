@@ -562,8 +562,14 @@
     const executedSteps = Array.isArray(result.steps) ? result.steps : Array.isArray(result.completedSteps) ? result.completedSteps : [];
     const savedStep = status === 'SUCCEEDED' ? executedSteps.find((s) => s && s.result && s.result.outcome === 'SAVED_TO_VAULT' && s.result.verification && s.result.verification.status === 'VERIFIED') : null;
     const vaultFailed = status === 'FAILED' && run && /^VAULT_/.test(String(run.errorCode || ''));
-    block.dataset.runState = savedStep ? 'SAVED_TO_VAULT' : vaultFailed ? 'VAULT_NOT_SAVED' : planOnly ? 'PLAN_ONLY' : responded ? 'TOOL_RESPONDED' : declined ? 'DECLINED' : expired ? 'EXPIRED' : status;
-    block.querySelector('.main-run-state').textContent = savedStep ? bt('mainVault.saved', 'Saved to your Vault')
+    // a Google Calendar change is "confirmed" only when NAgex read the event back and it matched; provider acceptance alone is never described as done
+    const calendarStep = status === 'SUCCEEDED' ? executedSteps.find((s) => s && /^google_calendar\.(create_event|update_event|cancel_event|respond_to_event)$/.test(String(s.capabilityId || '')) && s.result && s.result.verification && typeof s.result.verification.outcome === 'string') : null;
+    const calendarOutcome = calendarStep ? calendarStep.result.verification.outcome : '';
+    block.dataset.runState = calendarOutcome === 'VERIFIED' ? 'CALENDAR_CONFIRMED' : calendarOutcome === 'MISMATCH' ? 'CALENDAR_MISMATCH' : calendarOutcome === 'NOT_VERIFIED' ? 'CALENDAR_UNCONFIRMED' : savedStep ? 'SAVED_TO_VAULT' : vaultFailed ? 'VAULT_NOT_SAVED' : planOnly ? 'PLAN_ONLY' : responded ? 'TOOL_RESPONDED' : declined ? 'DECLINED' : expired ? 'EXPIRED' : status;
+    block.querySelector('.main-run-state').textContent = calendarOutcome === 'VERIFIED' ? bt('mainCalendar.confirmedState', 'Done - confirmed on your calendar')
+      : calendarOutcome === 'MISMATCH' ? bt('mainCalendar.mismatchState', 'Sent - your calendar shows something different')
+      : calendarOutcome === 'NOT_VERIFIED' ? bt('mainCalendar.unconfirmedState', 'Sent to your calendar - not confirmed')
+      : savedStep ? bt('mainVault.saved', 'Saved to your Vault')
       : vaultFailed ? bt('mainVault.notSaved', 'Not saved')
       : planOnly ? bt('mainRoute.planOnlyState', 'Plan reviewed')
       : responded ? bt('mainRun.toolResponded', 'Tool responded')
@@ -584,6 +590,12 @@
     let text = note || '';
     if (!text && declined) text = bt('mainRun.declinedNote', 'You declined, so nothing was done.');
     if (!text && expired) text = bt('mainRun.expiredNote', 'The approval expired before it was granted, so nothing was done. Ask again to get a fresh one.');
+    if (!text && calendarOutcome === 'VERIFIED') text = bt('mainCalendar.confirmedNote', 'Google Calendar accepted the change and NAgex read the event back to confirm it.');
+    if (!text && calendarOutcome === 'MISMATCH') {
+      const differing = (calendarStep.result.verification.checks || []).filter((c) => c && c.ok === false).map((c) => String(c.field)).slice(0, 4).join(', ');
+      text = bt('mainCalendar.mismatchNote', 'Google Calendar accepted the change, but when NAgex read the event back it did not match what you approved ({fields}). Check your calendar.').replace('{fields}', differing);
+    }
+    if (!text && calendarOutcome === 'NOT_VERIFIED') text = bt('mainCalendar.unconfirmedNote', 'Google Calendar accepted the change, but NAgex could not read the event back to confirm it. Check your calendar.');
     if (!text && savedStep) text = bt('mainVault.savedNote', 'Saved, and read back from your Vault: "{title}".').replace('{title}', String(savedStep.result.title || ''));
     if (!text && vaultFailed) text = bt('mainVault.failedNote', 'The Vault could not store this, so nothing was saved. The approval was used - ask again to get a fresh one.');
     if (!text && responded) text = bt('mainRun.respondedNote', 'The tool answered. NAgex has not independently checked the result in the real world.');
@@ -596,10 +608,14 @@
     noteEl.hidden = !text;
     const openBtn = block.querySelector('.main-run-open');
     if (openBtn) {
-      openBtn.hidden = !savedStep;
+      const calendarUrl = calendarStep && typeof calendarStep.result.externalUrl === 'string' && /^https:\/\//.test(calendarStep.result.externalUrl) && calendarStep.capabilityId !== 'google_calendar.cancel_event' ? calendarStep.result.externalUrl : '';
+      openBtn.hidden = !savedStep && !calendarUrl;
       if (savedStep) {
         openBtn.textContent = bt('mainVault.open', 'Open in Vault');
         openBtn.onclick = () => openVaultItem(savedStep.result.vaultItemId);
+      } else if (calendarUrl) {
+        openBtn.textContent = bt('mainCalendar.openEvent', 'Open in Google Calendar');
+        openBtn.onclick = () => window.open(calendarUrl, '_blank', 'noopener,noreferrer');
       }
     }
     const cancel = block.querySelector('.main-run-cancel');
@@ -656,15 +672,15 @@
     if (args.length > 0) {
       const list = document.createElement('dl');
       const vaultSave = proposal.capabilityId === 'vault.save_note';
-      const calendarCreate = proposal.capabilityId === 'google_calendar.create_event';
+      const calendarCreate = proposal.capabilityId === 'google_calendar.create_event' || proposal.capabilityId === 'google_calendar.update_event';
       args.forEach((a) => {
         const dt = document.createElement('dt');
         const dd = document.createElement('dd');
         if (calendarCreate) {
           // a calendar event is approved as a person reads it: what, exactly when (date, weekday, time, timezone) and in which calendar - never raw field names
-          const names = { summary: bt('mainCalendar.title', 'Title'), start: bt('mainCalendar.starts', 'Starts'), end: bt('mainCalendar.ends', 'Ends'), timezone: bt('mainCalendar.timezone', 'Timezone'), calendarId: bt('mainCalendar.calendar', 'Calendar'), description: bt('mainCalendar.notes', 'Notes'), attendees: bt('mainCalendar.guests', 'Guests') };
+          const names = { event: bt('mainCalendar.event', 'Event'), beforeStart: bt('mainCalendar.beforeStarts', 'Now starts'), beforeEnd: bt('mainCalendar.beforeEnds', 'Now ends'), summary: bt('mainCalendar.title', 'Title'), start: proposal.capabilityId === 'google_calendar.update_event' ? bt('mainCalendar.newStarts', 'Will start') : bt('mainCalendar.starts', 'Starts'), end: proposal.capabilityId === 'google_calendar.update_event' ? bt('mainCalendar.newEnds', 'Will end') : bt('mainCalendar.ends', 'Ends'), timezone: bt('mainCalendar.timezone', 'Timezone'), calendarId: bt('mainCalendar.calendar', 'Calendar'), description: bt('mainCalendar.notes', 'Notes'), attendees: bt('mainCalendar.guests', 'Guests') };
           dt.textContent = names[a.name] || String(a.name || '');
-          dd.textContent = a.name === 'start' || a.name === 'end' ? calendarWhen(a.value) : a.name === 'calendarId' && a.value === 'primary' ? bt('mainCalendar.primary', 'Primary calendar') : a.name === 'attendees' && (a.value === '[]' || !a.value) ? bt('mainCalendar.noGuests', 'None') : String(a.value == null ? '' : a.value);
+          dd.textContent = a.name === 'start' || a.name === 'end' || a.name === 'beforeStart' || a.name === 'beforeEnd' ? calendarWhen(a.value) : a.name === 'calendarId' && a.value === 'primary' ? bt('mainCalendar.primary', 'Primary calendar') : a.name === 'attendees' && (a.value === '[]' || !a.value) ? bt('mainCalendar.noGuests', 'None') : String(a.value == null ? '' : a.value);
         } else if (vaultSave) {
           // a Vault draft is approved in the person's own words: field names and the source in plain language, the text whole
           const names = { title: bt('mainVault.fieldTitle', 'Title'), content: bt('mainVault.contentLabel', 'Text to be saved'), source: bt('mainVault.fieldSource', 'Text from') };

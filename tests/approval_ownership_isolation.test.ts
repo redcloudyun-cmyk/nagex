@@ -226,8 +226,9 @@ test('wrong-tenant Broker execution causes no external side effect and does not 
 
 test('legitimate owner: approve works, execute works, consume happens exactly once, replay still blocked', async () => {
   let callCount = 0;
-  const { approvals, broker } = buildBrokerHarness(async () => {
-    callCount++;
+  // what must happen exactly once is the CHANGE (a POST); the read-back that follows it is a GET and is not a second mutation
+  const { approvals, broker } = buildBrokerHarness(async (_url, init) => {
+    if (String(init?.method ?? 'GET') !== 'GET') callCount++;
     return new Response(JSON.stringify({ id: 'evt_real', htmlLink: 'https://calendar.google.com/event?eid=real' }), { status: 200 });
   });
 

@@ -1540,6 +1540,39 @@
       "assertionIntent": "observable behavior",
       "notes": "Observable deterministic product/service contract."
     },
+    "calendar_reschedule": {
+      "milestone": "R26B-CALENDAR",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": [
+        "google",
+        "approvals",
+        "runtime"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "Moving an event the person already has is planned by NAgex from their own words: \"방금 만든\" is the event NAgex created most recently (close ties are asked about), a title / day / time selects one; exactly one match becomes an approval-gated update with the exact before -> after in the event's own timezone and the length kept, several matches are listed and asked, none or no calendar is said plainly, and nothing is guessed or changed; the calendar is only read for requests that say how a time changes; another person's events are never candidates; a second shift starts from where the event is now.",
+      "notes": "Pure parsing / resolution / arithmetic plus the route and the whole approval -> update -> read-back chain against the Calendar fake; no model is asked."
+    },
+    "calendar_reschedule_browser": {
+      "milestone": "R26B-CALENDAR",
+      "classification": "REAL_BROWSER_CERT",
+      "canonical": true,
+      "scopes": [
+        "browser",
+        "google",
+        "ux"
+      ],
+      "externalDependencies": [],
+      "realBrowser": true,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "From the Main input, \"방금 만든 회의를 한 시간 늦춰줘\" (Korean and English) reaches a reviewed plan with the exact before -> after (no model asked, nothing changed), the approval card reads as the event, what it is now and what it becomes with no internal ids, only the person's own approval lets the change run once, and the result says \"confirmed on your calendar\" only because the event was read back; when Google accepts a change the calendar does not show, the person is told it is NOT confirmed and which field differs; two events created just now are listed and asked about instead of guessed.",
+      "notes": "Production server in-process; only Google's REST API is a local fake (tests/_fake_google_calendar.ts) with the shared token store connected for disposable users. Proves NAgex's own chain and honesty, not a live Google write.",
+      "writesRepositoryArtifacts": false
+    },
     "calendar_verification": {
       "milestone": "R26B-CALENDAR",
       "classification": "CANONICAL_BEHAVIOR",

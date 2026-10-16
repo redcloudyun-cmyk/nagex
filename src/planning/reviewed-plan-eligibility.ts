@@ -55,8 +55,22 @@ export function assessReviewedPlan(resolved: ResolvedPlan): RunnableAssessment {
 
 // A preview of the arguments the person is about to approve: short, flat, with anything credential-like removed. Never the model's reasoning, never a secret.
 const SECRET_KEY = /(token|secret|password|passwd|authorization|api[-_]?key|credential|cookie|bearer)/i;
+// A time change is read as "this event, now at X, will be at Y": the event's own title, what it is now, what it becomes, the timezone - never the provider's event id.
+function previewCalendarUpdate(parameters: Record<string, unknown>): Array<{ name: string; value: string }> {
+  const text = (v: unknown): string => (typeof v === 'string' ? v.replace(/\s+/g, ' ').trim().slice(0, 160) : '');
+  const before = parameters.before && typeof parameters.before === 'object' && !Array.isArray(parameters.before) ? (parameters.before as Record<string, unknown>) : null;
+  const out: Array<{ name: string; value: string }> = [];
+  if (before && text(before.summary)) out.push({ name: 'event', value: text(before.summary) });
+  if (before && text(before.start)) out.push({ name: 'beforeStart', value: text(before.start) });
+  if (before && text(before.end)) out.push({ name: 'beforeEnd', value: text(before.end) });
+  for (const name of ['summary', 'description', 'start', 'end', 'timezone', 'calendarId']) if (text(parameters[name])) out.push({ name, value: text(parameters[name]) });
+  if (Array.isArray(parameters.attendees)) out.push({ name: 'attendees', value: JSON.stringify(parameters.attendees).slice(0, 160) });
+  return out;
+}
+
 export function previewArguments(parameters: unknown, toolId?: string | null): Array<{ name: string; value: string }> {
   if (!parameters || typeof parameters !== 'object' || Array.isArray(parameters)) return [];
+  if (toolId === 'google_calendar.update_event') return previewCalendarUpdate(parameters as Record<string, unknown>);
   const out: Array<{ name: string; value: string }> = [];
   for (const [name, value] of Object.entries(parameters as Record<string, unknown>).slice(0, 12)) {
     if (SECRET_KEY.test(name)) { out.push({ name, value: '[hidden]' }); continue; }
