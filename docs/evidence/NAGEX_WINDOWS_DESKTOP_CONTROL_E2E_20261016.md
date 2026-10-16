@@ -22,6 +22,19 @@ Independent check of the literal result, made outside the test: the file exists,
 
 Device steps reported (flat evidence, no document text, no folder path): `ACCEPTED → CONTROLLER_STARTED → APP_WINDOW_FOUND_BY_HANDLE → DOCUMENT_IS_BLANK → TEXT_ENTERED_AND_READ_BACK → FILE_MENU_OPENED → SAVE_AS_OPENED → FILE_NAME_ENTERED_AND_READ_BACK → SAVE_PRESSED_DIALOG_CLOSED → FILE_READ_BACK_MATCHES_APPROVED_TEXT → WINDOW_CLOSED`.
 
+### 1b. The same journey from the Main screen (P0-5)
+
+Typing the request into Main (Korean or English) now leads to **one card** instead of API calls:
+
+1. **Routing.** "Open Notepad … save it as … " is recognised only when the person has an enrolled, active PC that reports it can drive Notepad; otherwise NAgex says plainly that it cannot use a PC of theirs yet and how to connect one (nothing is asked or approved). A question about how to save in Notepad, or a request *not* to, is left alone.
+2. **Reading the request.** The text (quoted, or after a colon), the `.txt` name and Documents are read deterministically — no model is asked to guess; what is missing (text, name) or unsupported (another folder, another application) is asked for, with no card and no approval.
+3. **The card** names the PC (by its host name), shows the exact text, the file and the folder, says it happens **on the screen**, and waits. Nothing is written or sent to the PC before **Approve**; **Decline** ends it with nothing sent. A PC that is off is told, not hidden.
+4. **After Approve** the card shows only what the PC *reported*: waiting for the PC → working → **done only after the PC read the file back and it matched**, with its size and a few plain-language steps. A refusal by the PC (for example the file already exists) is explained in plain words and nothing is claimed. A plan nobody picked up in time is shown as expired.
+
+Proven in `desktop_task_browser` (real Chromium, real Main UI, real server, real enrollment and signed transport, real device executor; **the native controller is a scripted stand-in** so it runs anywhere — the real Notepad run is §1) and `desktop_request_routing`. Screenshots were reviewed by eye (approval card and finished card, EN and KO).
+
+**Not done in the Main screen:** the card is not restored after a page refresh (the approval and the PC's report live on the server, but the card does not reload them); no list of earlier desktop tasks.
+
 ## 2. The journey, link by link (Phase 1 audit → now)
 
 | # | Link | Phase 1 | Now |

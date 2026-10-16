@@ -12,6 +12,8 @@ export interface DesktopPlanWiringOptions {
   dataDir: string;
   controller?: DesktopAutomationPort;
   resolveRoot?: RootResolver;
+  /** folders a document may never be saved in; the default (application-data and temp folders of this user) is right for a real device and is overridden only by tests */
+  volatileRoots?: string[];
   /** delivers a report to the server; resolves false when it could not */
   report: (commandId: string, executionId: string | null, stage: 'EXECUTING' | 'COMPLETED' | 'FAILED', resultCode: string, evidence: Record<string, unknown>) => Promise<boolean>;
   log?: (event: Record<string, unknown>) => void;
@@ -37,6 +39,7 @@ export function createDesktopPlanWiring(options: DesktopPlanWiringOptions): Desk
     identity: { deviceId: credential.deviceId, tenantId: credential.tenantId, ownerId: credential.ownerId },
     replayGuard: new DesktopCommandReplayGuard(path.join(options.dataDir, 'desktop-plan-seen.json')),
     ...(options.resolveRoot ? { resolveRoot: options.resolveRoot } : {}),
+    ...(options.volatileRoots ? { volatileRoots: options.volatileRoots } : {}),
     report: async (command, report) => {
       const executionId = typeof command.data.executionId === 'string' ? command.data.executionId : null;
       const delivered = await options.report(command.commandId, executionId, report.stage, report.resultCode, report.evidence);

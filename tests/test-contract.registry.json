@@ -4571,6 +4571,31 @@
       "notes": "Opt-in (NAGEX_REAL_WINDOWS_E2E=1); drives a real application on the interactive desktop; skipped with an explicit reason otherwise, never reported as passed. The Electron shell is not part of it.",
       "requiresEnv": ["NAGEX_REAL_WINDOWS_E2E"]
     },
+    "desktop_request_routing": {
+      "milestone": "WINDOWS-DESKTOP-20261016",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": ["device", "ux", "security"],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "A request to open Notepad and save something is read into its text, its .txt name and the folder (Documents - naming it is optional, any other place is said); what cannot be read is asked for, never invented; a question about how or a negation is not a request; with an enrolled PC that can do it the request is an action that waits for approval, without one it is an honest 'not available'.",
+      "notes": "Plain and deterministic; no model is asked to guess a name or a sentence. The reading only fills in the approval card."
+    },
+    "desktop_task_browser": {
+      "milestone": "WINDOWS-DESKTOP-20261016",
+      "classification": "REAL_BROWSER_CERT",
+      "canonical": true,
+      "scopes": ["browser", "ux", "device", "security", "permission-approval-hardening"],
+      "externalDependencies": [],
+      "realBrowser": true,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "The Main screen for 'open Notepad, write this and save it in my Documents' (Korean and English, real Chromium): with no enrolled PC it says so and asks/approves nothing; with one, ONE card names the PC, shows the exact text, file and folder and that it happens on screen, and waits - nothing is written or sent before Approve; after Approve the card shows only what the PC reports (waiting for the PC, working, then done only after the PC read the file back and it matched, with its size and plain-language steps); Decline ends it with nothing sent; a PC that is off is told and the card finishes when it returns; asking again for an existing file is refused by the PC in plain words with the file untouched; unclear requests (no text, no name, another folder) are asked for with no card and no approval; a question about Notepad starts nothing; no technical text leaks.",
+      "notes": "Real server, real enrollment, real signed transport, real device executor; the native Windows controller is a scripted stand-in (tests/_fake_desktop_port.ts) so this runs on any machine. A real application is proven by the opt-in desktop_windows_notepad_real.",
+      "writesRepositoryArtifacts": false
+    },
     "computer_use_keyboard_approval": {
       "milestone": "COMPUTER-USE-20261016",
       "classification": "REAL_BROWSER_CERT",

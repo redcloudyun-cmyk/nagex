@@ -17,68 +17,11 @@ import {
 } from '../src/device-agent/desktop-plan-executor.js';
 import { createDesktopPlanWiring } from '../src/device-agent/desktop-plan-wiring.js';
 import { LocalDeviceCredentialStore, PlaintextLocalStorageFallback } from '../src/device-agent/local-device-credential.store.js';
-import type { DesktopElementSelector, DesktopMode, DesktopOpenAppOptions, DesktopWorkerResult } from '../src/device-agent/windows-isolated-desktop-controller.js';
+import { FakeDesktop } from './_fake_desktop_port.js';
 
 const TEXT = 'NAgex Desktop Agent 실기기 제어 검증 — 2026-10-16';
 const ID = { deviceId: 'dev_pc', tenantId: 'ten', ownerId: 'usr' };
 const tmp = (): string => fs.mkdtempSync(path.join(os.tmpdir(), 'nagex-desktop-exec-'));
-
-const result = (patch: Partial<DesktopWorkerResult> = {}): DesktopWorkerResult => ({ requestId: null, status: 'OK', observedBefore: null, observedAfter: null, verification: false, errorCode: null, matchCount: 1, ...patch });
-
-// A scripted stand-in for the native controller. Every call is recorded; behaviour is switched per test.
-class FakeDesktop implements DesktopAutomationPort {
-  public calls: string[] = [];
-  public available = true;
-  public open: Partial<DesktopWorkerResult> = { status: 'OK', observedAfter: 'hwnd=777;preexistingSameClass=1', matchCount: 1 };
-  public editorValue = '';
-  public typed: Partial<DesktopWorkerResult> | null = null;
-  public menu: Partial<DesktopWorkerResult> | null = null;
-  public saveAsMatches: Partial<DesktopWorkerResult> | null = null;
-  public dialogNotFoundTimes = 0;
-  public filename: Partial<DesktopWorkerResult> | null = null;
-  public confirmPrompt = false;
-  public savedPath = '';
-  public openAppArgs: { exe: string; options?: DesktopOpenAppOptions } | null = null;
-  public sessionIds = new Set<string>();
-  public onSave: (target: string, text: string) => void = (target, text) => fs.writeFileSync(target, text, 'utf8');
-  public slow: Promise<void> | null = null;
-
-  isAvailable() { return this.available; }
-  hasSession(id: string) { return this.sessionIds.has(id); }
-  async init(id: string, mode?: DesktopMode) { this.calls.push(`init:${mode}`); this.sessionIds.add(id); return result(); }
-  async openApp(_id: string, exe: string, _args: string, options?: DesktopOpenAppOptions) {
-    this.calls.push('openApp'); this.openAppArgs = { exe, options };
-    if (this.slow) await this.slow;
-    return result(this.open);
-  }
-  async observe(_id: string, target: string, selector?: DesktopElementSelector) {
-    if (target === '@window') { this.calls.push('observe:@window'); return result({ observedAfter: this.savedPath ? `${path.basename(this.savedPath)} - Notepad` : 'Untitled - Notepad' }); }
-    this.calls.push(`observe:${selector?.className ?? target}`); return result({ observedAfter: this.editorValue });
-  }
-  async mutate(_id: string, pattern: string, _target: string, value?: string, selector?: DesktopElementSelector) {
-    this.calls.push(`mutate:${pattern}`);
-    if (pattern === 'SET_VALUE') { this.editorValue = value ?? ''; return result(this.typed ?? { status: 'SUCCEEDED_VERIFIED', verification: true, observedAfter: value }); }
-    if (pattern === 'EXPAND') return result(this.menu ?? { status: 'SUCCEEDED_VERIFIED', verification: true });
-    if (pattern === 'INVOKE') { this.calls.push(`invoke:${(selector?.names ?? []).join('|')}`); return result(this.saveAsMatches ?? { status: 'SUCCEEDED_VERIFIED', verification: true }); }
-    return result({ status: 'ERR', errorCode: 'UNEXPECTED_PATTERN' });
-  }
-  async dialogSetFilename(_id: string, absolutePath: string) {
-    this.calls.push('dialog:setFilename');
-    if (this.dialogNotFoundTimes > 0) { this.dialogNotFoundTimes -= 1; return result({ status: 'FAILED', errorCode: 'FILE_DIALOG_NOT_FOUND', matchCount: 0 }); }
-    this.savedPath = absolutePath;
-    return result(this.filename ?? { status: 'SUCCEEDED_VERIFIED', verification: true });
-  }
-  async dialogPress(_id: string, which: 'SAVE' | 'CANCEL' | 'NO') {
-    this.calls.push(`dialog:press:${which}`);
-    if (which !== 'SAVE') return result({ status: 'SUCCEEDED_VERIFIED', verification: true });
-    if (this.confirmPrompt) return result({ status: 'FAILED', errorCode: 'CONFIRM_PROMPT_OPEN' });
-    this.onSave(this.savedPath, this.editorValue);
-    return result({ status: 'SUCCEEDED_VERIFIED', verification: true, observedAfter: 'DIALOG_CLOSED' });
-  }
-  async closeApp() { this.calls.push('closeApp'); return result(); }
-  async closeDiscard() { this.calls.push('closeDiscard'); return result(); }
-  async shutdown(id: string) { this.calls.push('shutdown'); this.sessionIds.delete(id); return result(); }
-}
 
 function rig(options: { patch?: Record<string, unknown>; identity?: typeof ID; fake?: FakeDesktop; roots?: { volatile?: string[]; volatileIsParent?: boolean; resolve?: () => string | null } } = {}) {
   const dir = tmp();

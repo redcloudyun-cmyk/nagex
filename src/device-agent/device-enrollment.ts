@@ -16,6 +16,9 @@ export interface EnrollThisDeviceOptions {
   agentVersion: string;
   /** what this device can really do right now (truthful; may be empty) */
   capabilityInventory: string[];
+  /** what the person will recognise this PC by (its host name) and its platform */
+  deviceName?: string;
+  platform?: string;
   /** a device that is already enrolled is kept unless this is set */
   replaceExisting?: boolean;
   fetchFn?: typeof fetch;
@@ -39,7 +42,7 @@ export async function enrollThisDevice(options: EnrollThisDeviceOptions): Promis
     response = await fetchFn(`${options.serverBaseUrl}/api/v1/device-agent/enroll`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${options.sessionId}` },
-      body: JSON.stringify({ publicKey: publicKeyPem, agentVersion: options.agentVersion, capabilityInventory: options.capabilityInventory }),
+      body: JSON.stringify({ publicKey: publicKeyPem, agentVersion: options.agentVersion, capabilityInventory: options.capabilityInventory, ...(options.deviceName ? { deviceName: options.deviceName } : {}), ...(options.platform ? { platform: options.platform } : {}) }),
     });
   } catch {
     return { enrolled: false, reason: 'SERVER_UNREACHABLE' };

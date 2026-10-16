@@ -264,3 +264,55 @@ test('routes: ask -> approve -> dispatch -> status, all session-authenticated an
   assert.equal((status!.data as { stage: string }).stage, 'QUEUED');
   await assert.rejects(() => call('GET', `/api/v1/device-agent/desktop-plans/${commandId}`, undefined, { authorization: `Bearer ${someoneElse.sessionId}` }), (e: unknown) => (e as { code?: string }).code === 'DESKTOP_PLAN_NOT_FOUND');
 });
+
+test('routes: the person\'s own words are enough - the most recently seen capable PC is chosen, the card carries everything to be approved, and a missing piece is asked for, not invented', async () => {
+  const h = harness();
+  const session = h.sessions.createAuthSession('ten', 'usr');
+  const asMe = { authorization: `Bearer ${session.sessionId}` };
+  const ask = (body: unknown) => handleDeviceAgentRoutes('POST', '/api/v1/device-agent/desktop-plans', body as never, asMe, {}, h.routeDeps() as never);
+  const prompt = `메모장을 열고 다음 문장을 작성한 뒤, 내 문서 폴더에 NAgex-Test.txt로 저장해줘. "${TEXT}"`;
+
+  // two PCs of the same person: the one seen most recently is used; a PC that cannot do it is never chosen
+  const incapable = h.devices.enroll({ tenantId: 'ten', ownerId: 'usr', publicKey: keys().publicKeyPem, agentVersion: 't', capabilityInventory: [] });
+  h.devices.touchLastSeen(incapable.deviceId, 'ten', 'usr');
+  const newer = h.devices.enroll({ tenantId: 'ten', ownerId: 'usr', publicKey: keys().publicKeyPem, agentVersion: 't', capabilityInventory: [CAP] });
+  await new Promise((resolve) => setTimeout(resolve, 15));
+  h.devices.touchLastSeen(newer.deviceId, 'ten', 'usr');
+  const asked = await ask({ prompt });
+  assert.equal(asked?.status, 201);
+  const data = asked!.data as { approvalId: string; summary: { text: string; fileName: string; rootAlias: string; onYourScreen: boolean; deviceConnected: boolean } };
+  assert.equal(data.summary.text, TEXT);
+  assert.equal(data.summary.fileName, 'NAgex-Test.txt');
+  assert.equal(data.summary.rootAlias, 'DOCUMENTS');
+  assert.equal(data.summary.onYourScreen, true);
+  assert.equal(data.summary.deviceConnected, false, 'a PC that is not connected right now is told, not hidden');
+  assert.equal(h.approvals.get(data.approvalId, 'ten', 'usr')?.canonicalPayload.deviceId, newer.deviceId);
+
+  // what cannot be read is asked for, each with its own code
+  const codeOf = async (body: unknown) => { try { await ask(body); return 'ASKED'; } catch (e) { return (e as { code?: string }).code; } };
+  assert.equal(await codeOf({ prompt: '메모장을 열고 내 문서 폴더에 a.txt로 저장해줘' }), 'DESKTOP_REQUEST_UNCLEAR_TEXT');
+  assert.equal(await codeOf({ prompt: '메모장에 "hello" 라고 쓰고 저장해줘' }), 'DESKTOP_REQUEST_UNCLEAR_FILE_NAME');
+  assert.equal(await codeOf({ prompt: '메모장에 "hello" 라고 쓰고 바탕화면에 a.txt로 저장해줘' }), 'DESKTOP_REQUEST_UNCLEAR_FOLDER');
+  assert.equal(await codeOf({ prompt: 'Open Word and save "hello" as a.txt' }), 'DESKTOP_REQUEST_UNCLEAR_APP');
+  // explicit fields still win over a prompt; the prompt is only read when no text and no name were given
+  assert.equal(await codeOf({ prompt, text: 'explicit text', fileName: 'explicit.txt' }), 'ASKED');
+});
+
+test('routes: no PC that can do it is said plainly, and a connected PC is reported as connected', async () => {
+  const none = harness({ capabilities: [] });
+  const noneSession = none.sessions.createAuthSession('ten', 'usr');
+  await assert.rejects(
+    () => handleDeviceAgentRoutes('POST', '/api/v1/device-agent/desktop-plans', { prompt: `메모장에 "${TEXT}" 쓰고 a.txt로 저장해줘` } as never, { authorization: `Bearer ${noneSession.sessionId}` }, {}, none.routeDeps() as never),
+    (e: unknown) => (e as { code?: string }).code === 'DESKTOP_DEVICE_UNAVAILABLE',
+  );
+
+  const h = harness();
+  const session = h.sessions.createAuthSession('ten', 'usr');
+  const ask = () => handleDeviceAgentRoutes('POST', '/api/v1/device-agent/desktop-plans', { prompt: `메모장에 "${TEXT}" 쓰고 a.txt로 저장해줘` } as never, { authorization: `Bearer ${session.sessionId}` }, {}, h.routeDeps() as never);
+  assert.equal(((await ask())!.data as { summary: { deviceConnected: boolean } }).summary.deviceConnected, false);
+  const connection = new DeviceConnectionStatusStore({ dir: path.join(h.dir, 'conn') });
+  assert.equal(connection.getStatus(h.device.deviceId, 'ten', 'usr')?.connectionState ?? 'NONE', 'NONE');
+  await h.client.connect();
+  const live = await handleDeviceAgentRoutes('POST', '/api/v1/device-agent/desktop-plans', { prompt: `메모장에 "${TEXT}" 쓰고 a.txt로 저장해줘` } as never, { authorization: `Bearer ${session.sessionId}` }, {}, h.routeDeps({ deviceConnectionStatusStore: connection }) as never);
+  assert.equal((live!.data as { summary: { deviceConnected: boolean } }).summary.deviceConnected, true);
+});

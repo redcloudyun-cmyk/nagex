@@ -1079,6 +1079,11 @@
       await runBrowserTask(prompt, metadata, decision);
       return;
     }
+    // "open Notepad, write ..., save it as ... in my Documents": one card on an enrolled PC of the person's, after their approval
+    if (decision.kind === 'ACTION_PLAN' && (decision.reasonCodes || []).indexOf('DESKTOP_TASK') >= 0) {
+      await runDesktopTask(prompt, metadata, decision);
+      return;
+    }
 
     switch (decision.kind) {
       case 'CLARIFY':
@@ -1152,6 +1157,15 @@
 
   // What NAgex cannot do is said plainly. Nothing was created or run, and the request is never answered as if it had been.
   function showUnsupported(prompt, decision) {
+    if ((decision.reasonCodes || []).indexOf('DESKTOP_DEVICE_UNAVAILABLE') >= 0) {
+      showThread(prompt, 'Unavailable', bt('mainRoute.desktopTitle', "NAgex can't use a PC of yours yet"), bt('mainRoute.desktopBody', 'No PC of yours is connected to NAgex, so nothing was opened or saved. Open NAgex Desktop on the PC and choose \u201cEnroll this PC\u201d in its tray menu, then ask again.'), [
+        { state: 'done', label: 'Request captured', detail: '' },
+        { state: 'done', label: 'Intent classified', detail: routeLabel(decision) },
+        { state: 'pending', label: bt('mainRoute.nothingCreated', 'Nothing was created or run'), detail: '' },
+      ]);
+      renderInlineActions([{ id: 'edit', label: bt('mainRoute.editRequest', 'Edit request'), action: () => putBackInComposer(prompt) }]);
+      return;
+    }
     const video = decision.targetArtifactType === 'VIDEO';
     const title = video ? bt('mainRoute.videoTitle', "Video creation isn't available yet") : bt('mainRoute.codeTitle', "Building or running an app isn't available yet");
     const body = video
@@ -1643,6 +1657,194 @@
       watchBrowserTask(turn, task.taskId);
       state.activeTurn = null;
     }
+  }
+
+  // ── Desktop task: a PC of the person's does it, on their screen, after they approve ───────────────────────────────────────────────────────────
+  // The card shows exactly what will happen (the device, the text, the file and where it goes, that it happens on screen), waits for the person, and then shows only what the PC REPORTED: waiting for the PC,
+  // working, and - only when the PC has read the saved file back and it matches - "done". Nothing here is progress NAgex made up; a plan nobody picked up before it expired is said to have expired.
+  const DTASK_ERRORS = ['DESKTOP_REQUEST_UNCLEAR_TEXT', 'DESKTOP_REQUEST_UNCLEAR_FILE_NAME', 'DESKTOP_REQUEST_UNCLEAR_FOLDER', 'DESKTOP_REQUEST_UNCLEAR_APP', 'DESKTOP_DEVICE_UNAVAILABLE', 'DESKTOP_CAPABILITY_UNAVAILABLE',
+    'DESKTOP_FILE_NAME_INVALID', 'DESKTOP_TEXT_NOT_SINGLE_LINE', 'DESKTOP_TEXT_TOO_LONG', 'APPROVAL_EXPIRED', 'APPROVAL_NOT_FOUND', 'APPROVAL_NOT_GRANTED', 'APPROVAL_ALREADY_CONSUMED', 'DEVICE_COMMAND_ALREADY_PENDING', 'DEVICE_NOT_ACTIVE'];
+  const DTASK_FAILURES = ['TARGET_FILE_EXISTS', 'PATH_NOT_ALLOWED', 'CONTROLLER_UNAVAILABLE', 'APP_WINDOW_NOT_FOUND', 'UNEXPECTED_WINDOW', 'SAVE_AS_NOT_FOUND', 'FILE_VERIFICATION_MISMATCH', 'COMMAND_EXPIRED', 'AGENT_BUSY', 'COMMAND_REPLAY'];
+  const DTASK_STEPS = ['APP_WINDOW_FOUND_BY_HANDLE', 'TEXT_ENTERED_AND_READ_BACK', 'SAVE_PRESSED_DIALOG_CLOSED', 'FILE_READ_BACK_MATCHES_APPROVED_TEXT', 'WINDOW_CLOSED'];
+  const DTASK_STEP_TEXT = {
+    APP_WINDOW_FOUND_BY_HANDLE: ['mainDesktop.step.opened', 'Opened a new Notepad window'],
+    TEXT_ENTERED_AND_READ_BACK: ['mainDesktop.step.typed', 'Wrote the text and checked it'],
+    SAVE_PRESSED_DIALOG_CLOSED: ['mainDesktop.step.saved', 'Saved the file'],
+    FILE_READ_BACK_MATCHES_APPROVED_TEXT: ['mainDesktop.step.verified', 'Read the file back: it matches'],
+    WINDOW_CLOSED: ['mainDesktop.step.closed', 'Closed Notepad'],
+  };
+
+  function dtaskText(key, fallback, values) {
+    let text = bt(key, fallback);
+    Object.keys(values || {}).forEach((name) => { text = text.split('{' + name + '}').join(String(values[name])); });
+    return text;
+  }
+
+  function dtaskErrorText(res) {
+    const raw = res && res.error;
+    const code = typeof raw === 'string' ? raw : (raw && typeof raw === 'object' && raw.code) || (res && res.code) || '';
+    if (code && DTASK_ERRORS.indexOf(code) >= 0) return bt('mainDesktop.err.' + code, code);
+    return bt('mainDesktop.err.generic', 'NAgex could not do that.');
+  }
+
+  function dtaskBlockFor(turn) {
+    let block = turn.el.querySelector('.main-dtask-block');
+    if (!block) {
+      block = document.createElement('div');
+      block.className = 'main-btask-block main-dtask-block';
+      block.innerHTML = '<div class="main-btask-head"><strong class="main-btask-state"></strong><small class="main-btask-meta"></small></div><p class="main-btask-now"></p>'
+        + '<div class="main-btask-approval" hidden></div><div class="main-btask-result" hidden></div>'
+        + '<details class="main-btask-steps" hidden><summary></summary><ol></ol></details><div class="main-btask-actions"></div>';
+      const anchor = turn.el.querySelector('.main-inline-approvals');
+      (anchor && anchor.parentNode ? anchor.parentNode : turn.el).insertBefore(block, anchor || null);
+    }
+    return block;
+  }
+
+  // view: { phase: 'APPROVAL' | 'WORKING' | 'DONE', ask, approvalState, dispatch, status, note }
+  function renderDesktopTask(turn, view) {
+    const block = dtaskBlockFor(turn);
+    turn.dtask = view;
+    const ask = view.ask;
+    const summary = ask.summary || {};
+    const stage = view.status && view.status.stage;
+    const result = view.status && view.status.resultCode;
+    const expired = Boolean(view.dispatch && Date.now() > Date.parse(view.dispatch.expiresAt) && (stage === 'QUEUED' || stage === 'DELIVERED' || !stage));
+    let dataState = 'APPROVAL';
+    let stateText = bt('mainDesktop.state.waitingApproval', 'Waiting for your approval - nothing has happened yet');
+    if (view.approvalState === 'DECLINED') { dataState = 'DECLINED'; stateText = bt('mainDesktop.state.declined', 'Not started - nothing was changed on your PC'); }
+    else if (view.phase === 'WORKING' || view.phase === 'DONE') {
+      if (stage === 'COMPLETED' && result === 'DESKTOP_SAVED_VERIFIED') { dataState = 'COMPLETED'; stateText = bt('mainDesktop.state.completed', 'Done - saved and checked on your PC'); }
+      else if (stage === 'FAILED') { dataState = 'FAILED'; stateText = bt('mainDesktop.state.failed', 'Could not finish'); }
+      else if (expired) { dataState = 'EXPIRED'; stateText = bt('mainDesktop.state.expired', 'Not started - it expired before your PC picked it up'); }
+      else if (stage === 'EXECUTING' || stage === 'CLAIMED') { dataState = 'RUNNING'; stateText = bt('mainDesktop.state.running', 'Working on your PC'); }
+      else { dataState = 'QUEUED'; stateText = bt('mainDesktop.state.queued', 'Waiting for your PC to pick this up'); }
+    }
+    block.setAttribute('data-task-state', dataState);
+    block.querySelector('.main-btask-state').textContent = stateText;
+    block.querySelector('.main-btask-meta').textContent = dtaskText('mainDesktop.meta', 'On {device}', { device: summary.deviceName || '' });
+    const statusEl = turn.el.querySelector('.main-message-status');
+    if (statusEl) { statusEl.textContent = bt('mainDesktop.status.' + dataState, dataState); statusEl.dataset.status = { APPROVAL: 'Working', QUEUED: 'Working', RUNNING: 'Working', COMPLETED: 'Completed', FAILED: 'Failed', DECLINED: 'Cancelled', EXPIRED: 'Cancelled' }[dataState] || 'Working'; }
+    const headingEl = turn.el.querySelector('.main-work-title');
+    if (headingEl) headingEl.textContent = bt('mainDesktop.heading.' + dataState, bt('mainDesktop.title', 'Doing this on your PC'));
+    const introEl = turn.el.querySelector('.main-work-summary');
+    if (introEl && dataState !== 'APPROVAL') introEl.textContent = '';
+    const now = block.querySelector('.main-btask-now');
+    now.textContent = view.note || '';
+    now.hidden = !view.note;
+
+    // what will happen (and, after approval, what was approved)
+    const approval = block.querySelector('.main-btask-approval');
+    approval.hidden = false;
+    approval.textContent = '';
+    // before the decision it says what WILL happen; afterwards it only labels what was asked (never a future tense for something that is done)
+    const deciding = view.phase === 'APPROVAL' && view.approvalState !== 'DECLINED';
+    const lines = [
+      [dtaskText('mainDesktop.card.head', 'Open Notepad on {device} and save a new file', { device: summary.deviceName || '' }), 'main-btask-approval-text'],
+      [(deciding ? bt('mainDesktop.card.writes', 'It will write:') : bt('mainDesktop.card.textLabel', 'Text:')) + ' “' + String(summary.text || '') + '”', 'main-dtask-text'],
+      [deciding ? dtaskText('mainDesktop.card.saveAs', 'It will save it as Documents › {file}', { file: summary.fileName || '' }) : dtaskText('mainDesktop.card.fileLabel', 'File: Documents › {file}', { file: summary.fileName || '' }), 'main-dtask-file'],
+    ];
+    if (view.phase === 'APPROVAL' && view.approvalState !== 'DECLINED') {
+      lines.push([bt('mainDesktop.card.safety', 'This opens Notepad on your screen for a few seconds and creates a new file. It never replaces a file that already exists and never touches another Notepad window you have open.'), 'main-dtask-safety']);
+      if (summary.deviceConnected === false) lines.push([dtaskText('mainDesktop.card.offline', "{device} isn't connected to NAgex right now. If you approve, it runs when NAgex Desktop is open on that PC within 10 minutes; otherwise it expires.", { device: summary.deviceName || '' }), 'main-dtask-offline']);
+    }
+    lines.forEach((entry) => { const p = document.createElement('p'); p.className = entry[1]; p.textContent = entry[0]; approval.appendChild(p); });
+
+    // the result: only what the PC reported
+    const resultBox = block.querySelector('.main-btask-result');
+    resultBox.textContent = '';
+    resultBox.hidden = true;
+    const evidence = (view.status && view.status.evidence) || {};
+    if (dataState === 'COMPLETED') {
+      resultBox.hidden = false;
+      const p = document.createElement('p');
+      p.textContent = dtaskText('mainDesktop.result.verified', 'Saved Documents \u203a {file} and read it back: {size} bytes, and the text matches what you approved.', { file: summary.fileName || '', size: evidence.fileSizeBytes != null ? evidence.fileSizeBytes : '?' });
+      resultBox.appendChild(p);
+    } else if (dataState === 'FAILED') {
+      resultBox.hidden = false;
+      const p = document.createElement('p');
+      p.textContent = DTASK_FAILURES.indexOf(result) >= 0 ? bt('mainDesktop.failure.' + result, bt('mainDesktop.failure.generic', "NAgex couldn't finish this on your PC. Nothing was claimed as done.")) : bt('mainDesktop.failure.generic', "NAgex couldn't finish this on your PC. Nothing was claimed as done.");
+      resultBox.appendChild(p);
+    } else if (dataState === 'EXPIRED') {
+      resultBox.hidden = false;
+      const p = document.createElement('p');
+      p.textContent = bt('mainDesktop.failure.expiredQueue', 'Your PC did not pick this up in time, so NAgex did not run it. Nothing was changed.');
+      resultBox.appendChild(p);
+    }
+
+    // the steps the PC says it took (a few plain lines, not codes)
+    const stepsBox = block.querySelector('.main-btask-steps');
+    const reported = Array.isArray(evidence.steps) ? evidence.steps.filter((s) => DTASK_STEPS.indexOf(s) >= 0) : [];
+    stepsBox.hidden = reported.length === 0;
+    if (reported.length > 0) {
+      stepsBox.querySelector('summary').textContent = dtaskText('mainDesktop.stepsTitle', 'What your PC did ({n})', { n: reported.length });
+      const list = stepsBox.querySelector('ol');
+      list.textContent = '';
+      reported.forEach((s) => { const li = document.createElement('li'); li.textContent = bt(DTASK_STEP_TEXT[s][0], DTASK_STEP_TEXT[s][1]); list.appendChild(li); });
+    }
+
+    // buttons: only while the person has something to decide
+    const actions = block.querySelector('.main-btask-actions');
+    actions.textContent = '';
+    if (view.phase === 'APPROVAL' && view.approvalState !== 'DECLINED') {
+      const approve = addVideoButton(actions, bt('mainDesktop.approve', 'Approve'), 'main-btask-approve', () => decideDesktopTask(turn, true, approve));
+      addVideoButton(actions, bt('mainDesktop.decline', 'Decline'), 'main-btask-decline', () => decideDesktopTask(turn, false, approve));
+    }
+    scrollStreamToEnd();
+  }
+
+  async function decideDesktopTask(turn, approved, button) {
+    const view = turn.dtask;
+    if (!view || view.deciding) return;
+    view.deciding = true;
+    button.disabled = true;
+    const id = encodeURIComponent(view.ask.approvalId);
+    const decided = await api('/api/v1/approvals/' + id + (approved ? '/approve' : '/reject'), { method: 'POST', body: JSON.stringify({}) });
+    if (!decided || decided.error) { view.deciding = false; button.disabled = false; renderDesktopTask(turn, { ...view, note: dtaskErrorText(decided) }); return; }
+    if (!approved) { renderDesktopTask(turn, { ...view, phase: 'DONE', approvalState: 'DECLINED', deciding: false }); return; }
+    const dispatched = await api('/api/v1/device-agent/desktop-plans/dispatch', { method: 'POST', body: JSON.stringify({ approvalId: view.ask.approvalId }), timeoutMs: 30000 });
+    if (!dispatched || dispatched.error || !dispatched.commandId) { view.deciding = false; renderDesktopTask(turn, { ...view, phase: 'APPROVAL', approvalState: 'APPROVED', note: dtaskErrorText(dispatched) }); return; }
+    renderDesktopTask(turn, { ...view, phase: 'WORKING', approvalState: 'APPROVED', dispatch: dispatched, status: null, deciding: false, note: '' });
+    watchDesktopTask(turn);
+  }
+
+  async function watchDesktopTask(turn) {
+    if (turn.dtaskWatching) return;
+    turn.dtaskWatching = true;
+    for (let i = 0; i < 900 && turn.el.isConnected; i += 1) {
+      await new Promise((resolve) => setTimeout(resolve, i < 120 ? 1000 : 3000));
+      if (!turn.el.isConnected) break;
+      const view = turn.dtask;
+      if (!view || !view.dispatch) break;
+      const res = await api('/api/v1/device-agent/desktop-plans/' + encodeURIComponent(view.dispatch.commandId));
+      if (res && !res.error && res.stage) {
+        renderDesktopTask(turn, { ...view, status: res });
+        if (res.stage === 'COMPLETED' || res.stage === 'FAILED') break;
+      } else {
+        // a read that failed is waited out, not shown as an outcome; the expiry of the plan is still honoured
+        renderDesktopTask(turn, { ...view });
+      }
+      const current = turn.dtask;
+      if (current && current.dispatch && Date.now() > Date.parse(current.dispatch.expiresAt) + 5000 && (!current.status || current.status.stage === 'QUEUED' || current.status.stage === 'DELIVERED')) break;
+    }
+    turn.dtaskWatching = false;
+  }
+
+  async function runDesktopTask(prompt, metadata, decision) {
+    const asked = await api('/api/v1/device-agent/desktop-plans', { method: 'POST', body: JSON.stringify({ prompt }), timeoutMs: 30000 });
+    if (!asked || asked.error || !asked.approvalId) {
+      showThread(prompt, 'Unavailable', bt('mainDesktop.unavailableTitle', 'NAgex could not set this up on your PC'), dtaskErrorText(asked), [
+        { state: 'done', label: 'Request captured', detail: '' },
+        { state: 'running', label: bt('mainDesktop.notStarted', 'Nothing was started'), detail: '' },
+      ]);
+      renderInlineActions([{ id: 'edit', label: bt('mainRoute.editRequest', 'Edit request'), action: () => putBackInComposer(prompt) }]);
+      return;
+    }
+    showThread(prompt, 'Working', bt('mainDesktop.title', 'Doing this on your PC'), bt('mainDesktop.intro', 'NAgex uses an app on your PC, on your screen, and only after you approve.'), [
+      { state: 'done', label: 'Request captured', detail: '' },
+      { state: 'running', label: bt('mainDesktop.waitingApproval', 'Waiting for your approval'), detail: '' },
+    ]);
+    if (state.activeTurn) renderDesktopTask(state.activeTurn, { phase: 'APPROVAL', ask: asked, approvalState: 'PENDING' });
   }
 
   // ── Video: a price the person approves -> a real job at an outside service -> a stored MP4 ─────────────────────────────

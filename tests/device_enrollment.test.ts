@@ -137,3 +137,22 @@ test('the private key is generated per enrollment (two PCs never share a key) an
   assert.equal(crypto.createPrivateKey(a.load()!.privateKeyPem).asymmetricKeyType, 'ed25519');
   assert.notEqual(a.load()?.deviceId, b.load()?.deviceId);
 });
+
+test('the PC is named by what the person will recognise (its host name); the name is plain text only - control characters and markup never reach the screen', async () => {
+  const s = server();
+  const session = s.sessions.createAuthSession('ten_a', 'usr_a');
+  const named = await enrollThisDevice({ serverBaseUrl: 'http://x', sessionId: session.sessionId, credentialStore: s.credentials(), agentVersion: '1', capabilityInventory: [], deviceName: 'MIN-DESKTOP', platform: 'win32', fetchFn: s.fetchFn });
+  assert.equal(named.enrolled, true);
+  if (!named.enrolled) return;
+  assert.equal(s.devices.getOwned(named.deviceId, 'ten_a', 'usr_a')?.systemDeviceName, 'MIN-DESKTOP');
+  assert.equal(s.devices.getOwned(named.deviceId, 'ten_a', 'usr_a')?.os, 'win32');
+
+  const hostile = await enrollThisDevice({ serverBaseUrl: 'http://x', sessionId: session.sessionId, credentialStore: s.credentials(), agentVersion: '1', capabilityInventory: [], deviceName: `<img src=x onerror=alert(1)>\u0000\n  ${'x'.repeat(200)}`, fetchFn: s.fetchFn });
+  assert.equal(hostile.enrolled, true);
+  if (!hostile.enrolled) return;
+  const stored = s.devices.getOwned(hostile.deviceId, 'ten_a', 'usr_a')?.systemDeviceName ?? '';
+  assert.ok(stored.length <= 60);
+  assert.ok(!/[<>\u0000-\u001f]/.test(stored), JSON.stringify(stored));
+  const none = await enrollThisDevice({ serverBaseUrl: 'http://x', sessionId: session.sessionId, credentialStore: s.credentials(), agentVersion: '1', capabilityInventory: [], fetchFn: s.fetchFn });
+  assert.equal(none.enrolled && s.devices.getOwned(none.deviceId, 'ten_a', 'usr_a')?.systemDeviceName, null, 'no name is fine: the id is shown instead');
+});

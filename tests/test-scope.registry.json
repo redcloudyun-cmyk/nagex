@@ -40,7 +40,9 @@
       "desktop_plan_command",
       "desktop_plan_executor",
       "device_enrollment",
-      "desktop_windows_notepad_real"
+      "desktop_windows_notepad_real",
+      "desktop_request_routing",
+      "desktop_task_browser"
     ],
     "browser": [
       "sidebar_navigation_certification_browser",
@@ -93,7 +95,8 @@
       "calendar_reschedule_browser",
       "one_input_slides_chain_browser",
       "vault_save_approval_browser",
-      "home_vault_save_browser"
+      "home_vault_save_browser",
+      "desktop_task_browser"
     ],
     "google": [
       "google_calendar_connection_state",
@@ -328,7 +331,8 @@
       "vault_write_truthfulness",
       "desktop_plan_command",
       "desktop_plan_executor",
-      "device_enrollment"
+      "device_enrollment",
+      "desktop_task_browser"
     ],
     "credential-broker": [
       "google_calendar_connection_state",
@@ -468,7 +472,9 @@
       "artifact_versions_browser",
       "enter_to_send_browser",
       "voice_input_browser",
-      "browser_task_browser"
+      "browser_task_browser",
+      "desktop_request_routing",
+      "desktop_task_browser"
     ],
     "knowledge": [
       "r24_5c_knowledge_live"
@@ -488,7 +494,9 @@
       "browser_task_browser",
       "desktop_plan_command",
       "desktop_plan_executor",
-      "device_enrollment"
+      "device_enrollment",
+      "desktop_request_routing",
+      "desktop_task_browser"
     ]
   },
   "fullOnly": [
