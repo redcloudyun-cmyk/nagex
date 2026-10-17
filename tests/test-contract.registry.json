@@ -4733,6 +4733,18 @@
       "assertionIntent": "How an answer is checked after it is written, without a server: the verification level (L0-L3) decided from the structure of the request and from what was observed (never from one keyword or a model's mood; an advisor can only raise it and only when confident); claims checked against the sources they cite (a figure in no source is UNSUPPORTED, an off-topic citation is not support, a calendar date is one figure, a colour list is not a release claim); a second DISTINCT provider's independent reading admitted only through quotes that are in the sources; sources that give different dates (a date is attributed to a name only when it follows it closely); one bounded extra search; one rewrite from the sources; removal of what is still unsupported; and the status (VERIFIED / PARTIALLY_VERIFIED / UNVERIFIED / DISPUTED) that follows from the facts.",
       "notes": "Deterministic, with scripted readers and a simulated JEV service (the request/answer shape is the repository's verified one; no live JEV call). Not evidence that a real second model reviewed anything."
     },
+    "jev_config": {
+      "milestone": "JEV-CONFIG-20261017",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": ["model-routing","runtime","security"],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "Where NAgex finds the JEV credential and what that does to the JEV advisors: the key is read under either historical name (NAGEX_JEV_API_KEY, or the original JEVMODEL_API_KEY - the same credential) through one resolver; the description of the configuration carries the NAME of the variable and booleans, never the value; the device, route and verification advisors exist exactly when the switch is on AND a key exists, and building the application sends nothing; the configuration check reads only the JEV names of a .env file and prints no key; the live check does nothing without NAGEX_LIVE_JEV=1 and its one request (exercised with an injected fetch) returns a failed call's body without the key.",
+      "notes": "No request to the real JEV service is made. JEV_LIVE stays NOT_RUN until a person runs scripts/jev-live-check.mjs with NAGEX_LIVE_JEV=1 where the key is kept."
+    },
     "answer_quality_benchmark": {
       "milestone": "ANSWER-VERIFICATION-20261017",
       "classification": "CANONICAL_BEHAVIOR",

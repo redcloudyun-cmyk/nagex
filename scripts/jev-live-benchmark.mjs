@@ -2,6 +2,8 @@ import { JEV_SHADOW_FIXTURES } from '../dist/src/model-gateway/jev-shadow-fixtur
 import { JevSystemOneProvider } from '../dist/src/model-gateway/jev-provider.js';
 import { buildJevLiveResultRecord, persistJevLiveBenchmarkArtifacts } from '../dist/src/model-gateway/jev-live-results.js';
 import { ModelRoutingPolicy } from '../dist/src/model-gateway/model-routing-policy.js';
+import { resolveJevApiKey } from '../dist/src/model-gateway/jev-config.js';
+import { loadJevEnv } from './_jev-env.mjs';
 
 const SELECTED_FIXTURE_IDS = [
   'chat-simple-001',
@@ -131,10 +133,10 @@ async function main() {
     return;
   }
   console.log(`SELECTED_FIXTURE_IDS=${SELECTED_FIXTURE_IDS.join(',')}`);
-  const apiKey = process.env.JEVMODEL_API_KEY;
+  const apiKey = resolveJevApiKey(loadJevEnv().env).key ?? undefined;
   if (!apiKey) {
     console.log('JEV_LIVE_SAMPLE=FAIL');
-    console.log('FAILURE_REASON=JEVMODEL_API_KEY_NOT_PRESENT');
+    console.log('FAILURE_REASON=JEV_API_KEY_NOT_PRESENT');
     process.exitCode = 2;
     return;
   }
