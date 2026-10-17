@@ -23,6 +23,8 @@ export interface EvidenceSource {
   url: string;
   sourceName?: string;
   snippet?: string;
+  /** the page text as it was read (bounded), kept in memory so claims can be checked against it - NEVER sent to the client */
+  fullText?: string;
   /** the passages of the page itself that bear on the question (fetched under robots.txt and the outbound policy); absent when the page could not be read */
   excerpt?: string;
   publishedAt?: string;

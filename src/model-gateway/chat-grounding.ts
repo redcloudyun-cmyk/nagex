@@ -169,3 +169,26 @@ export function redactReleaseDenials(answer: string, language: 'ko' | 'en'): str
   const line = language === 'ko' ? '※ 출시 여부는 확인하지 못했습니다.' : 'Note: whether it has been released could not be confirmed.';
   return body ? `${body}\n\n${line}` : line;
 }
+
+// ---- citations as data -----------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+/** the source ids a piece of text cites, in order of first appearance (single [src_2] and grouped [src_1, src_2] forms) */
+export function citedIdsIn(text: string): string[] {
+  const ids: string[] = [];
+  for (const match of String(text ?? '').matchAll(CITATION)) for (const id of match[1].split(/\s*[,;]\s*/)) if (!ids.includes(id)) ids.push(id);
+  return ids;
+}
+
+/** the text with its citation markers removed (so a marker's own digits are never mistaken for a figure of the claim) */
+export function withoutCitations(text: string): string {
+  return String(text ?? '').replace(CITATION, '').replace(/[ \t]{2,}/g, ' ').trim();
+}
+
+// ---- a second try after the answer was checked ------------------------------------------------------------------------------------------------------------------------------------------------
+/** The instruction for the one rewrite that follows a failed check. It lists what the evidence did not support - and nothing else about the check. */
+export function revisionInstruction(problems: string[]): string {
+  return [
+    'A check of your answer against the sources you were given found statements that the sources do not support, or that they contradict:',
+    ...problems.slice(0, 8).map((p) => `- ${p.slice(0, 280)}`),
+    'Write the answer again from the beginning. Keep everything the sources support (with the [src_n] citation of the source that supports it). Correct a listed statement ONLY with what a source states, and where the sources do not give a figure say so plainly instead of guessing. Do not mention this check.',
+  ].join('\n');
+}

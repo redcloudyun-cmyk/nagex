@@ -49,7 +49,7 @@ async function turn(label: string, message: string): Promise<any> {
   const record = {
     label, prompt: message, httpStatus: res.status(), elapsedMs: Date.now() - started,
     provider: raw?.provider, model: raw?.model, modelLatencyMs: raw?.latencyMs,
-    answer: String(data.message ?? ''), grounding: data.grounding,
+    answer: String(data.message ?? ''), grounding: data.grounding, verification: data.verification ?? null,
     sources: (data.sources ?? []).map((s: any) => ({ id: s.sourceId, title: s.title, url: s.url, publishedAt: s.publishedAt ?? null, freshness: s.freshnessStatus, pageRead: Boolean(s.excerpt), excerpt: typeof s.excerpt === 'string' ? s.excerpt.slice(0, 700) : null })),
     errorBody: res.status() === 200 ? undefined : raw,
   };
@@ -87,6 +87,7 @@ describe('LIVE: the Fold incident against a real model and real (encyclopedic) r
     assert.equal(/live web search is unavailable/i.test(t.answer), false);
     noInventedCitations(t);
     // the factual verdict is NOT asserted here: it is read from the transcript against the sources
+    assert.ok(t.verification && typeof t.verification.status === 'string', 'the answer carries a verification report');
   });
 
   it('D - an unrelated current-fact question (English): the same chain, in English', async () => {

@@ -94,11 +94,15 @@ import type { DemoScenarioService } from '../demo/demo-scenario.service.js';
 import type { QuestionClassificationService } from '../research/question-classification.service.js';
 import type { WebSearchService } from '../research/web-search.service.js';
 import type { EvidencePackService } from '../research/evidence-pack.service.js';
+import type { AnswerVerifier } from '../verification/answer-verifier.js';
+import type { VerificationAdvisorPort } from '../verification/verification-flow.js';
 
 export interface NagexApplication {
   questionClassificationService: QuestionClassificationService;
   webSearchService: WebSearchService;
   evidencePackService: EvidencePackService;
+  answerVerifier: AnswerVerifier;
+  verificationAdvisor: VerificationAdvisorPort | null;
   mcpService: McpService;
   demoScenarioService: DemoScenarioService;
   personalReminderStore: PersonalReminderStore;

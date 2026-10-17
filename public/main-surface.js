@@ -22,6 +22,8 @@
     lastAnswerFull: '',
     answerForSave: '',
     web: true,
+    // set for exactly ONE request by "check again more carefully" (sent as verificationPreference; NAgex raises the verification level); never a standing switch in the composer
+    verify: false,
     personalContext: false,
     planPreview: true,
     busy: false,
@@ -83,6 +85,7 @@
       preferredCapability: mode.capability || null,
       preferredArtifactType: mode.artifactType || null,
       allowWebResearch: state.web,
+      verificationPreference: state.verify ? 'STRONG' : 'AUTO',
       usePersonalContext: state.personalContext,
       showPlanBeforeConsequentialActions: state.planPreview,
       routingPolicy: 'INTERNAL_AUTO',
@@ -1405,6 +1408,61 @@
     else turn.el.appendChild(box);
   }
 
+  // What was checked, in the person's own terms: one chip (never colour alone), and a short "how" under it. Nothing technical: no provider, no id.
+  function renderAnswerVerification(turn, verification) {
+    if (!turn || !turn.el) return;
+    const previous = turn.el.querySelector('.main-answer-verification');
+    if (previous) previous.remove();
+    if (!verification || !verification.status || verification.status === 'NOT_REQUIRED') return;
+    const box = document.createElement('div');
+    box.className = 'main-answer-verification';
+    box.dataset.status = verification.status;
+    const chip = document.createElement('strong');
+    chip.className = 'main-answer-verification-chip';
+    chip.textContent = bt('mainAnswer.verify.' + verification.status, verification.status);
+    box.appendChild(chip);
+    const counts = verification.counts || {};
+    const lines = [];
+    if (counts.checked) lines.push(bt('mainAnswer.verify.counts', '{checked} statements looked at · {supported} backed by a source · {unsupported} not backed').replace('{checked}', String(counts.checked)).replace('{supported}', String(counts.supported || 0)).replace('{unsupported}', String((counts.unsupported || 0) + (counts.contradicted || 0))));
+    const review = verification.review || {};
+    // why the status is what it is, in plain words (a fully verified answer needs no explanation)
+    const SPOKEN_REASONS = ['NO_SOURCES', 'NOTHING_MATERIAL_TO_CHECK', 'NO_MATERIAL_CLAIM_IS_SUPPORTED', 'SOME_MATERIAL_CLAIMS_ARE_NOT_SUPPORTED', 'NO_PRIMARY_LIKE_SOURCE', 'NO_INDEPENDENT_REVIEW_AT_L3', 'EVIDENCE_NOT_CURRENT', 'SOURCES_DISAGREE_AND_THE_ANSWER_SAYS_SO', 'SOURCES_DISAGREE_AND_THE_ANSWER_DOES_NOT_SAY_SO', 'A_CLAIM_IS_CONTRADICTED', 'THE_READINGS_DISAGREE'];
+    (Array.isArray(verification.statusReasons) ? verification.statusReasons : []).filter((reason) => SPOKEN_REASONS.indexOf(reason) >= 0).reverse().forEach((reason) => lines.unshift(bt('mainAnswer.verify.reason.' + reason, reason)));
+    if (review.mode === 'INDEPENDENT_MODEL_REVIEW') lines.push(bt('mainAnswer.verify.independent', 'A second model read the same sources on its own.'));
+    else if (review.mode === 'SELF_REVIEW') lines.push(bt('mainAnswer.verify.self', 'The same model read the sources again (not an independent check).'));
+    else if (review.mode === 'UNAVAILABLE') lines.push(bt('mainAnswer.verify.noReview', 'No second model was available for an independent reading.'));
+    (Array.isArray(verification.conflicts) ? verification.conflicts : []).forEach((c) => lines.push(bt('mainAnswer.verify.conflict.' + c.kind, 'The sources give different values for {subject}: {values}').replace('{subject}', String(c.subject || '')).replace('{values}', (c.values || []).map((v) => v.value).join(' / '))));
+    if (verification.revision === 'REWRITTEN') lines.push(bt('mainAnswer.verify.rewritten', 'The answer was corrected after this check.'));
+    if (verification.revision === 'REDACTED') lines.push(bt('mainAnswer.verify.redacted', 'Statements the sources do not support were left out.'));
+    if (verification.extraRetrievals > 0) lines.push(bt('mainAnswer.verify.extra', 'One more search was made to settle a doubt.'));
+    if (lines.length > 0) {
+      const details = document.createElement('details');
+      details.className = 'main-answer-verification-details';
+      const summary = document.createElement('summary');
+      summary.textContent = bt('mainAnswer.verify.details', 'How this was checked');
+      details.appendChild(summary);
+      const ul = document.createElement('ul');
+      lines.forEach((line) => { const li = document.createElement('li'); li.textContent = line; ul.appendChild(li); });
+      details.appendChild(ul);
+      box.appendChild(details);
+    }
+    const summaryEl = turn.el.querySelector('.main-work-summary');
+    if (summaryEl && summaryEl.parentNode) summaryEl.parentNode.insertBefore(box, summaryEl.nextSibling);
+    else turn.el.appendChild(box);
+  }
+
+  // the same question, sent again with a request for deeper checking - for an answer that was not fully checked. The preference applies to exactly this one request.
+  function recheckStrongly(prompt) {
+    const input = document.getElementById('main-surface-input');
+    if (!input || state.busy) return;
+    input.value = prompt;
+    state.verify = true;
+    const sending = sendRequest();
+    // the metadata of the request was built before the first await: the preference does not outlive it
+    state.verify = false;
+    return sending;
+  }
+
   async function runAnswer(prompt, metadata, route) {
     const result = await api('/api/v1/ai/chat', {
       method: 'POST',
@@ -1425,9 +1483,14 @@
       { state: 'done', label: 'Answer prepared', detail: (result.data && result.data.messageId) || result.requestId || '' },
     ]);
     renderAnswerSources(state.activeTurn, result.data && result.data.sources, result.data && result.data.grounding);
+    renderAnswerVerification(state.activeTurn, result.data && result.data.verification);
+    const verification = result.data && result.data.verification;
+    // an answer that was not fully checked offers a deeper check once; one that was asked to be checked deeply, or is already at the highest level, does not
+    const recheckable = Boolean(verification) && ['UNVERIFIED', 'PARTIALLY_VERIFIED', 'DISPUTED'].includes(verification.status) && verification.levelBasis !== 'USER_PREFERENCE' && verification.level !== 'L3';
     renderInlineActions([
       { id: 'follow', label: 'Ask follow-up', action: () => focusComposer('') },
       { id: 'save', label: 'Save to Vault', action: () => saveTextToVault(answer || prompt) },
+      ...(recheckable ? [{ id: 'recheck', label: bt('mainAnswer.verify.recheck', 'Check again more carefully'), action: () => recheckStrongly(prompt) }] : []),
     ]);
     offerConversationTodos(state.activeTurn, prompt, answer);
   }
@@ -3167,6 +3230,7 @@
       const btn = document.createElement('button');
       btn.type = 'button';
       btn.className = action.id === 'cancel' ? 'btn-secondary danger' : 'btn-secondary';
+      btn.dataset.action = action.id;
       btn.textContent = localizeAppText(action.label);
       btn.addEventListener('click', action.action);
       el.appendChild(btn);
@@ -4630,6 +4694,7 @@
         ['main-send', 'send', 'Main', 'click', 'ambient/research/creation APIs', 'goal/result created where supported', 'inline progress/result', 'inline error', 'server stores', 'session'],
         ['main-attach', 'attach', 'Main', 'click/change', '/api/v1/workspace/upload', 'capture persisted', 'attachment chip', 'inline error', 'CaptureStore', 'session/owner'],
         ['main-web-toggle', 'web toggle', 'Main', 'click', 'requestMetadata.allowWebResearch', 'metadata changes', 'pressed state', 'n/a', 'per request', 'SSRF policy server-side'],
+        ['main-answer-recheck', 'check again more carefully', 'Main', 'click', 'requestMetadata.verificationPreference = STRONG (the same question, sent again)', 'a new answer, checked more deeply (a second model reads the sources, an extra search)', 'a new turn with its own chip', 'inline error', 'per request', 'verification policy server-side; never lowers a check'],
         ['main-data-toggle', 'my data toggle', 'Main', 'click', 'requestMetadata.usePersonalContext', 'metadata changes', 'pressed state', 'n/a', 'per request', 'consent/owner'],
         ['main-mic', 'microphone dictation', 'Main', 'click', 'Device voice adapter: on-device when the browser verifies it, otherwise the browser vendor only after consent; stop = transcribe, cancel = discard', 'transcript inserted into composer', 'composer text updated', 'permission/unavailable guidance', 'per request', 'browser permission'],
         ['main-voice', 'voice session', 'Main', 'click', 'Device voice adapter (same location and consent rules as dictation) -> Main composer', 'recognized speech becomes editable text', 'composer text updated', 'permission/unavailable guidance', 'per request', 'same Main authority rules'],

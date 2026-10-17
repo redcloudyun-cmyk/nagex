@@ -40,6 +40,9 @@ import type { ConversationMemoryExtractor } from '../../context/conversation-mem
 import type { EvidencePackService } from '../../research/evidence-pack.service.js';
 import type { EvidencePack } from '../../research/evidence-pack.types.js';
 import { analyzeTurn } from '../../research/turn-analysis.js';
+import type { AnswerVerifier } from '../../verification/answer-verifier.js';
+import { decideLevel } from '../../verification/verification-policy.js';
+import { parseVerificationPreference, runVerificationFlow, summarizeReport, uncheckedSummary, type VerificationAdvisorPort } from '../../verification/verification-flow.js';
 import { limitationNotice, liveValueRefusal, mustNotAnswerWithoutEvidence, parseWebMode } from '../../research/limitation-notice.js';
 import { callerIdentity } from '../request-identity.js';
 import { resolveEffectiveTimeZone } from '../../common/time-context.js';
@@ -70,6 +73,10 @@ export interface ConversationRouteDeps {
   getRelevantMemories: (tenantId: string, principalId: string, prompt: string) => MemoryRecord[];
   memoryExtractor?: ConversationMemoryExtractor;
   evidencePackService?: EvidencePackService;
+  // how an answer is checked against its evidence after it was written (absent: answers are delivered unchecked, as before)
+  answerVerifier?: AnswerVerifier;
+  // an OPTIONAL advisor (JEV or any provider) that may ask for deeper checking; the rules stand without it
+  verificationAdvisor?: VerificationAdvisorPort | null;
   // the seal of reviewed plans (one per process); optional so tests can inject a clock
   planSeal?: PlanSeal;
   // the timezone saved in the person's profile (undefined when none), and the server clock (injectable for tests)
@@ -222,7 +229,9 @@ export const handleConversationRoutes: AsyncRouteRegistrar<ConversationRouteDeps
     const answerLanguage = detectRequestLanguage(message);
     let evidencePack: EvidencePack | undefined;
     if (deps.evidencePackService) {
-      evidencePack = await deps.evidencePackService.buildEvidencePack(turn.retrievalQuery, { requestId, webMode, scopeKey: `${tenantId}|${principalId}`, planQueries: true });
+      // A request that will be checked deeply (a comparison, research, a high-impact decision, or the person asked for it) is looked up even when its words do not look "current": a check needs evidence.
+      const wanted = decideLevel({ question: turn.retrievalQuery, freshness: 'NONE', category: 'GENERAL', turnKind: turn.kind, preference: parseVerificationPreference(body) });
+      evidencePack = await deps.evidencePackService.buildEvidencePack(turn.retrievalQuery, { requestId, webMode, scopeKey: `${tenantId}|${principalId}`, planQueries: true, forceSearch: ['L2', 'L3'].includes(wanted.level) });
       // A question whose whole answer is a live value (a price, a quote, the weather, a headline) is not answered from memory when it could not be checked: that would be an invented value (R22.4).
       // The reply says why, in the person's language, and what they can do. Everything else (a product's specifications, a technology, a company, a policy) is still ANSWERED - from what the model knows,
       // labelled as unverified and possibly out of date (see limitationNotice, and chat-grounding.ts, which forbids "not released" / "does not exist" guesses).
@@ -248,6 +257,7 @@ export const handleConversationRoutes: AsyncRouteRegistrar<ConversationRouteDeps
             evidencePack,
             sources: [],
             grounding: { basis: 'NOT_VERIFIED_LIVE', webMode, turnKind: turn.kind, freshness: evidencePack.freshnessRequirement, category: evidencePack.category, evidenceStatus: evidencePack.status, sourcesRetrieved: 0, citedSourceIds: [], removedCitations: [], languageRewritten: false, provider: evidencePack.provider ?? null, attempts: evidencePack.attempts ?? [], ...(evidencePack.noEvidenceReason ? { noEvidenceReason: evidencePack.noEvidenceReason } : {}), fromCache: false },
+            verification: uncheckedSummary(),
           },
         };
       }
@@ -268,7 +278,7 @@ export const handleConversationRoutes: AsyncRouteRegistrar<ConversationRouteDeps
       personalContext = renderCalendarContext(calendarRange, clock, read, locale);
     }
 
-    const result = await service.chat({
+    const chatArgs = {
       message,
       conversation,
       memories,
@@ -278,7 +288,37 @@ export const handleConversationRoutes: AsyncRouteRegistrar<ConversationRouteDeps
       clock,
       turnKind: turn.kind,
       ...(personalContext ? { personalContext } : {}),
-    });
+    };
+    const result = await service.chat(chatArgs);
+
+    // How deeply was this answer checked, and what did the check find (src/verification/)? Bounded: one verification, at most one extra search, at most one rewrite from the sources, then removal of what the
+    // evidence still does not support. Nothing is delivered as VERIFIED that the evidence does not support, and the report says what happened in the person's own terms.
+    let verification: Record<string, unknown> | null = null;
+    let shownSources: unknown[] = result.data.sources ?? [];
+    if (deps.answerVerifier) {
+      const flow = await runVerificationFlow({
+        verifier: deps.answerVerifier,
+        advisor: deps.verificationAdvisor ?? null,
+        question: turn.retrievalQuery,
+        language: answerLanguage === 'ko' ? 'ko' : 'en',
+        answer: result.data.message,
+        pack: evidencePack,
+        turnKind: turn.kind,
+        preference: parseVerificationPreference(body),
+        allowRetrieval: webMode !== 'OFF',
+        answerProvider: result.provider ?? null,
+        requestId,
+        revise: async (problems, previousAnswer, pack) => {
+          const again = await service.chat({ ...chatArgs, evidencePack: pack, revision: { previousAnswer, problems } }).catch(() => null);
+          return again ? again.data.message : null;
+        },
+      });
+      result.data.message = flow.message;
+      verification = summarizeReport(flow.report);
+      shownSources = flow.sources;
+    }
+    // the page text kept for checking claims stays on the server
+    const clientSources = shownSources.map((s) => { const { fullText: _kept, ...rest } = s as Record<string, unknown>; return rest; });
 
     // When current facts were needed and could not be checked, the answer begins with one plain sentence saying so, in the person's language; it is stored with the answer so the next turn knows too.
     const notice = limitationNotice(evidencePack, answerLanguage);
@@ -325,10 +365,10 @@ export const handleConversationRoutes: AsyncRouteRegistrar<ConversationRouteDeps
       resource: { type: 'ConversationMessage', id: assistantMsgRecord.messageId },
       result: 'SUCCESS',
       request_id: requestId,
-      details: { sessionId: session.sessionId, messageId: assistantMsgRecord.messageId, role: 'ASSISTANT', source: 'WEB', basis: grounding.basis, evidenceStatus: grounding.evidenceStatus, sourcesRetrieved, turnKind: turn.kind },
+      details: { sessionId: session.sessionId, messageId: assistantMsgRecord.messageId, role: 'ASSISTANT', source: 'WEB', basis: grounding.basis, evidenceStatus: grounding.evidenceStatus, sourcesRetrieved, turnKind: turn.kind, ...(verification ? { verificationLevel: verification.level, verificationStatus: verification.status, verificationRevision: verification.revision } : {}) },
     });
 
-    return { status: 200, data: { ...result, data: { ...result.data, messageId: assistantMsgRecord.messageId, grounding } } };
+    return { status: 200, data: { ...result, data: { ...result.data, sources: clientSources, messageId: assistantMsgRecord.messageId, grounding, ...(verification ? { verification } : {}) } } };
   }
   if (pathname === '/api/v1/ambient/intent' && method === 'POST') {
     const prompt = typeof body?.prompt === 'string' ? body.prompt.trim() : '';

@@ -185,6 +185,9 @@ import { WebSearchService } from '../research/web-search.service.js';
 import { EvidencePackService } from '../research/evidence-pack.service.js';
 import { SourceFetcher } from '../research/source-fetcher.js';
 import { ModelSearchQueryPlanner } from '../research/search-query-planner.js';
+import { AnswerVerifier } from '../verification/answer-verifier.js';
+import { GatewayReviewReading } from '../verification/independent-review.js';
+import { JevVerificationAdvisor } from '../verification/jev-verification-advisor.js';
 import { ResearchRunStore } from '../research/research-run.store.js';
 import { ResearchReportService } from '../research/research-report.service.js';
 import { ArtifactVersionService } from '../creation/artifact-version.service.js';
@@ -426,6 +429,13 @@ export function createNagexApplication(): NagexApplication {
   // only behind the established test-only switch; real runs never set it.
   const evidenceFetcher = new SourceFetcher(process.env.NAGEX_ALLOW_LOCAL_TEST_URLS === '1' ? { allowLocalTestDestinations: true, perHostIntervalMs: 0 } : {});
   const evidencePackService = new EvidencePackService(questionClassificationService, webSearchService, { allowLocalTestDestinations: process.env.NAGEX_ALLOW_LOCAL_TEST_URLS === '1', fetcher: evidenceFetcher, queryPlanner: new ModelSearchQueryPlanner(aiService) });
+  // After an answer is written it is checked against the evidence it was written from (src/verification/): claims against the sources they cite, a second DISTINCT provider's independent reading of the same
+  // sources where one is configured, one bounded extra search for what is in dispute. JEV may only ask for deeper checking, and only when the operator turned it on and gave it a key.
+  const answerVerifier = new AnswerVerifier({
+    reading: new GatewayReviewReading(modelRouter, aiService),
+    retrieve: (query, requestId) => evidencePackService.buildEvidencePack(query, { forceSearch: true, maxSources: 3, requestId, webMode: 'ON' }),
+  });
+  const verificationAdvisor = process.env.NAGEX_JEV_DECISION_ENABLED === 'true' && jevDecisionKey ? new JevVerificationAdvisor({ apiKey: jevDecisionKey }) : null;
   const perspectiveCompareService = new PerspectiveCompareService(modelRouter, evidencePackService);
   const forecastCompareService = new ForecastCompareService(modelRouter, evidencePackService);
 
@@ -974,6 +984,8 @@ export function createNagexApplication(): NagexApplication {
     questionClassificationService,
     webSearchService,
     evidencePackService,
+    answerVerifier,
+    verificationAdvisor,
     mcpService,
     demoScenarioService,
     socialIdentityStore,

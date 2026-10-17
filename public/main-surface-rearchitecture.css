@@ -2061,3 +2061,23 @@
   :root:not([data-theme="light"]) .main-answer-sources-head { color: #b5c4e0; }
   :root:not([data-theme="light"]) .main-answer-source-meta, :root:not([data-theme="light"]) .main-answer-sources-note { color: #9fb0cc; }
 }
+.main-answer-verification { margin: 10px 0 2px; display: flex; flex-direction: column; gap: 6px; }
+.main-answer-verification-chip { align-self: flex-start; padding: 3px 10px; border-radius: 999px; font-size: .8rem; letter-spacing: .01em; border: 1px solid transparent; }
+.main-answer-verification[data-status="VERIFIED"] .main-answer-verification-chip { background: rgba(33, 140, 90, .12); border-color: rgba(33, 140, 90, .45); color: #14633f; }
+.main-answer-verification[data-status="VERIFIED"] .main-answer-verification-chip::before { content: "\2713\00a0"; }
+.main-answer-verification[data-status="PARTIALLY_VERIFIED"] .main-answer-verification-chip { background: rgba(200, 140, 20, .12); border-color: rgba(200, 140, 20, .5); color: #7a5300; }
+.main-answer-verification[data-status="PARTIALLY_VERIFIED"] .main-answer-verification-chip::before { content: "\25D0\00a0"; }
+.main-answer-verification[data-status="UNVERIFIED"] .main-answer-verification-chip { background: rgba(110, 120, 140, .12); border-color: rgba(110, 120, 140, .45); color: #46526b; }
+.main-answer-verification[data-status="UNVERIFIED"] .main-answer-verification-chip::before { content: "?\00a0"; }
+.main-answer-verification[data-status="DISPUTED"] .main-answer-verification-chip { background: rgba(190, 60, 60, .1); border-color: rgba(190, 60, 60, .5); color: #8a2323; }
+.main-answer-verification[data-status="DISPUTED"] .main-answer-verification-chip::before { content: "\00B1\00a0"; }
+.main-answer-verification-details { font-size: .84rem; color: #46526b; }
+.main-answer-verification-details summary { cursor: pointer; min-height: 28px; display: inline-flex; align-items: center; }
+.main-answer-verification-details ul { margin: 4px 0 0; padding-left: 20px; display: flex; flex-direction: column; gap: 2px; overflow-wrap: anywhere; }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .main-answer-verification[data-status="VERIFIED"] .main-answer-verification-chip { color: #7be0ae; }
+  :root:not([data-theme="light"]) .main-answer-verification[data-status="PARTIALLY_VERIFIED"] .main-answer-verification-chip { color: #f0c36a; }
+  :root:not([data-theme="light"]) .main-answer-verification[data-status="UNVERIFIED"] .main-answer-verification-chip { color: #b5c0d6; }
+  :root:not([data-theme="light"]) .main-answer-verification[data-status="DISPUTED"] .main-answer-verification-chip { color: #f19a9a; }
+  :root:not([data-theme="light"]) .main-answer-verification-details { color: #9fb0cc; }
+}

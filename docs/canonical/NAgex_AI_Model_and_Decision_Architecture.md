@@ -285,6 +285,39 @@ UNRELATED_PRODUCT_PAGE_OFFERED_AS_EVIDENCE = 0
 Without an operator-configured web-search provider NAgex cannot ground answers in the real web: Product questions are then answered unverified, with the note. The keyless `open_knowledge` route (Wikipedia + OpenAlex) is encyclopedic, not general web search, and cannot reach a manufacturer's own pages.
 
 
+### 10.4 Answer verification (as built, 2026-10-17)
+
+An answer is **checked after it is written**, on the evidence it was written from, and the person is told how far it was checked (ADR-0019). Grounded (ADR-0018) is not verified: a model can cite a page that does
+not say what it claims. The model proposes words; NAgex decides what is called verified.
+
+```text
+answer + evidence -> level (L0-L3, rules; an advisor may only RAISE)
+  -> claims (sentences, table rows) checked against the sources they cite             [deterministic]
+  -> L2/L3: a DISTINCT provider reads the SAME sources, never the answer; quotes checked [independent reading]
+  -> a dispute: one bounded search -> one rewrite from the sources -> removal of what is still unsupported
+  -> VERIFIED / PARTIALLY_VERIFIED / UNVERIFIED / DISPUTED, with the reasons in plain words
+```
+
+- **Levels.** L0 simple (nothing checked) · L1 ordinary factual · L2 current facts, research, comparison, a challenge to an earlier answer · L3 high-impact (health, law, money, safety in a decision frame or with a dosage-like figure): primary-like source and independent review needed for VERIFIED. Raised by the request's structure, by what the first answer revealed (a hedge: up to L2), by the person ("더 꼼꼼히 다시 확인" under an answer that was not fully checked; one request, no standing switch), or by an advisor (JEV: raise-only, confidence >= 0.6, the verified System One `choice` shape; deterministic fallback). Every level records who set it.
+- **Material claims.** A figure, a date, or a statement that something IS or WAS released. A figure in no retrieved source is UNSUPPORTED; a citation to a page about something else is not support; a claim with nothing checkable is UNCHECKABLE, never "supported"; a calendar date is one figure.
+- **Independence is a property of the provider.** A second, distinct provider reading the same evidence is INDEPENDENT_MODEL_REVIEW; the same provider again is SELF_REVIEW (L3 only, and said so); none is UNAVAILABLE. The review may not fall back to the provider that wrote the answer. Its findings count only through exact quotes that are in the sources.
+- **Disagreement is not settled by majority.** Evidence settles it (one search) or it is reported. Sources that give different dates for a named thing are a conflict; an answer that does not say so is DISPUTED, one that does is at most PARTIALLY_VERIFIED.
+- **The status follows from facts, not scores.** No model confidence, no calibrated probability. What the person sees: one chip and a short "how"; never a provider, an id, or a level code.
+
+```text
+VERIFIED_STATUS_FROM_A_MODEL_SCORE = 0
+UNSUPPORTED_MATERIAL_CLAIM_DELIVERED_AS_VERIFIED = 0
+INDEPENDENT_LABEL_ON_A_SAME_PROVIDER_REVIEW = 0
+REVIEWER_SEES_THE_ANSWER_UNDER_REVIEW = 0
+ADVISOR_LOWERS_A_LEVEL_OR_CHANGES_A_CHECK = 0
+UNBOUNDED_REVIEW_OR_REWRITE_LOOP = 0
+SOURCE_CONFLICT_DELIVERED_AS_SETTLED = 0
+PROVIDER_NAME_OR_INTERNAL_ID_ON_SCREEN = 0
+```
+
+Not claimed: that a supported figure is attached to the right attribute (the independent reading is the safeguard), that prose quality was judged, or that any live second provider has reviewed anything - only one provider is configured where this was built.
+
+
 ## 11. Three-Level Intelligence Model
 
 ```text
