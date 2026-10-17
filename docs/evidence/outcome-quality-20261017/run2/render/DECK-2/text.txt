@@ -1,0 +1,22 @@
+Workplace Strategy Decision Deck
+Leadership briefing for team size of 30 people and 2026-11-15 decision deadline
+Key Figures for the Workplace Strategy Decision
+30Team SizeTotal team members affected
+2026-11-15Decision DeadlineRequired date for final choice
+Overview of the team size and decision timeline.Key parameters guiding the evaluation of all options.
+2
+Option Costs Comparison
+Visualizing the financial investment required for each strategy.Option B has the lowest cost while Option C is the highest.
+Provided option costs
+3
+Comprehensive Comparison of All Options
+Option | Cost | Timeline | Risk | Option A (hybrid, 3 office days) | $18,000 | 12 weeks | Low | Option B (fully remote) | $9,500 | 12 weeks | Medium | Option C (office only) | $24,000 | 12 weeks | Low
+Comparing costs, timelines, and risk levels side by side.All options share the same 12-week duration.
+4
+Weekly Processing Count Reference
+주간 처리 건수 막대그래프
+Reference visual provided for context.Shows the weekly processing counts.
+5
+Summary and Next Steps for Leadership
+Evaluate Option A for a balanced hybrid approach with low risk.Consider Option B for the lowest cost with medium risk.Review Option C if an office-only environment is preferred despite higher cost.Finalize the decision before November 15, 2026.
+6

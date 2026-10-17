@@ -1,0 +1,110 @@
+﻿{
+    "file":  "after.docx",
+    "bytes":  8323,
+    "extension":  ".docx",
+    "renderedBy":  "Microsoft Word 16.0",
+    "opened":  true,
+    "problems":  [
+
+                 ],
+    "compatibilityMode":  15,
+    "pages":  3,
+    "words":  530,
+    "paragraphs":  53,
+    "page":  {
+                 "widthPt":  595.3,
+                 "heightPt":  841.9,
+                 "orientation":  0,
+                 "leftMarginPt":  56.7,
+                 "rightMarginPt":  56.7,
+                 "topMarginPt":  56.7,
+                 "bottomMarginPt":  56.7,
+                 "textWidthPt":  481.9
+             },
+    "sections":  1,
+    "header":  {
+                   "text":  "개인 AI 비서 도입 검토 보고서",
+                   "exists":  true
+               },
+    "footer":  {
+                   "text":  "1 / 3",
+                   "exists":  true,
+                   "pageNumberFields":  2
+               },
+    "styles":  {
+                   "번호 매기기":  3,
+                   "표준":  39,
+                   "글머리 기호":  3,
+                   "제목":  1,
+                   "제목 3":  1,
+                   "캡션":  1,
+                   "제목 2":  4,
+                   "인용":  1
+               },
+    "outline":  [
+                    {
+                        "level":  2,
+                        "text":  "1. 요약",
+                        "page":  1
+                    },
+                    {
+                        "level":  2,
+                        "text":  "2. 비교표",
+                        "page":  1
+                    },
+                    {
+                        "level":  2,
+                        "text":  "3. 상세 분석",
+                        "page":  2
+                    },
+                    {
+                        "level":  3,
+                        "text":  "3.1 위험",
+                        "page":  2
+                    },
+                    {
+                        "level":  2,
+                        "text":  "4. 결론",
+                        "page":  3
+                    }
+                ],
+    "tables":  [
+                   {
+                       "rows":  4,
+                       "columns":  7,
+                       "widthPt":  481.9,
+                       "fitsTextWidth":  true,
+                       "headingRowRepeats":  true,
+                       "startsOnPage":  1,
+                       "firstRowText":  "항목 | 기존 방식 | 도입 후 | 개선율 | 비용(월) | 위험도 | 비고 |"
+                   }
+               ],
+    "inlineShapes":  [
+                         {
+                             "widthPt":  481.9,
+                             "heightPt":  240.9,
+                             "fitsTextWidth":  true,
+                             "altText":  "분기별 처리 시간 감소 막대그래프",
+                             "type":  3,
+                             "page":  2
+                         }
+                     ],
+    "floatingShapes":  0,
+    "hyperlinks":  1,
+    "fields":  1,
+    "footnotes":  0,
+    "fonts":  {
+                  "맑은 고딕":  53
+              },
+    "pagePictures":  [
+                         "page-1.png",
+                         "page-2.png",
+                         "page-3.png"
+                     ],
+    "editRoundTrip":  {
+                          "saved":  true,
+                          "reopened":  true,
+                          "editSurvived":  true,
+                          "pagesAfterEdit":  3
+                      }
+}

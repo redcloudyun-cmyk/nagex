@@ -1,0 +1,31 @@
+{
+  "missionId": "OUTCOME-QUALITY-SLICE-C",
+  "date": "2026-10-17",
+  "branch": "topic/outcome-quality-20261017",
+  "baseSha": "be2fa21",
+  "finalSha": "the commit that adds this file (the integration merge SHA is in the delivery report)",
+  "track": "A",
+  "directives": ["Outcome Quality (C1 documents, C2 presentations, C3 images, C4 video - cut off inside C4; no C5 in the text received)"],
+  "scope": {
+    "C1": "DONE: DOCX writer extended in place; three real documents; evaluator; render harness",
+    "C2": "DONE: PptxGenJS 4.0.1 rich deck writer; figures grounded in the person's data; two real decks",
+    "C3": "evaluation tooling DONE and certified; save/reuse PASS; real image generation BLOCKED_WITH_EVIDENCE (quota exhausted / no credentials)",
+    "C4": "MP4 evaluator built and certified on a hand-assembled MP4 only; real generation BLOCKED (no credentials, no authorised spend)",
+    "C5": "NOT IN THE DIRECTIVE TEXT RECEIVED"
+  },
+  "filesChanged": {
+    "added": ["src/creation/pptx/rich-deck-writer.ts", "src/creation/pptx/rich-deck.types.ts", "src/creation/pptx/text-fit.ts", "src/creation/pptx/number-grounding.ts", "src/creation/image-size.ts", "src/creation/document-images.ts", "src/creation/placeholder-text.ts", "src/creation/quality/outcome-quality.ts", "src/creation/quality/media-quality.ts", "scripts/office-render.ps1", "scripts/office-render-all.ps1", "scripts/outcome-quality-evaluate.mjs", "scripts/image-quality-check.mjs", "tests/_png.ts", "tests/docx_quality.test.ts", "tests/docx_download_images.test.ts", "tests/rich_deck_writer.test.ts", "tests/presentation_rich_pipeline.test.ts", "tests/document_images_pipeline.test.ts", "tests/document_placeholder_retry.test.ts", "tests/outcome_quality_evaluator.test.ts", "tests/outcome_quality_fixes.test.ts", "tests/media_quality.test.ts", "tests/outcome_quality_live.test.ts", "docs/adr/ADR-0020-office-outcome-quality.md", "docs/evidence/NAGEX_OUTCOME_QUALITY_20261017.md", "docs/evidence/outcome-quality-20261017/"],
+    "modified": ["package.json", "package-lock.json", "src/creation/docx/docx-writer.ts", "src/creation/pptx/pptx-writer.ts", "src/creation/providers/adapters/local-pptx-adapter.ts", "src/creation/specs/creation-spec.types.ts", "src/creation/executors/presentation-executor.ts", "src/creation/executors/document-executor.ts", "src/model-gateway/presentation-outline.ts", "src/model-gateway/ai-service.ts", "src/http/routes/document-creation.routes.ts", "src/server_web.ts", "src/app/create-nagex-application.ts", "tests/test-contract.registry.json", "tests/test-scope.registry.json", "docs/canonical/NAgex_Creation_Architecture.md", "docs/NAGEX_PROJECT_INDEX.md"]
+  },
+  "dependency": { "added": "pptxgenjs@4.0.1 (MIT), exact, --ignore-scripts", "transitive": ["jszip", "image-size (declared, never imported by the installed build; npm audit advisory not reachable)", "https@1.0.0 (empty stub, no scripts)", "@types/node"] },
+  "live": { "model": "gemini-flash-lite-latest (free tier, no charge)", "creations": 15, "runs": 3, "retrievalOrSearch": "none", "imageProvider": "none called", "videoProvider": "none called" },
+  "blockers": [
+    { "id": "IMAGE_PROVIDER", "need": "an authorised image provider with credentials (Google quota recovered, or an OpenAI / NVIDIA NIM key / local GPU endpoint) and an explicit decision to spend", "status": "BLOCKED_WITH_EVIDENCE" },
+    { "id": "VIDEO_PROVIDER", "need": "a Higgsfield key pair with credit, or billing-enabled Veo, and an explicit spend authorisation with the price shown", "status": "BLOCKED" },
+    { "id": "C5_CODING", "need": "the rest of the directive (the pasted text ended inside C4)", "status": "WAITING_USER" },
+    { "id": "INDEPENDENT_HUMAN_REVIEW", "need": "a person other than the builder to read the produced documents and decks", "status": "WAITING_USER" }
+  ],
+  "nextIndependentTask": "Astra Computer Use directive (queued), or C4/C5 once the rest of the directive and an authorised provider exist",
+  "approvalRequired": "NO for the next code task; YES for any real image / video generation (possible charge), any deployment",
+  "integrationReadiness": "READY after the final gates and CI"
+}

@@ -60,6 +60,18 @@ export interface PresentationSlideSpec {
     dataPoints: Array<{ label: string; value: number }>;
   };
   sourceRefs?: CreationSourceRef[];
+  // How the slide is drawn (absent = a bullet slide) and what each layout carries. NAgex has checked all of it before a provider sees it: the figures are the person's, a picture is the
+  // person's own and is a PNG or a JPEG, a table has no row longer than its header.
+  layout?: 'BULLETS' | 'CHART' | 'METRICS' | 'TABLE' | 'IMAGE' | 'QUOTE' | 'SECTION';
+  chart?: { type: 'BAR' | 'LINE' | 'PIE'; categories: string[]; series: Array<{ name: string; values: number[] }>; unit?: string; sourceNote?: string };
+  metrics?: Array<{ label: string; value: string; note?: string }>;
+  table?: { headers: string[]; rows: string[][] };
+  image?: { bytes: Buffer; alt: string; caption?: string };
+  quote?: string;
+  attribution?: string;
+  subtitle?: string;
+  /** what the presenter says; never printed on the slide */
+  notes?: string;
 }
 
 export interface PresentationCreationSpec extends CanonicalCreationSpecBase {
@@ -71,6 +83,8 @@ export interface PresentationCreationSpec extends CanonicalCreationSpecBase {
   slides: PresentationSlideSpec[];
   speakerNotes?: boolean;
   references?: Array<{ citationId: string; title: string; url?: string }>;
+  /** the titles of what the deck was made from; listed on a closing slide */
+  sources?: string[];
 }
 
 // ── Video Creation Specification ──

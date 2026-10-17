@@ -1,0 +1,39 @@
+{
+  "file": "docs/evidence/outcome-quality-20261017/image-check/negative-control-flat.png",
+  "pixels": {
+    "width": 800,
+    "height": 450,
+    "meanLuma": 240,
+    "stdLuma": 0,
+    "distinctColors": 1,
+    "edgeShare": 0
+  },
+  "technical": "PASS",
+  "quality": "FAIL",
+  "checks": [
+    {
+      "id": "FORMAT_IS_PNG_OR_JPEG",
+      "kind": "TECHNICAL",
+      "status": "PASS",
+      "detail": "PNG 800x450"
+    },
+    {
+      "id": "RESOLUTION_AT_LEAST_ASKED",
+      "kind": "QUALITY",
+      "status": "PASS",
+      "detail": "800x450, at least 600x0 asked"
+    },
+    {
+      "id": "ASPECT_RATIO_AS_ASKED",
+      "kind": "QUALITY",
+      "status": "PASS",
+      "detail": "1.778 (800x450), 16:9 = 1.778 asked"
+    },
+    {
+      "id": "NOT_BLANK_OR_FLAT",
+      "kind": "QUALITY",
+      "status": "FAIL",
+      "detail": "luma std 0.0, 1 distinct colours, edge share 0.0%"
+    }
+  ]
+}

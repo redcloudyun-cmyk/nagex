@@ -1,0 +1,29 @@
+{
+  "id": "DOC-2",
+  "file": "DOC-2.docx",
+  "kind": "DOCX",
+  "corpus": "Write a decision memo recommending one of three options for a 12-week working-model pilot. Include a comparison table, the recommendation with its reasons, and next steps. Use only these facts and add no other numbers:\n- Option A (hybrid, 3 office days): cost $18,000, 12 weeks, risk Low\n- Option B (fully remote): cost $9,500, 12 weeks, risk Medium\n- Option C (office only): cost $24,000, 12 weeks, risk Low\n- Team size: 30 people. Decision needed by 2026-11-15.",
+  "locale": "en",
+  "requiredFacts": [
+    {
+      "id": "$18,000",
+      "text": "$18,000"
+    },
+    {
+      "id": "$9,500",
+      "text": "$9,500"
+    },
+    {
+      "id": "$24,000",
+      "text": "$24,000"
+    },
+    {
+      "id": "30 people",
+      "text": "30 people"
+    }
+  ],
+  "pages": {
+    "min": 1,
+    "max": 4
+  }
+}

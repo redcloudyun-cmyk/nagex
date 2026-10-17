@@ -1,0 +1,692 @@
+﻿{
+    "file":  "DECK-1.pptx",
+    "bytes":  43452,
+    "extension":  ".pptx",
+    "renderedBy":  "Microsoft PowerPoint 16.0",
+    "opened":  true,
+    "problems":  [
+
+                 ],
+    "slideSize":  {
+                      "widthPt":  960,
+                      "heightPt":  540,
+                      "ratio":  1.7778
+                  },
+    "slideCount":  7,
+    "masterLayouts":  3,
+    "themeFonts":  {
+                       "major":  "Malgun Gothic",
+                       "minor":  "Malgun Gothic"
+                   },
+    "slides":  [
+                   {
+                       "index":  1,
+                       "layout":  "NAGEX_COVER",
+                       "title":  "2026년 3분기 운영 보고서",
+                       "notes":  "이 자료의 근거: 2026년 3분기 운영 보고서",
+                       "shapes":  [
+                                      {
+                                          "name":  "Text 1",
+                                          "type":  14,
+                                          "leftPt":  64.8,
+                                          "topPt":  144,
+                                          "widthPt":  828,
+                                          "heightPt":  158.4,
+                                          "insideSlide":  true,
+                                          "hasText":  true,
+                                          "hasChart":  false,
+                                          "isPicture":  false,
+                                          "text":  "2026년 3분기 운영 보고서",
+                                          "fontNames":  [
+                                                            "Malgun Gothic"
+                                                        ],
+                                          "minFontPt":  44,
+                                          "maxFontPt":  44,
+                                          "textHeightPt":  52.8,
+                                          "textWidthPt":  541.5,
+                                          "textOverflows":  false
+                                      },
+                                      {
+                                          "name":  "Text 1",
+                                          "type":  14,
+                                          "leftPt":  64.8,
+                                          "topPt":  320.4,
+                                          "widthPt":  828,
+                                          "heightPt":  86.4,
+                                          "insideSlide":  true,
+                                          "hasText":  true,
+                                          "hasChart":  false,
+                                          "isPicture":  false,
+                                          "text":  "운영 활동 성과 분석 및 향후 계획",
+                                          "fontNames":  [
+                                                            "Malgun Gothic"
+                                                        ],
+                                          "minFontPt":  22,
+                                          "maxFontPt":  22,
+                                          "textHeightPt":  26.4,
+                                          "textWidthPt":  340.2,
+                                          "textOverflows":  false
+                                      }
+                                  ]
+                   },
+                   {
+                       "index":  2,
+                       "layout":  "NAGEX_CONTENT",
+                       "title":  "보고서 개요 및 목적",
+                       "notes":  "본 보고서는 2026년 3분기 동안 48명의 사용자를 대상으로 수행된 운영 활동의 성과를 분석하기 위해 작성되었습니다.",
+                       "shapes":  [
+                                      {
+                                          "name":  "Text 3",
+                                          "type":  14,
+                                          "leftPt":  50.4,
+                                          "topPt":  27.4,
+                                          "widthPt":  859,
+                                          "heightPt":  73.4,
+                                          "insideSlide":  true,
+                                          "hasText":  true,
+                                          "hasChart":  false,
+                                          "isPicture":  false,
+                                          "text":  "보고서 개요 및 목적",
+                                          "fontNames":  [
+                                                            "Malgun Gothic"
+                                                        ],
+                                          "minFontPt":  30,
+                                          "maxFontPt":  30,
+                                          "textHeightPt":  36,
+                                          "textWidthPt":  282,
+                                          "textOverflows":  false
+                                      },
+                                      {
+                                          "name":  "Text 3",
+                                          "type":  14,
+                                          "leftPt":  50.4,
+                                          "topPt":  122.4,
+                                          "widthPt":  859,
+                                          "heightPt":  349.2,
+                                          "insideSlide":  true,
+                                          "hasText":  true,
+                                          "hasChart":  false,
+                                          "isPicture":  false,
+                                          "text":  "2026년 7월부터 9월까지 총 48명의 사용자를 대상으로 운영 활동 성과를 분석했습니다.\r주요 업무 영역에서의 효율성 변화와 비용 및 승인 현황을 점검합니다.\r이번 분석 결과를 바탕으로 향후 운영 방향을 도출하고자 합니다.",
+                                          "fontNames":  [
+                                                            "Malgun Gothic"
+                                                        ],
+                                          "minFontPt":  24,
+                                          "maxFontPt":  24,
+                                          "textHeightPt":  146.7,
+                                          "textWidthPt":  791,
+                                          "textOverflows":  false
+                                      },
+                                      {
+                                          "name":  "Slide Number Placeholder 0",
+                                          "type":  14,
+                                          "leftPt":  856.8,
+                                          "topPt":  500.4,
+                                          "widthPt":  52.6,
+                                          "heightPt":  21.6,
+                                          "insideSlide":  true,
+                                          "hasText":  true,
+                                          "hasChart":  false,
+                                          "isPicture":  false,
+                                          "text":  "2",
+                                          "fontNames":  [
+                                                            "Malgun Gothic"
+                                                        ],
+                                          "minFontPt":  10,
+                                          "maxFontPt":  10,
+                                          "textHeightPt":  12,
+                                          "textWidthPt":  9,
+                                          "textOverflows":  false
+                                      }
+                                  ]
+                   },
+                   {
+                       "index":  3,
+                       "layout":  "NAGEX_CONTENT",
+                       "title":  "업무별 처리 시간 단축 효과",
+                       "notes":  "도입 전후의 주요 업무별 처리 시간 변화를 차트로 정리했습니다. 일정 조율 시간이 83%로 가장 높은 단축율을 보였습니다.",
+                       "shapes":  [
+                                      {
+                                          "name":  "Text 3",
+                                          "type":  14,
+                                          "leftPt":  50.4,
+                                          "topPt":  27.4,
+                                          "widthPt":  859,
+                                          "heightPt":  73.4,
+                                          "insideSlide":  true,
+                                          "hasText":  true,
+                                          "hasChart":  false,
+                                          "isPicture":  false,
+                                          "text":  "업무별 처리 시간 단축 효과",
+                                          "fontNames":  [
+                                                            "Malgun Gothic"
+                                                        ],
+                                          "minFontPt":  30,
+                                          "maxFontPt":  30,
+                                          "textHeightPt":  36,
+                                          "textWidthPt":  382.5,
+                                          "textOverflows":  false
+                                      },
+                                      {
+                                          "name":  "Chart",
+                                          "type":  3,
+                                          "leftPt":  50.4,
+                                          "topPt":  122.4,
+                                          "widthPt":  554.4,
+                                          "heightPt":  320.4,
+                                          "insideSlide":  true,
+                                          "hasText":  false,
+                                          "hasChart":  true,
+                                          "isPicture":  false,
+                                          "chart":  {
+                                                        "chartType":  51,
+                                                        "hasTitle":  false,
+                                                        "title":  "",
+                                                        "hasLegend":  false,
+                                                        "series":  [
+                                                                       {
+                                                                           "name":  "변화율",
+                                                                           "values":  [
+                                                                                          73,
+                                                                                          72,
+                                                                                          83
+                                                                                      ],
+                                                                           "categories":  [
+                                                                                              "회의 준비 시간",
+                                                                                              "보고서 작성 시간",
+                                                                                              "일정 조율 시간"
+                                                                                          ]
+                                                                       }
+                                                                   ]
+                                                    }
+                                      },
+                                      {
+                                          "name":  "Text 1",
+                                          "type":  1,
+                                          "leftPt":  626.4,
+                                          "topPt":  136.8,
+                                          "widthPt":  283,
+                                          "heightPt":  291.6,
+                                          "insideSlide":  true,
+                                          "hasText":  true,
+                                          "hasChart":  false,
+                                          "isPicture":  false,
+                                          "text":  "모든 주요 업무 영역에서 처리 시간이 크게 단축되었습니다.\r가장 큰 변화율을 보인 영역은 일정 조율 시간으로 83% 단축되었습니다.",
+                                          "fontNames":  [
+                                                            "Malgun Gothic"
+                                                        ],
+                                          "minFontPt":  20,
+                                          "maxFontPt":  20,
+                                          "textHeightPt":  154,
+                                          "textWidthPt":  248,
+                                          "textOverflows":  false
+                                      },
+                                      {
+                                          "name":  "Text 2",
+                                          "type":  1,
+                                          "leftPt":  50.4,
+                                          "topPt":  468,
+                                          "widthPt":  859,
+                                          "heightPt":  25.2,
+                                          "insideSlide":  true,
+                                          "hasText":  true,
+                                          "hasChart":  false,
+                                          "isPicture":  false,
+                                          "text":  "2026년 3분기 운영 보고서",
+                                          "fontNames":  [
+                                                            "Malgun Gothic"
+                                                        ],
+                                          "minFontPt":  12,
+                                          "maxFontPt":  12,
+                                          "textHeightPt":  14.4,
+                                          "textWidthPt":  146.1,
+                                          "textOverflows":  false
+                                      },
+                                      {
+                                          "name":  "Text 3",
+                                          "type":  14,
+                                          "leftPt":  50.4,
+                                          "topPt":  122.4,
+                                          "widthPt":  859,
+                                          "heightPt":  349.2,
+                                          "insideSlide":  true,
+                                          "hasText":  false,
+                                          "hasChart":  false,
+                                          "isPicture":  false
+                                      },
+                                      {
+                                          "name":  "Slide Number Placeholder 0",
+                                          "type":  14,
+                                          "leftPt":  856.8,
+                                          "topPt":  500.4,
+                                          "widthPt":  52.6,
+                                          "heightPt":  21.6,
+                                          "insideSlide":  true,
+                                          "hasText":  true,
+                                          "hasChart":  false,
+                                          "isPicture":  false,
+                                          "text":  "3",
+                                          "fontNames":  [
+                                                            "Malgun Gothic"
+                                                        ],
+                                          "minFontPt":  10,
+                                          "maxFontPt":  10,
+                                          "textHeightPt":  12,
+                                          "textWidthPt":  9,
+                                          "textOverflows":  false
+                                      }
+                                  ]
+                   },
+                   {
+                       "index":  4,
+                       "layout":  "NAGEX_CONTENT",
+                       "title":  "처리 시간 상세 비교",
+                       "notes":  "도입 전후의 구체적인 처리 시간 수치 비교입니다. 회의 준비, 보고서 작성, 일정 조율 모두 큰 폭으로 시간이 감소했습니다.",
+                       "shapes":  [
+                                      {
+                                          "name":  "Text 3",
+                                          "type":  14,
+                                          "leftPt":  50.4,
+                                          "topPt":  27.4,
+                                          "widthPt":  859,
+                                          "heightPt":  73.4,
+                                          "insideSlide":  true,
+                                          "hasText":  true,
+                                          "hasChart":  false,
+                                          "isPicture":  false,
+                                          "text":  "처리 시간 상세 비교",
+                                          "fontNames":  [
+                                                            "Malgun Gothic"
+                                                        ],
+                                          "minFontPt":  30,
+                                          "maxFontPt":  30,
+                                          "textHeightPt":  36,
+                                          "textWidthPt":  282,
+                                          "textOverflows":  false
+                                      },
+                                      {
+                                          "name":  "Table 0",
+                                          "type":  19,
+                                          "leftPt":  50.4,
+                                          "topPt":  126,
+                                          "widthPt":  859,
+                                          "heightPt":  132.3,
+                                          "insideSlide":  true,
+                                          "hasText":  false,
+                                          "hasChart":  false,
+                                          "isPicture":  false,
+                                          "table":  {
+                                                        "rows":  4,
+                                                        "columns":  4,
+                                                        "cells":  [
+                                                                      "구분",
+                                                                      "기존 처리 시간",
+                                                                      "도입 후 처리 시간",
+                                                                      "변화율",
+                                                                      "회의 준비 시간",
+                                                                      "45분",
+                                                                      "12분",
+                                                                      "73% 단축",
+                                                                      "보고서 작성 시간",
+                                                                      "3시간",
+                                                                      "50분",
+                                                                      "72% 단축",
+                                                                      "일정 조율 시간",
+                                                                      "30분",
+                                                                      "5분",
+                                                                      "83% 단축"
+                                                                  ]
+                                                    }
+                                      },
+                                      {
+                                          "name":  "Text 1",
+                                          "type":  1,
+                                          "leftPt":  50.4,
+                                          "topPt":  432,
+                                          "widthPt":  859,
+                                          "heightPt":  61.2,
+                                          "insideSlide":  true,
+                                          "hasText":  true,
+                                          "hasChart":  false,
+                                          "isPicture":  false,
+                                          "text":  "회의 준비 시간은 45분에서 12분으로 단축되었습니다.\r보고서 작성 시간은 3시간에서 50분으로 줄어들었습니다.\r일정 조율 시간은 30분에서 5분으로 단축되었습니다.",
+                                          "fontNames":  [
+                                                            "Malgun Gothic"
+                                                        ],
+                                          "minFontPt":  13,
+                                          "maxFontPt":  13,
+                                          "textHeightPt":  66.8,
+                                          "textWidthPt":  338,
+                                          "textOverflows":  true
+                                      },
+                                      {
+                                          "name":  "Text 3",
+                                          "type":  14,
+                                          "leftPt":  50.4,
+                                          "topPt":  122.4,
+                                          "widthPt":  859,
+                                          "heightPt":  349.2,
+                                          "insideSlide":  true,
+                                          "hasText":  false,
+                                          "hasChart":  false,
+                                          "isPicture":  false
+                                      },
+                                      {
+                                          "name":  "Slide Number Placeholder 0",
+                                          "type":  14,
+                                          "leftPt":  856.8,
+                                          "topPt":  500.4,
+                                          "widthPt":  52.6,
+                                          "heightPt":  21.6,
+                                          "insideSlide":  true,
+                                          "hasText":  true,
+                                          "hasChart":  false,
+                                          "isPicture":  false,
+                                          "text":  "4",
+                                          "fontNames":  [
+                                                            "Malgun Gothic"
+                                                        ],
+                                          "minFontPt":  10,
+                                          "maxFontPt":  10,
+                                          "textHeightPt":  12,
+                                          "textWidthPt":  9,
+                                          "textOverflows":  false
+                                      }
+                                  ]
+                   },
+                   {
+                       "index":  5,
+                       "layout":  "NAGEX_CONTENT",
+                       "title":  "핵심 운영 수치 요약",
+                       "notes":  "운영과 관련된 재정적 및 승인 관련 핵심 지표입니다. 사용자당 월 비용과 승인 거절률을 확인할 수 있습니다.",
+                       "shapes":  [
+                                      {
+                                          "name":  "Text 3",
+                                          "type":  14,
+                                          "leftPt":  50.4,
+                                          "topPt":  27.4,
+                                          "widthPt":  859,
+                                          "heightPt":  73.4,
+                                          "insideSlide":  true,
+                                          "hasText":  true,
+                                          "hasChart":  false,
+                                          "isPicture":  false,
+                                          "text":  "핵심 운영 수치 요약",
+                                          "fontNames":  [
+                                                            "Malgun Gothic"
+                                                        ],
+                                          "minFontPt":  30,
+                                          "maxFontPt":  30,
+                                          "textHeightPt":  36,
+                                          "textWidthPt":  282,
+                                          "textOverflows":  false
+                                      },
+                                      {
+                                          "name":  "Text 1",
+                                          "type":  1,
+                                          "leftPt":  50.4,
+                                          "topPt":  136.8,
+                                          "widthPt":  271.9,
+                                          "heightPt":  187.2,
+                                          "insideSlide":  true,
+                                          "hasText":  true,
+                                          "hasChart":  false,
+                                          "isPicture":  false,
+                                          "text":  "48명\r대상 사용자\r운영 활동 참여 인원",
+                                          "fontNames":  [
+                                                            "Malgun Gothic"
+                                                        ],
+                                          "minFontPt":  13,
+                                          "maxFontPt":  48,
+                                          "textHeightPt":  94.8,
+                                          "textWidthPt":  127.7,
+                                          "textOverflows":  false
+                                      },
+                                      {
+                                          "name":  "Text 2",
+                                          "type":  1,
+                                          "leftPt":  343.9,
+                                          "topPt":  136.8,
+                                          "widthPt":  271.9,
+                                          "heightPt":  187.2,
+                                          "insideSlide":  true,
+                                          "hasText":  true,
+                                          "hasChart":  false,
+                                          "isPicture":  false,
+                                          "text":  "12,000원\r월 비용\r사용자 1명당",
+                                          "fontNames":  [
+                                                            "Malgun Gothic"
+                                                        ],
+                                          "minFontPt":  13,
+                                          "maxFontPt":  48,
+                                          "textHeightPt":  94.8,
+                                          "textWidthPt":  216.9,
+                                          "textOverflows":  false
+                                      },
+                                      {
+                                          "name":  "Text 3",
+                                          "type":  1,
+                                          "leftPt":  637.4,
+                                          "topPt":  136.8,
+                                          "widthPt":  271.9,
+                                          "heightPt":  187.2,
+                                          "insideSlide":  true,
+                                          "hasText":  true,
+                                          "hasChart":  false,
+                                          "isPicture":  false,
+                                          "text":  "4.2%\r승인 거절률\r재정 및 승인 지표",
+                                          "fontNames":  [
+                                                            "Malgun Gothic"
+                                                        ],
+                                          "minFontPt":  13,
+                                          "maxFontPt":  48,
+                                          "textHeightPt":  94.8,
+                                          "textWidthPt":  127.2,
+                                          "textOverflows":  false
+                                      },
+                                      {
+                                          "name":  "Text 4",
+                                          "type":  1,
+                                          "leftPt":  50.4,
+                                          "topPt":  349.2,
+                                          "widthPt":  859,
+                                          "heightPt":  122.4,
+                                          "insideSlide":  true,
+                                          "hasText":  true,
+                                          "hasChart":  false,
+                                          "isPicture":  false,
+                                          "text":  "총 48명의 사용자를 대상으로 운영되었습니다.\r사용자 1명당 월 비용은 12,000원입니다.\r승인 거절률은 4.2%를 기록했습니다.",
+                                          "fontNames":  [
+                                                            "Malgun Gothic"
+                                                        ],
+                                          "minFontPt":  20,
+                                          "maxFontPt":  20,
+                                          "textHeightPt":  92,
+                                          "textWidthPt":  421.4,
+                                          "textOverflows":  false
+                                      },
+                                      {
+                                          "name":  "Text 3",
+                                          "type":  14,
+                                          "leftPt":  50.4,
+                                          "topPt":  122.4,
+                                          "widthPt":  859,
+                                          "heightPt":  349.2,
+                                          "insideSlide":  true,
+                                          "hasText":  false,
+                                          "hasChart":  false,
+                                          "isPicture":  false
+                                      },
+                                      {
+                                          "name":  "Slide Number Placeholder 0",
+                                          "type":  14,
+                                          "leftPt":  856.8,
+                                          "topPt":  500.4,
+                                          "widthPt":  52.6,
+                                          "heightPt":  21.6,
+                                          "insideSlide":  true,
+                                          "hasText":  true,
+                                          "hasChart":  false,
+                                          "isPicture":  false,
+                                          "text":  "5",
+                                          "fontNames":  [
+                                                            "Malgun Gothic"
+                                                        ],
+                                          "minFontPt":  10,
+                                          "maxFontPt":  10,
+                                          "textHeightPt":  12,
+                                          "textWidthPt":  9,
+                                          "textOverflows":  false
+                                      }
+                                  ]
+                   },
+                   {
+                       "index":  6,
+                       "layout":  "NAGEX_CONTENT",
+                       "title":  "운영 위험 요소 및 대응 방안",
+                       "notes":  "승인 거절률 4.2%에 대응하기 위해 원인을 면밀히 분석하고 가이드라인을 보완하여 운영 안정성을 확보할 계획입니다.",
+                       "shapes":  [
+                                      {
+                                          "name":  "Text 3",
+                                          "type":  14,
+                                          "leftPt":  50.4,
+                                          "topPt":  27.4,
+                                          "widthPt":  859,
+                                          "heightPt":  73.4,
+                                          "insideSlide":  true,
+                                          "hasText":  true,
+                                          "hasChart":  false,
+                                          "isPicture":  false,
+                                          "text":  "운영 위험 요소 및 대응 방안",
+                                          "fontNames":  [
+                                                            "Malgun Gothic"
+                                                        ],
+                                          "minFontPt":  30,
+                                          "maxFontPt":  30,
+                                          "textHeightPt":  36,
+                                          "textWidthPt":  393,
+                                          "textOverflows":  false
+                                      },
+                                      {
+                                          "name":  "Text 3",
+                                          "type":  14,
+                                          "leftPt":  50.4,
+                                          "topPt":  122.4,
+                                          "widthPt":  859,
+                                          "heightPt":  349.2,
+                                          "insideSlide":  true,
+                                          "hasText":  true,
+                                          "hasChart":  false,
+                                          "isPicture":  false,
+                                          "text":  "승인 거절률 4.2%가 기록됨에 따라 원인 분석이 필요합니다.\r사용자 가이드라인을 보완하여 불필요한 거절을 줄일 예정입니다.\r비용 대비 효율성을 지속 모니터링하여 운영의 안정성을 확보합니다.",
+                                          "fontNames":  [
+                                                            "Malgun Gothic"
+                                                        ],
+                                          "minFontPt":  24,
+                                          "maxFontPt":  24,
+                                          "textHeightPt":  117.9,
+                                          "textWidthPt":  745.2,
+                                          "textOverflows":  false
+                                      },
+                                      {
+                                          "name":  "Slide Number Placeholder 0",
+                                          "type":  14,
+                                          "leftPt":  856.8,
+                                          "topPt":  500.4,
+                                          "widthPt":  52.6,
+                                          "heightPt":  21.6,
+                                          "insideSlide":  true,
+                                          "hasText":  true,
+                                          "hasChart":  false,
+                                          "isPicture":  false,
+                                          "text":  "6",
+                                          "fontNames":  [
+                                                            "Malgun Gothic"
+                                                        ],
+                                          "minFontPt":  10,
+                                          "maxFontPt":  10,
+                                          "textHeightPt":  12,
+                                          "textWidthPt":  9,
+                                          "textOverflows":  false
+                                      }
+                                  ]
+                   },
+                   {
+                       "index":  7,
+                       "layout":  "NAGEX_CONTENT",
+                       "title":  "다음 분기 운영 계획",
+                       "notes":  "다음 분기에는 이번 분기의 처리 시간 단축 효과를 기반으로 사용자 교육을 강화하고 프로세스 개선을 추진합니다.",
+                       "shapes":  [
+                                      {
+                                          "name":  "Text 3",
+                                          "type":  14,
+                                          "leftPt":  50.4,
+                                          "topPt":  27.4,
+                                          "widthPt":  859,
+                                          "heightPt":  73.4,
+                                          "insideSlide":  true,
+                                          "hasText":  true,
+                                          "hasChart":  false,
+                                          "isPicture":  false,
+                                          "text":  "다음 분기 운영 계획",
+                                          "fontNames":  [
+                                                            "Malgun Gothic"
+                                                        ],
+                                          "minFontPt":  30,
+                                          "maxFontPt":  30,
+                                          "textHeightPt":  36,
+                                          "textWidthPt":  282,
+                                          "textOverflows":  false
+                                      },
+                                      {
+                                          "name":  "Text 3",
+                                          "type":  14,
+                                          "leftPt":  50.4,
+                                          "topPt":  122.4,
+                                          "widthPt":  859,
+                                          "heightPt":  349.2,
+                                          "insideSlide":  true,
+                                          "hasText":  true,
+                                          "hasChart":  false,
+                                          "isPicture":  false,
+                                          "text":  "이번 분기에 확인된 처리 시간 단축 효과를 바탕으로 합니다.\r사용자 교육을 강화하여 시스템 활용도를 높일 계획입니다.\r승인 거절률을 낮추기 위한 프로세스 개선을 추진합니다.",
+                                          "fontNames":  [
+                                                            "Malgun Gothic"
+                                                        ],
+                                          "minFontPt":  24,
+                                          "maxFontPt":  24,
+                                          "textHeightPt":  117.9,
+                                          "textWidthPt":  657.8,
+                                          "textOverflows":  false
+                                      },
+                                      {
+                                          "name":  "Slide Number Placeholder 0",
+                                          "type":  14,
+                                          "leftPt":  856.8,
+                                          "topPt":  500.4,
+                                          "widthPt":  52.6,
+                                          "heightPt":  21.6,
+                                          "insideSlide":  true,
+                                          "hasText":  true,
+                                          "hasChart":  false,
+                                          "isPicture":  false,
+                                          "text":  "7",
+                                          "fontNames":  [
+                                                            "Malgun Gothic"
+                                                        ],
+                                          "minFontPt":  10,
+                                          "maxFontPt":  10,
+                                          "textHeightPt":  12,
+                                          "textWidthPt":  9,
+                                          "textOverflows":  false
+                                      }
+                                  ]
+                   }
+               ],
+    "editRoundTrip":  {
+                          "saved":  true,
+                          "reopened":  true,
+                          "editSurvived":  true,
+                          "slidesAfterEdit":  7
+                      }
+}

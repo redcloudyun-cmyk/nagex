@@ -7,6 +7,7 @@ import { detectRequestLanguage } from '../../common/request-language.js';
 import { buildDocx, DOCX_MIME, docxFileName } from '../../creation/docx/docx-writer.js';
 import { callerIdentity, tryGetCallerIdentity } from '../request-identity.js';
 import type { ArtifactVersionService } from '../../creation/artifact-version.service.js';
+import type { ImageStore } from '../../creation/image.store.js';
 
 export interface DocumentCreationRouteDeps {
   creationRuntime: CreationRuntime;
@@ -14,7 +15,12 @@ export interface DocumentCreationRouteDeps {
   documentStore: DocumentStore;
   // R26-D: versions, comparison and restoration of documents and decks (optional so existing wiring keeps compiling; absent -> 503)
   versionService?: ArtifactVersionService;
+  // pictures in a document (![alt](/api/v1/creations/images/<id>)): the person's own stored images, owner-checked. Absent -> a picture shows its "unavailable" line in the file.
+  imageStore?: ImageStore;
 }
+
+// the canonical address of a stored image (what the image creation result opens)
+const IMAGE_REF = /^\/api\/v1\/creations\/images\/(img_[0-9a-f]{24})$/;
 
 function getHeaderValue(headers: Record<string, string | string[] | undefined>, name: string): string | undefined {
   const value = headers[name] ?? headers[name.toLowerCase()];
@@ -55,9 +61,12 @@ export const handleDocumentCreationRoutes: AsyncRouteRegistrar<DocumentCreationR
 
     // an explicit locale wins; otherwise the document follows the language the person wrote the request in (a Korean request gets a Korean document)
     const locale = body?.locale === 'ko' || body?.locale === 'en' ? body.locale : (detectRequestLanguage(prompt) === 'ko' ? 'ko' : 'en');
+    // the person's own artifacts a document may use (today: pictures, which the writer is offered by reference). The executor reads only the ones the caller owns.
+    const sourceArtifactIds = Array.isArray(body?.sourceArtifactIds) ? (body!.sourceArtifactIds as unknown[]).filter((id): id is string => typeof id === 'string' && id.length > 0).slice(0, 6) : [];
     const result = await creationRuntime.create({
       creationKind: 'DOCUMENT',
       prompt,
+      ...(sourceArtifactIds.length ? { sourceRefs: sourceArtifactIds.map((id) => ({ type: 'ARTIFACT' as const, id })) } : {}),
       options: {
         documentKind: typeof body?.documentKind === 'string' ? body.documentKind : 'REPORT',
         style: typeof body?.style === 'string' ? body.style : undefined,
@@ -128,7 +137,18 @@ export const handleDocumentCreationRoutes: AsyncRouteRegistrar<DocumentCreationR
     if (!record || !record.content.trim()) {
       return { status: 404, data: { error: 'DOCUMENT_NOT_FOUND', message: 'Document not found.', request_id: requestId } };
     }
-    const bytes = buildDocx({ title: record.title, markdown: record.content, locale: record.locale === 'ko' ? 'ko' : 'en' });
+    const bytes = buildDocx({
+      title: record.title,
+      markdown: record.content,
+      locale: record.locale === 'ko' ? 'ko' : 'en',
+      // a picture is the PERSON'S OWN stored image or nothing: a foreign, unknown or unreadable id is indistinguishable and shows the same "unavailable" line
+      resolveImage: (ref) => {
+        const match = IMAGE_REF.exec(ref);
+        const image = match && deps.imageStore ? deps.imageStore.get(match[1], tenantId, principalId) : null;
+        const data = image ? deps.imageStore!.getBinary(image.binaryStoragePath) : null;
+        return data ? { bytes: data, mimeType: image!.mimeType } : null;
+      },
+    });
     return {
       status: 200,
       data: bytes,

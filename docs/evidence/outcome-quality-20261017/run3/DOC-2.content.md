@@ -1,0 +1,24 @@
+# Decision Memo: 12-Week Working-Model Pilot Recommendation
+
+## Executive Summary
+To determine the optimal long-term working model for our team of 30 people, this memo evaluates three 12-week pilot options: Option A (hybrid, 3 office days), Option B (fully remote), and Option C (office only). A decision is required by 2026-11-15. Based on cost, risk, and operational needs, Option A is recommended.
+
+## Option Comparison
+
+| Working Model | Duration | Team Size | Cost | Risk Level |
+| --- | --- | --- | --- | --- |
+| Option A (Hybrid, 3 office days) | 12 weeks | 30 people | $18,000 | Low |
+| Option B (Fully Remote) | 12 weeks | 30 people | $9,500 | Medium |
+| Option C (Office Only) | 12 weeks | 30 people | $24,000 | Low |
+
+## Recommendation and Rationale
+It is recommended to proceed with **Option A (hybrid, 3 office days)** for the 12-week pilot.
+
+* **Balanced Approach:** Option A provides a structured balance between in-person collaboration and remote flexibility for the 30-person team.
+* **Risk Management:** Compared to Option B, which carries a medium risk level, Option A maintains a low risk profile similar to Option C.
+* **Cost Efficiency:** While Option B is the least expensive at $9,500, Option A offers a moderate cost of $18,000—significantly lower than the $24,000 required for Option C while still securing the benefits of office presence.
+
+## Next Steps
+1. Review this recommendation and finalize the selection by the decision deadline of 2026-11-15.
+2. Communicate the selected pilot structure to the 30 team members.
+3. Prepare the operational and logistical requirements for the 12-week duration.

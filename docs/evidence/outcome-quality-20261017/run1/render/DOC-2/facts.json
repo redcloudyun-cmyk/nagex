@@ -1,0 +1,110 @@
+﻿{
+    "file":  "DOC-2.docx",
+    "bytes":  7164,
+    "extension":  ".docx",
+    "renderedBy":  "Microsoft Word 16.0",
+    "opened":  true,
+    "problems":  [
+
+                 ],
+    "compatibilityMode":  15,
+    "pages":  1,
+    "words":  292,
+    "paragraphs":  46,
+    "page":  {
+                 "widthPt":  595.3,
+                 "heightPt":  841.9,
+                 "orientation":  0,
+                 "leftMarginPt":  56.7,
+                 "rightMarginPt":  56.7,
+                 "topMarginPt":  56.7,
+                 "bottomMarginPt":  56.7,
+                 "textWidthPt":  481.9
+             },
+    "sections":  1,
+    "header":  {
+                   "text":  "Decision Memo: 12-Week Working-Model Pilot Recommendation",
+                   "exists":  true
+               },
+    "footer":  {
+                   "text":  "1 / 1",
+                   "exists":  true,
+                   "pageNumberFields":  2
+               },
+    "styles":  {
+                   "글머리 기호":  2,
+                   "표준":  33,
+                   "제목":  1,
+                   "제목 1":  1,
+                   "제목 3":  1,
+                   "번호 매기기":  3,
+                   "제목 2":  5
+               },
+    "outline":  [
+                    {
+                        "level":  1,
+                        "text":  "Decision Memo: 12-Week Working-Model Pilot",
+                        "page":  1
+                    },
+                    {
+                        "level":  2,
+                        "text":  "1. Executive Summary",
+                        "page":  1
+                    },
+                    {
+                        "level":  2,
+                        "text":  "2. Background and Objectives",
+                        "page":  1
+                    },
+                    {
+                        "level":  2,
+                        "text":  "3. Comparison of Options",
+                        "page":  1
+                    },
+                    {
+                        "level":  2,
+                        "text":  "4. Recommendation",
+                        "page":  1
+                    },
+                    {
+                        "level":  3,
+                        "text":  "Reasons for Recommendation:",
+                        "page":  1
+                    },
+                    {
+                        "level":  2,
+                        "text":  "5. Next Steps",
+                        "page":  1
+                    }
+                ],
+    "tables":  [
+                   {
+                       "rows":  4,
+                       "columns":  6,
+                       "widthPt":  481.9,
+                       "fitsTextWidth":  true,
+                       "headingRowRepeats":  true,
+                       "startsOnPage":  1,
+                       "firstRowText":  "Option | Working Model | Team Size | Duration | Cost | Risk Level |"
+                   }
+               ],
+    "inlineShapes":  [
+
+                     ],
+    "floatingShapes":  0,
+    "hyperlinks":  0,
+    "fields":  0,
+    "footnotes":  0,
+    "fonts":  {
+                  "Calibri":  46
+              },
+    "pagePictures":  [
+                         "page-1.png"
+                     ],
+    "editRoundTrip":  {
+                          "saved":  true,
+                          "reopened":  true,
+                          "editSurvived":  true,
+                          "pagesAfterEdit":  1
+                      }
+}

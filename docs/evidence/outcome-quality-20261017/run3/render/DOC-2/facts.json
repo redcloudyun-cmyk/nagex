@@ -1,0 +1,93 @@
+﻿{
+    "file":  "DOC-2.docx",
+    "bytes":  6937,
+    "extension":  ".docx",
+    "renderedBy":  "Microsoft Word 16.0",
+    "opened":  true,
+    "problems":  [
+
+                 ],
+    "compatibilityMode":  15,
+    "pages":  1,
+    "words":  236,
+    "paragraphs":  38,
+    "page":  {
+                 "widthPt":  595.3,
+                 "heightPt":  841.9,
+                 "orientation":  0,
+                 "leftMarginPt":  56.7,
+                 "rightMarginPt":  56.7,
+                 "topMarginPt":  56.7,
+                 "bottomMarginPt":  56.7,
+                 "textWidthPt":  481.9
+             },
+    "sections":  1,
+    "header":  {
+                   "text":  "Decision Memo: 12-Week Working-Model Pilot Recommendation",
+                   "exists":  true
+               },
+    "footer":  {
+                   "text":  "1 / 1",
+                   "exists":  true,
+                   "pageNumberFields":  2
+               },
+    "styles":  {
+                   "번호 매기기":  3,
+                   "표준":  27,
+                   "글머리 기호":  3,
+                   "제목":  1,
+                   "제목 2":  4
+               },
+    "outline":  [
+                    {
+                        "level":  2,
+                        "text":  "Executive Summary",
+                        "page":  1
+                    },
+                    {
+                        "level":  2,
+                        "text":  "Option Comparison",
+                        "page":  1
+                    },
+                    {
+                        "level":  2,
+                        "text":  "Recommendation and Rationale",
+                        "page":  1
+                    },
+                    {
+                        "level":  2,
+                        "text":  "Next Steps",
+                        "page":  1
+                    }
+                ],
+    "tables":  [
+                   {
+                       "rows":  4,
+                       "columns":  5,
+                       "widthPt":  481.9,
+                       "fitsTextWidth":  true,
+                       "headingRowRepeats":  true,
+                       "startsOnPage":  1,
+                       "firstRowText":  "Working Model | Duration | Team Size | Cost | Risk Level |"
+                   }
+               ],
+    "inlineShapes":  [
+
+                     ],
+    "floatingShapes":  0,
+    "hyperlinks":  0,
+    "fields":  0,
+    "footnotes":  0,
+    "fonts":  {
+                  "Calibri":  38
+              },
+    "pagePictures":  [
+                         "page-1.png"
+                     ],
+    "editRoundTrip":  {
+                          "saved":  true,
+                          "reopened":  true,
+                          "editSurvived":  true,
+                          "pagesAfterEdit":  1
+                      }
+}
