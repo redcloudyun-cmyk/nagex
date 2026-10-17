@@ -46,6 +46,7 @@
       "desktop_plan_executor",
       "device_enrollment",
       "desktop_windows_notepad_real",
+      "desktop_task_real_ui",
       "desktop_request_routing",
       "desktop_task_browser"
     ],
@@ -62,6 +63,7 @@
       "browser_action_verification",
       "computer_use_keyboard_approval",
       "computer_use_expectation",
+      "computer_use_long_page",
       "computer_use_invoice_e2e",
       "browser_task_browser",
       "browser_advanced_dom",
@@ -421,6 +423,7 @@
       "browser_action_verification",
       "computer_use_keyboard_approval",
       "computer_use_expectation",
+      "computer_use_long_page",
       "computer_use_invoice_e2e",
       "browser_advanced_dom",
       "browser_module_boundary",

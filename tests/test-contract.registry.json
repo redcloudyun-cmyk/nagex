@@ -4471,6 +4471,32 @@
       "assertionIntent": "A video is priced and approved before anything is sent: prepare sends nothing to the provider, the approval (the existing ActionApprovalStore) binds the exact request and price, a price that rose needs a new approval, a declined / expired / lost approval never starts a job, a double approve or a repeated identical request starts one paid job, and the provider call carries a stable idempotency key (a lost answer is retried once with it where the provider de-duplicates, otherwise reported as uncertain; a restart mid-submission is resolved the same way); states come only from the provider (PENDING -> RUNNING -> COMPLETED), waiting is bounded, a download is accepted only if it is a structurally valid MP4 and is stored for its owner (another person / tenant gets nothing, Range playback and download work), provider errors (credentials, credits, quota, billing, content, busy, unreachable) are distinct and truthful, the Higgsfield adapter follows its documented REST contract and never follows a status address from a response, the Veo adapter is offered only when the operator enabled it and prices from the published table, and image-to-video uploads the person's own image only after approval.",
       "notes": "Loopback HTTP stand-ins written from the providers' public documentation; no network, no real provider, no spend. A pass proves NAgex's side of the contract, not that Higgsfield or Google answer this way today and not what a real model draws."
     },
+    "computer_use_long_page": {
+      "milestone": "DEVICE-CONTROL-20261017",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": ["browser","device"],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "VERIFY on a long page: the page text budget CLIPS a page longer than the budget (and reports it was cut) instead of dropping it whole; a word near the start of a very long article is found (the real-site failure: a 2-character check on an article far longer than the old 60,000-character budget answered NOT SHOWN); a word only in the unread end is not claimed as found and the result says the page was cut; a short page is read whole; the budget covers a long encyclopedia article.",
+      "notes": "The in-page reader is called with a stand-in element that has the same read interface. Found by the first live run of the browser agent on a real public site."
+    },
+    "desktop_task_real_ui": {
+      "milestone": "DEVICE-CONTROL-20261017",
+      "classification": "LIVE_EXTERNAL",
+      "canonical": false,
+      "scopes": ["device","security"],
+      "externalDependencies": ["Windows 11 PC","interactive desktop session","packaged Notepad","native controller build (native/windows-desktop-controller/build.ps1)","real Chromium"],
+      "realBrowser": true,
+      "sourceImplementationAssertions": false,
+      "deterministic": false,
+      "writesRepositoryArtifacts": false,
+      "assertionIntent": "Through the real Main web UI (Korean): the natural-language request becomes ONE card that names the PC and the exact text; nothing is written and no Notepad window is opened before Approve; after Approve (a click made by browser automation standing in for the person) the real Local Device Agent drives a real Notepad window on this PC to write and save, the card says done only after the PC read the file back, the file exists in a dedicated sub-folder of Documents with exactly the requested content, and the Notepad windows open before are untouched; Decline sends nothing to the PC and opens no window.",
+      "notes": "Opt-in (NAGEX_REAL_WINDOWS_E2E=1); drives a real application on the interactive desktop; skipped with an explicit reason otherwise, never reported as passed. The Approve click is automation, not a human.",
+      "requiresEnv": ["NAGEX_REAL_WINDOWS_E2E"]
+    },
     "computer_use_expectation": {
       "milestone": "COMPUTER-USE-20261016",
       "classification": "CANONICAL_BEHAVIOR",
