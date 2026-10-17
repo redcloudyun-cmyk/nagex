@@ -67,6 +67,10 @@ jobs:
       - name: Regression (isolated stores)
         run: npm test
       - name: Browser cert (isolated stores)
+        # One test file at a time on the Windows runner: each file starts a Chromium AND a production server, and on its 4 cores two at once made fixed-budget waits (15 s) expire in a
+        # different suite every run (three consecutive runs, three different suites, each passing alone and on Linux). Linux keeps 2. The tests, assertions and timeouts are untouched.
+        env:
+          NAGEX_TEST_CONCURRENCY: ${{ runner.os == 'Windows' && '1' || '2' }}
         run: npm run test:browser-cert
       - name: Verify writable production sentinel unchanged (always)
         if: always() && runner.os == 'Linux'
