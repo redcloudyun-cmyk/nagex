@@ -1,5 +1,7 @@
 import { JEV_SHADOW_FIXTURES } from '../dist/src/model-gateway/jev-shadow-fixtures.js';
 import { JevSystemOneProvider } from '../dist/src/model-gateway/jev-provider.js';
+import { resolveJevApiKey } from '../dist/src/model-gateway/jev-config.js';
+import { loadJevEnv } from './_jev-env.mjs';
 
 const FIXTURE_ID = 'chat-simple-001';
 
@@ -32,7 +34,14 @@ function reportFailure(error) {
 const fixture = JEV_SHADOW_FIXTURES.find((entry) => entry.id === FIXTURE_ID);
 if (!fixture) throw new Error(`Missing fixture: ${FIXTURE_ID}`);
 
-const apiKey = process.env.JEVMODEL_API_KEY;
+// OPT-IN: this makes a real request to a service that may be billable. Without NAGEX_LIVE_JEV=1 nothing is sent, whether or not a key exists.
+if (process.env.NAGEX_LIVE_JEV !== '1') {
+  console.log('JEV_SINGLE_LIVE_DIAGNOSTIC=NOT_RUN');
+  console.log('HINT=Set NAGEX_LIVE_JEV=1 to make ONE real request.');
+  process.exit(0);
+}
+// the key under either historical name (NAGEX_JEV_API_KEY / JEVMODEL_API_KEY), from this process, a service pid or --jev-env-file
+const apiKey = resolveJevApiKey(loadJevEnv().env).key ?? undefined;
 if (!apiKey) {
   console.log('JEV_SINGLE_LIVE_DIAGNOSTIC=FAIL');
   console.log('HTTP_STATUS=NOT_RUN');

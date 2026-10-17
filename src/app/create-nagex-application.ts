@@ -63,6 +63,7 @@ import { HttpDeployVerifier } from '../product-builder/adapters/http-deploy-veri
 import { VercelDeployAdapter } from '../product-builder/adapters/vercel-deploy.adapter.js';
 import { DecisionAdvisor } from '../device-control/decision-port.js';
 import { JevDecisionPort } from '../device-control/jev-decision.adapter.js';
+import { describeJevConfig, resolveJevApiKey } from '../model-gateway/jev-config.js';
 import { AstraVisualExecutionModelAdapter } from '../device-control/astra-visual-execution-model.adapter.js';
 import { DeviceIdentityStore } from '../device-agent/device-identity.store.js';
 import { RecipientRefStore } from '../mobile/recipient-ref.store.js';
@@ -301,8 +302,10 @@ export function createNagexApplication(): NagexApplication {
     onFallback: (event) => auditLogger.logEvent({ actor: { type: 'system', id: 'device-planner' }, tenant_id: event.tenantId, action: 'device.planner.vision_fallback', resource: { type: 'DeviceExecution', id: event.requestId }, result: 'SUCCESS', request_id: event.requestId, details: { reason: event.reason, detail: event.detail } }),
   });
   // An optional, advisory, tighten-only decision provider (JEV). Off unless NAGEX_JEV_DECISION_ENABLED=true AND a key is configured; without either the loop is exactly what it is without it.
-  const jevDecisionKey = String(process.env.NAGEX_JEV_API_KEY || '').trim();
-  const decisionAdvisor = process.env.NAGEX_JEV_DECISION_ENABLED === 'true' && jevDecisionKey ? new DecisionAdvisor(new JevDecisionPort({ apiKey: jevDecisionKey })) : null;
+  // The key is read through one resolver (NAGEX_JEV_API_KEY, or the original JEVMODEL_API_KEY - the same credential), and only the adapters ever hold it.
+  const jevDecisionKey = resolveJevApiKey(process.env).key ?? '';
+  const jevConfig = describeJevConfig(process.env);
+  const decisionAdvisor = jevConfig.advisorsActive ? new DecisionAdvisor(new JevDecisionPort({ apiKey: jevDecisionKey })) : null;
   const deviceControlService = hybridPlanner.status().configured
     ? new DeviceControlService(deviceExecutionSessionStore, browserService, hybridPlanner, decisionAdvisor)
     : undefined;
@@ -420,7 +423,7 @@ export function createNagexApplication(): NagexApplication {
   // routes. Without them the planner is deterministic; with them nothing about authority changes (an advisor can reorder the eligible set or add a question, never approve or remove a check).
   // Shared by every consumer of the adaptive layer: web search recovery and the Product Builder's image routes.
   const routeLedger = new RouteOutcomeLedger();
-  const routeAdvisor = process.env.NAGEX_JEV_DECISION_ENABLED === 'true' && jevDecisionKey ? new RouteAdvisor(new JevRouteAdvisor({ apiKey: jevDecisionKey })) : null;
+  const routeAdvisor = jevConfig.advisorsActive ? new RouteAdvisor(new JevRouteAdvisor({ apiKey: jevDecisionKey })) : null;
 
   const questionClassificationService = new QuestionClassificationService();
   // Web search is a goal with routes (ADR-0017): the operator's configured provider first, then the alternatives the operator listed in NAGEX_WEB_SEARCH_FALLBACKS - never anything NAgex adds on its own.
@@ -435,7 +438,7 @@ export function createNagexApplication(): NagexApplication {
     reading: new GatewayReviewReading(modelRouter, aiService),
     retrieve: (query, requestId) => evidencePackService.buildEvidencePack(query, { forceSearch: true, maxSources: 3, requestId, webMode: 'ON' }),
   });
-  const verificationAdvisor = process.env.NAGEX_JEV_DECISION_ENABLED === 'true' && jevDecisionKey ? new JevVerificationAdvisor({ apiKey: jevDecisionKey }) : null;
+  const verificationAdvisor = jevConfig.advisorsActive ? new JevVerificationAdvisor({ apiKey: jevDecisionKey }) : null;
   const perspectiveCompareService = new PerspectiveCompareService(modelRouter, evidencePackService);
   const forecastCompareService = new ForecastCompareService(modelRouter, evidencePackService);
 

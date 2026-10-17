@@ -237,6 +237,7 @@
       "web_answer_quality_core",
       "web_answer_quality_route",
       "answer_verification_core",
+      "jev_config",
       "answer_quality_benchmark"
     ],
     "personal-home": [
@@ -301,6 +302,7 @@
       "web_answer_quality_browser",
       "web_answer_quality_live",
       "answer_verification_core",
+      "jev_config",
       "answer_quality_benchmark"
     ],
     "mobile": [
@@ -550,6 +552,7 @@
       "product_builder_adaptive_browser",
       "web_answer_quality_route",
       "answer_verification_core",
+      "jev_config",
       "answer_quality_benchmark"
     ]
   },
