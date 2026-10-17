@@ -396,6 +396,37 @@ PRODUCT_UNCERTAIN_DEPLOY_RETRIED = 0
 PRODUCT_CROSS_OWNER_ACCESS = 0
 ```
 
+## 21. Outcome Quality - documents, presentations, pictures, video (as built, 2026-10-17)
+
+"A file was created" is not "the deliverable is good". Three answers are kept apart and never merged (ADR-0020): **TECHNICAL** (a valid package that opens in the real application), **QUALITY** (automated checks of structure, figures, layout, accessibility and editability - each PASS / FAIL / **NOT_RUN**; a verdict with checks that could not run is **PARTIAL**, never PASS) and **human review** (never a model's self-assessment). The evaluator is `src/creation/quality/`; what only Word / PowerPoint can say is measured by `scripts/office-render.ps1` (a local, Windows + Office certification tool, not part of CI).
+
+```text
+documents   Markdown -> .docx   modern compatibility mode, headings / lists / tables (alignment, content-based widths, header row repeats),
+                                pictures with alt text and caption, header + page numbers, A4 / Letter, portrait / landscape
+decks       outline -> .pptx    PptxGenJS (MIT) under NAgex rules: masters + placeholders, NATIVE charts with their data, tables, pictures,
+                                key-figure cards, quotes, sections, speaker notes; font size chosen to FIT and set on every run
+```
+
+- **The figures are the person's.** A number stated by a chart, a table cell or a key-figure card must be, as the same number, in the request, the instructions, the source documents or the remembered context - otherwise the slide is its takeaways and the person is told which slide and why. A model-computed number is not the person's.
+- **Pictures arrive by reference** (`image_1 = "<title>"`), only the person's own, owner-checked, PNG / JPEG. A document stores the canonical address and `.docx` download resolves it through the owner-checked store; every other picture-like thing in model text is removed.
+- **A visual that does not parse is demoted to text, never repaired by guessing; a slide that only says information is missing is left out.** Both are recorded (`demotions`, `notices`) and told to the person. The exact number of slides asked for is kept; a plain deck keeps its old result keys.
+- **Bounded recovery.** A document draft that still says content is missing is asked for once more, naming what remains (never a third call). There is no loop that regenerates until a score passes.
+- **Charts tell the truth about size:** a bar chart starts at zero; the unit travels with the number (45분, $18,000).
+- **Images and video** are evaluated without a provider (PNG / JPEG from bytes, size, aspect, blank / flat via decoded pixels, requested text via a named advisory reader, EDIT apart from CREATE; MP4 read from its own boxes, "plays" needs a real player, scene consistency is human review). Real generation stays BLOCKED until a credential and an authorised spend exist.
+
+```text
+INVENTED_FIGURE_IN_A_CHART_TABLE_OR_CARD = 0
+PICTURE_NOT_THE_PERSONS_OWN = 0
+PICTURE_ADDRESS_FROM_THE_MODEL_REACHES_THE_FILE = 0
+SLIDE_WITH_ONLY_A_PLACEHOLDER_DELIVERED = 0
+DEMOTION_NOT_TOLD_TO_THE_PERSON = 0
+BAR_CHART_NOT_STARTING_AT_ZERO = 0
+QUALITY_PASS_WITH_UNRUN_CHECKS = 0
+FILE_EXISTENCE_REPORTED_AS_QUALITY = 0
+```
+
+Not claimed: that the prose or the design is good (human review), that a figure is attached to the right thing, that a file opens anywhere but Microsoft Word / PowerPoint 16 (LibreOffice, Keynote, Google Slides untested), or that any image or video provider produced anything (none was called).
+
 ## 19. Source Provenance
 
 Consolidated from:

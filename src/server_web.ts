@@ -790,6 +790,7 @@ export async function handleAsyncApiRequest(
         documentExecutor: app.documentExecutor,
         documentStore: app.documentStore,
         versionService: app.artifactVersionService,
+        imageStore: app.imageStore,
       });
       if (docCreationResult) return docCreationResult;
     }

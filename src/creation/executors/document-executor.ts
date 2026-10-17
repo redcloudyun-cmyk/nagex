@@ -4,6 +4,9 @@ import type { DocumentStore } from '../document.store.js';
 import type { ArtifactStore } from '../../artifacts/artifact.store.js';
 import type { AuditLogger } from '../../governance/audit.logger.js';
 import type { MemoryRecord } from '../../context/memory.engine.js';
+import type { ImageStore } from '../image.store.js';
+import { imageSize } from '../image-size.js';
+import { bindDocumentImages, type OfferedDocumentImage } from '../document-images.js';
 import type {
   CreationExecutor,
   CreationKind,
@@ -16,9 +19,13 @@ export interface DocumentExecutorDeps {
   aiService: AiService;
   documentStore: DocumentStore;
   artifactStore?: ArtifactStore;
+  // the person's own stored pictures, which a document may place (owner-checked, PNG / JPEG only). Absent -> pictures are never offered and any picture the model writes is removed.
+  imageStore?: ImageStore;
   auditLogger?: AuditLogger;
   getRelevantMemories?: (tenantId: string, ownerId: string, query: string) => MemoryRecord[];
 }
+
+const MAX_OFFERED_IMAGES = 6;
 
 export class DocumentExecutor implements CreationExecutor<CreationRequest, CreationResult> {
   public readonly kind: CreationKind = 'DOCUMENT';
@@ -28,6 +35,21 @@ export class DocumentExecutor implements CreationExecutor<CreationRequest, Creat
   private readonly revisionsInFlight = new Map<string, Promise<CreationResult>>();
 
   constructor(private readonly deps: DocumentExecutorDeps) {}
+
+  // The person's own pictures named in the request (an IMAGE artifact they own, a PNG or a JPEG): offered to the writer under a reference, bound to their canonical address afterwards. A picture that is
+  // not theirs or not usable is simply not offered.
+  private offeredImages(request: CreationRequest): OfferedDocumentImage[] {
+    const offered: OfferedDocumentImage[] = [];
+    for (const ref of request.sourceRefs || []) {
+      if (ref.type !== 'ARTIFACT' || offered.length >= MAX_OFFERED_IMAGES) continue;
+      const artifact = this.deps.artifactStore?.get(ref.id, request.tenantId, request.ownerId);
+      if (!artifact || artifact.type !== 'IMAGE') continue;
+      const record = this.deps.imageStore?.get(artifact.sourceId, request.tenantId, request.ownerId);
+      const bytes = record ? this.deps.imageStore!.getBinary(record.binaryStoragePath) : null;
+      if (record && bytes && imageSize(bytes)) offered.push({ ref: `image_${offered.length + 1}`, title: record.title, address: `/api/v1/creations/images/${record.imageId}` });
+    }
+    return offered;
+  }
 
   public async execute(request: CreationRequest): Promise<CreationResult> {
     const { tenantId, ownerId, requestId, prompt, options = {} } = request;
@@ -55,6 +77,7 @@ export class DocumentExecutor implements CreationExecutor<CreationRequest, Creat
         ? this.deps.getRelevantMemories(tenantId, ownerId, prompt)
         : [];
 
+      const pictures = this.offeredImages(request);
       const outcome = await this.deps.aiService.documentSynthesis({
         prompt: prompt.trim(),
         documentKind,
@@ -64,9 +87,13 @@ export class DocumentExecutor implements CreationExecutor<CreationRequest, Creat
         mode: options.routingMode || 'auto',
         requestId,
         ...(options.lengthRequest !== undefined ? { lengthRequest: options.lengthRequest } : {}),
+        ...(pictures.length ? { images: pictures.map((image) => ({ ref: image.ref, title: image.title })) } : {}),
       });
 
-      const { title, summary, content } = outcome.data;
+      const { title, summary } = outcome.data;
+      // a picture in the text is the person's own (bound to its canonical address) or it is not there: an address the model made up, an external URL or a picture inside a sentence is removed
+      const bound = bindDocumentImages(outcome.data.content ?? '', pictures);
+      const content = bound.markdown;
 
       // Truthfulness validation: Reject empty / null / whitespace-only content
       if (!title || !title.trim() || !content || !content.trim()) {
@@ -121,6 +148,9 @@ export class DocumentExecutor implements CreationExecutor<CreationRequest, Creat
           model: outcome.model,
           latencyMs: outcome.latencyMs,
           documentKind,
+          ...(pictures.length > 0 || bound.removed > 0 ? { pictures: { offered: pictures.length, placed: bound.placed, removed: bound.removed } } : {}),
+          // present only when the first draft still said content was missing: what was found, and what remained after the one retry
+          ...(outcome.data.review ? { review: outcome.data.review } : {}),
         },
         createdAt: now,
       };

@@ -1,0 +1,101 @@
+﻿{
+    "file":  "baseline.docx",
+    "bytes":  4604,
+    "extension":  ".docx",
+    "renderedBy":  "Microsoft Word 16.0",
+    "opened":  true,
+    "problems":  [
+
+                 ],
+    "compatibilityMode":  12,
+    "pages":  2,
+    "words":  518,
+    "paragraphs":  50,
+    "page":  {
+                 "widthPt":  595.3,
+                 "heightPt":  841.9,
+                 "orientation":  0,
+                 "leftMarginPt":  56.7,
+                 "rightMarginPt":  56.7,
+                 "topMarginPt":  56.7,
+                 "bottomMarginPt":  56.7,
+                 "textWidthPt":  481.9
+             },
+    "sections":  1,
+    "header":  {
+                   "text":  "",
+                   "exists":  true
+               },
+    "footer":  {
+                   "text":  "",
+                   "exists":  true,
+                   "pageNumberFields":  0
+               },
+    "styles":  {
+                   "번호 매기기":  3,
+                   "표준":  37,
+                   "글머리 기호":  3,
+                   "제목":  1,
+                   "제목 3":  1,
+                   "인용":  1,
+                   "제목 2":  4
+               },
+    "outline":  [
+                    {
+                        "level":  2,
+                        "text":  "1. 요약",
+                        "page":  1
+                    },
+                    {
+                        "level":  2,
+                        "text":  "2. 비교표",
+                        "page":  1
+                    },
+                    {
+                        "level":  2,
+                        "text":  "3. 상세 분석",
+                        "page":  1
+                    },
+                    {
+                        "level":  3,
+                        "text":  "3.1 위험",
+                        "page":  2
+                    },
+                    {
+                        "level":  2,
+                        "text":  "4. 결론",
+                        "page":  2
+                    }
+                ],
+    "tables":  [
+                   {
+                       "rows":  4,
+                       "columns":  7,
+                       "widthPt":  481.9,
+                       "fitsTextWidth":  true,
+                       "headingRowRepeats":  true,
+                       "startsOnPage":  1,
+                       "firstRowText":  "항목 | 기존 방식 | 도입 후 | 개선율 | 비용(월) | 위험도 | 비고 |"
+                   }
+               ],
+    "inlineShapes":  [
+
+                     ],
+    "floatingShapes":  0,
+    "hyperlinks":  1,
+    "fields":  1,
+    "footnotes":  0,
+    "fonts":  {
+                  "맑은 고딕":  50
+              },
+    "pagePictures":  [
+                         "page-1.png",
+                         "page-2.png"
+                     ],
+    "editRoundTrip":  {
+                          "saved":  true,
+                          "reopened":  true,
+                          "editSurvived":  true,
+                          "pagesAfterEdit":  2
+                      }
+}

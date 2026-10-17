@@ -45,7 +45,7 @@ Read:
 
 ### Creation task
 Read:
-`MASTER` + Creation + AI/Decision + Trust + Testing + current R23.7C milestone evidence.
+`MASTER` + Creation (§6, §8, §20, §21) + AI/Decision + Trust + Testing + current R23.7C milestone evidence + `docs/adr/ADR-0020-office-outcome-quality.md` + `docs/evidence/NAGEX_OUTCOME_QUALITY_20261017.md`.
 
 ### Execution / device / browser task
 Read:

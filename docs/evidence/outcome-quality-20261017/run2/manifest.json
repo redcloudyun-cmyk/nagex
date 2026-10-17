@@ -1,0 +1,302 @@
+{
+  "at": "2026-10-17T08:37:27.311Z",
+  "model": "gemini-flash-lite-latest",
+  "retrieval": "none (no web search in this run)",
+  "scenarios": [
+    {
+      "id": "DOC-1",
+      "kind": "documents",
+      "httpStatus": 201,
+      "elapsedMs": 2022,
+      "request": {
+        "prompt": "다음 자료로 2026년 3분기 운영 보고서를 작성해줘. 개요, 처리 시간 변화, 비용과 승인, 위험과 대응, 다음 분기 계획 순서로 쓰고, 처리 시간 변화는 표로 정리해줘. 자료에 없는 숫자는 절대 쓰지 마.\n자료:\n- 회의 준비 시간: 기존 45분, 도입 후 12분 (73% 단축)\n- 보고서 작성 시간: 기존 3시간, 도입 후 50분 (72% 단축)\n- 일정 조율 시간: 기존 30분, 도입 후 5분 (83% 단축)\n- 월 비용: 사용자 1명당 12,000원\n- 승인 거절률: 4.2%\n- 조사 대상: 사용자 48명, 기간 2026년 7월부터 9월",
+        "locale": "ko",
+        "documentKind": "REPORT"
+      },
+      "expectation": {
+        "corpus": "다음 자료로 2026년 3분기 운영 보고서를 작성해줘. 개요, 처리 시간 변화, 비용과 승인, 위험과 대응, 다음 분기 계획 순서로 쓰고, 처리 시간 변화는 표로 정리해줘. 자료에 없는 숫자는 절대 쓰지 마.\n자료:\n- 회의 준비 시간: 기존 45분, 도입 후 12분 (73% 단축)\n- 보고서 작성 시간: 기존 3시간, 도입 후 50분 (72% 단축)\n- 일정 조율 시간: 기존 30분, 도입 후 5분 (83% 단축)\n- 월 비용: 사용자 1명당 12,000원\n- 승인 거절률: 4.2%\n- 조사 대상: 사용자 48명, 기간 2026년 7월부터 9월",
+        "locale": "ko",
+        "requiredFacts": [
+          {
+            "id": "73%",
+            "text": "73%"
+          },
+          {
+            "id": "72%",
+            "text": "72%"
+          },
+          {
+            "id": "83%",
+            "text": "83%"
+          },
+          {
+            "id": "12,000원",
+            "text": "12,000원"
+          },
+          {
+            "id": "4.2%",
+            "text": "4.2%"
+          },
+          {
+            "id": "48명",
+            "text": "48명"
+          },
+          {
+            "id": "45분",
+            "text": "45분"
+          },
+          {
+            "id": "12분",
+            "text": "12분"
+          },
+          {
+            "id": "50분",
+            "text": "50분"
+          }
+        ],
+        "pages": {
+          "min": 1,
+          "max": 6
+        }
+      },
+      "creationId": "doc_746ce60b8034fa74c3c163b7",
+      "artifactId": "art_54b6b9c3a2278f35eda6687a",
+      "title": "2026년 3분기 운영 보고서",
+      "metadata": {
+        "provider": "gemini",
+        "model": "gemini-flash-lite-latest",
+        "latencyMs": 1965,
+        "documentKind": "REPORT"
+      },
+      "file": "DOC-1.docx",
+      "bytes": 7018,
+      "downloadStatus": 200
+    },
+    {
+      "id": "DOC-2",
+      "kind": "documents",
+      "httpStatus": 201,
+      "elapsedMs": 3174,
+      "request": {
+        "prompt": "Write a decision memo recommending one of three options for a 12-week working-model pilot. Include a comparison table, the recommendation with its reasons, and next steps. Use only these facts and add no other numbers:\n- Option A (hybrid, 3 office days): cost $18,000, 12 weeks, risk Low\n- Option B (fully remote): cost $9,500, 12 weeks, risk Medium\n- Option C (office only): cost $24,000, 12 weeks, risk Low\n- Team size: 30 people. Decision needed by 2026-11-15.",
+        "locale": "en",
+        "documentKind": "MEMO"
+      },
+      "expectation": {
+        "corpus": "Write a decision memo recommending one of three options for a 12-week working-model pilot. Include a comparison table, the recommendation with its reasons, and next steps. Use only these facts and add no other numbers:\n- Option A (hybrid, 3 office days): cost $18,000, 12 weeks, risk Low\n- Option B (fully remote): cost $9,500, 12 weeks, risk Medium\n- Option C (office only): cost $24,000, 12 weeks, risk Low\n- Team size: 30 people. Decision needed by 2026-11-15.",
+        "locale": "en",
+        "requiredFacts": [
+          {
+            "id": "$18,000",
+            "text": "$18,000"
+          },
+          {
+            "id": "$9,500",
+            "text": "$9,500"
+          },
+          {
+            "id": "$24,000",
+            "text": "$24,000"
+          },
+          {
+            "id": "30 people",
+            "text": "30 people"
+          }
+        ],
+        "pages": {
+          "min": 1,
+          "max": 4
+        }
+      },
+      "creationId": "doc_3ab0a11a44bc1417eeb5a04d",
+      "artifactId": "art_44ab3c409d8071a591ab09e3",
+      "title": "Decision Memo: 12-Week Working-Model Pilot Recommendation",
+      "metadata": {
+        "provider": "gemini",
+        "model": "gemini-flash-lite-latest",
+        "latencyMs": 3152,
+        "documentKind": "MEMO"
+      },
+      "file": "DOC-2.docx",
+      "bytes": 7299,
+      "downloadStatus": 200
+    },
+    {
+      "id": "DOC-3",
+      "kind": "documents",
+      "httpStatus": 201,
+      "elapsedMs": 2606,
+      "request": {
+        "prompt": "다음 메모로 주간 운영 회의록을 만들어줘. 결정 사항과 할 일(담당 팀, 기한)은 표로 정리하고, 첨부한 그림(주간 처리 건수 막대그래프)을 본문의 알맞은 곳에 넣어줘. 메모에 없는 숫자나 이름은 쓰지 마.\n메모:\n- 주간 처리 건수: 1주 320건, 2주 410건, 3주 380건, 4주 460건\n- 결정: 승인 대기 알림을 오전 9시에 묶어서 보내기 (A팀, 10월 24일까지)\n- 결정: 실패 건 재시도 기준을 3회로 통일 (B팀, 10월 31일까지)\n- 확인 필요: 월말 정산 일정 (C팀)",
+        "locale": "ko",
+        "documentKind": "REPORT",
+        "sourceArtifactIds": "(own artifacts)"
+      },
+      "expectation": {
+        "corpus": "다음 메모로 주간 운영 회의록을 만들어줘. 결정 사항과 할 일(담당 팀, 기한)은 표로 정리하고, 첨부한 그림(주간 처리 건수 막대그래프)을 본문의 알맞은 곳에 넣어줘. 메모에 없는 숫자나 이름은 쓰지 마.\n메모:\n- 주간 처리 건수: 1주 320건, 2주 410건, 3주 380건, 4주 460건\n- 결정: 승인 대기 알림을 오전 9시에 묶어서 보내기 (A팀, 10월 24일까지)\n- 결정: 실패 건 재시도 기준을 3회로 통일 (B팀, 10월 31일까지)\n- 확인 필요: 월말 정산 일정 (C팀)",
+        "locale": "ko",
+        "requiredFacts": [
+          {
+            "id": "320건",
+            "text": "320건"
+          },
+          {
+            "id": "410건",
+            "text": "410건"
+          },
+          {
+            "id": "380건",
+            "text": "380건"
+          },
+          {
+            "id": "460건",
+            "text": "460건"
+          },
+          {
+            "id": "A팀",
+            "text": "A팀"
+          },
+          {
+            "id": "B팀",
+            "text": "B팀"
+          },
+          {
+            "id": "C팀",
+            "text": "C팀"
+          },
+          {
+            "id": "10월 24일",
+            "text": "10월 24일"
+          },
+          {
+            "id": "10월 31일",
+            "text": "10월 31일"
+          }
+        ],
+        "minPictures": 1,
+        "pages": {
+          "min": 1,
+          "max": 4
+        }
+      },
+      "creationId": "doc_637e0be5c4caf0f5b75c9df1",
+      "artifactId": "art_419aebd1ec287156acb3a6f7",
+      "title": "주간 운영 회의록",
+      "metadata": {
+        "provider": "gemini",
+        "model": "gemini-flash-lite-latest",
+        "latencyMs": 2580,
+        "documentKind": "REPORT",
+        "pictures": {
+          "offered": 1,
+          "placed": 1,
+          "removed": 0
+        }
+      },
+      "file": "DOC-3.docx",
+      "bytes": 12874,
+      "downloadStatus": 200
+    },
+    {
+      "id": "DECK-1",
+      "kind": "presentations",
+      "httpStatus": 201,
+      "elapsedMs": 3022,
+      "request": {
+        "prompt": "이 운영 보고서로 7장짜리 발표자료를 만들어줘. 처리 시간 비교는 차트로, 핵심 수치는 카드로 보여줘. 보고서에 없는 숫자는 쓰지 마.",
+        "locale": "ko",
+        "sourceArtifactIds": "(own artifacts)"
+      },
+      "expectation": {
+        "corpus": "다음 자료로 2026년 3분기 운영 보고서를 작성해줘. 개요, 처리 시간 변화, 비용과 승인, 위험과 대응, 다음 분기 계획 순서로 쓰고, 처리 시간 변화는 표로 정리해줘. 자료에 없는 숫자는 절대 쓰지 마.\n자료:\n- 회의 준비 시간: 기존 45분, 도입 후 12분 (73% 단축)\n- 보고서 작성 시간: 기존 3시간, 도입 후 50분 (72% 단축)\n- 일정 조율 시간: 기존 30분, 도입 후 5분 (83% 단축)\n- 월 비용: 사용자 1명당 12,000원\n- 승인 거절률: 4.2%\n- 조사 대상: 사용자 48명, 기간 2026년 7월부터 9월\n이 운영 보고서로 7장짜리 발표자료를 만들어줘. 처리 시간 비교는 차트로, 핵심 수치는 카드로 보여줘. 보고서에 없는 숫자는 쓰지 마.",
+        "locale": "ko",
+        "requiredFacts": [
+          {
+            "id": "73%",
+            "text": "73%"
+          },
+          {
+            "id": "12,000원",
+            "text": "12,000원"
+          }
+        ],
+        "minCharts": 1,
+        "pages": {
+          "min": 7,
+          "max": 8
+        }
+      },
+      "creationId": "pres_b1f8c84e546b52fd7cc5ccca",
+      "artifactId": "art_66455918d0a622b1822ee300",
+      "title": "2026년 3분기 운영 보고서",
+      "metadata": {
+        "slideCount": 6,
+        "visuals": {
+          "charts": 1,
+          "tables": 1,
+          "images": 0,
+          "speakerNotes": 6
+        },
+        "requestedSlideCount": 7,
+        "downloadTarget": "/api/v1/creations/presentations/pres_b1f8c84e546b52fd7cc5ccca/download",
+        "byteLength": 43452
+      },
+      "file": "DECK-1.pptx",
+      "bytes": 43452,
+      "downloadStatus": 200
+    },
+    {
+      "id": "DECK-2",
+      "kind": "presentations",
+      "httpStatus": 201,
+      "elapsedMs": 2849,
+      "request": {
+        "prompt": "Make a 6-slide decision deck for leadership from these facts: show the three options' costs as a chart, the comparison as a table, the key figures as cards, and put the attached picture where it helps. Use only these facts and add no other numbers:\n- Option A (hybrid, 3 office days): cost $18,000, 12 weeks, risk Low\n- Option B (fully remote): cost $9,500, 12 weeks, risk Medium\n- Option C (office only): cost $24,000, 12 weeks, risk Low\n- Team size: 30 people. Decision needed by 2026-11-15.",
+        "locale": "en",
+        "sourceArtifactIds": "(own artifacts)"
+      },
+      "expectation": {
+        "corpus": "Make a 6-slide decision deck for leadership from these facts: show the three options' costs as a chart, the comparison as a table, the key figures as cards, and put the attached picture where it helps. Use only these facts and add no other numbers:\n- Option A (hybrid, 3 office days): cost $18,000, 12 weeks, risk Low\n- Option B (fully remote): cost $9,500, 12 weeks, risk Medium\n- Option C (office only): cost $24,000, 12 weeks, risk Low\n- Team size: 30 people. Decision needed by 2026-11-15.",
+        "locale": "en",
+        "requiredFacts": [
+          {
+            "id": "$18,000",
+            "text": "$18,000"
+          },
+          {
+            "id": "$9,500",
+            "text": "$9,500"
+          },
+          {
+            "id": "$24,000",
+            "text": "$24,000"
+          }
+        ],
+        "minCharts": 1,
+        "minPictures": 1,
+        "pages": {
+          "min": 6,
+          "max": 7
+        }
+      },
+      "creationId": "pres_b2fb0f5b23ef00292b972fa9",
+      "artifactId": "art_735ef400503c41e82e80c1c3",
+      "title": "Workplace Strategy Decision Deck",
+      "metadata": {
+        "slideCount": 5,
+        "visuals": {
+          "charts": 1,
+          "tables": 1,
+          "images": 1,
+          "speakerNotes": 5
+        },
+        "requestedSlideCount": 6,
+        "downloadTarget": "/api/v1/creations/presentations/pres_b2fb0f5b23ef00292b972fa9/download",
+        "byteLength": 44423
+      },
+      "file": "DECK-2.pptx",
+      "bytes": 44423,
+      "downloadStatus": 200
+    }
+  ]
+}

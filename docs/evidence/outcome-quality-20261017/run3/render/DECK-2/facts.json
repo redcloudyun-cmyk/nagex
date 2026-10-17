@@ -1,0 +1,646 @@
+﻿{
+    "file":  "DECK-2.pptx",
+    "bytes":  44372,
+    "extension":  ".pptx",
+    "renderedBy":  "Microsoft PowerPoint 16.0",
+    "opened":  true,
+    "problems":  [
+
+                 ],
+    "slideSize":  {
+                      "widthPt":  960,
+                      "heightPt":  540,
+                      "ratio":  1.7778
+                  },
+    "slideCount":  6,
+    "masterLayouts":  3,
+    "themeFonts":  {
+                       "major":  "Calibri",
+                       "minor":  "Calibri"
+                   },
+    "slides":  [
+                   {
+                       "index":  1,
+                       "layout":  "NAGEX_COVER",
+                       "title":  "Workplace Strategy Decision Deck",
+                       "notes":  "",
+                       "shapes":  [
+                                      {
+                                          "name":  "Text 1",
+                                          "type":  14,
+                                          "leftPt":  64.8,
+                                          "topPt":  144,
+                                          "widthPt":  828,
+                                          "heightPt":  158.4,
+                                          "insideSlide":  true,
+                                          "hasText":  true,
+                                          "hasChart":  false,
+                                          "isPicture":  false,
+                                          "text":  "Workplace Strategy Decision Deck",
+                                          "fontNames":  [
+                                                            "Calibri"
+                                                        ],
+                                          "minFontPt":  44,
+                                          "maxFontPt":  44,
+                                          "textHeightPt":  52.8,
+                                          "textWidthPt":  629.6,
+                                          "textOverflows":  false
+                                      },
+                                      {
+                                          "name":  "Text 1",
+                                          "type":  14,
+                                          "leftPt":  64.8,
+                                          "topPt":  320.4,
+                                          "widthPt":  828,
+                                          "heightPt":  86.4,
+                                          "insideSlide":  true,
+                                          "hasText":  true,
+                                          "hasChart":  false,
+                                          "isPicture":  false,
+                                          "text":  "Evaluation of options for leadership review",
+                                          "fontNames":  [
+                                                            "Calibri"
+                                                        ],
+                                          "minFontPt":  22,
+                                          "maxFontPt":  22,
+                                          "textHeightPt":  26.4,
+                                          "textWidthPt":  386.3,
+                                          "textOverflows":  false
+                                      }
+                                  ]
+                   },
+                   {
+                       "index":  2,
+                       "layout":  "NAGEX_CONTENT",
+                       "title":  "Key Project Parameters for the Decision",
+                       "notes":  "We are evaluating the workplace strategy for our team of 30 people. Leadership needs to make and finalize this decision by November 15, 2026.",
+                       "shapes":  [
+                                      {
+                                          "name":  "Text 3",
+                                          "type":  14,
+                                          "leftPt":  50.4,
+                                          "topPt":  27.4,
+                                          "widthPt":  859,
+                                          "heightPt":  73.4,
+                                          "insideSlide":  true,
+                                          "hasText":  true,
+                                          "hasChart":  false,
+                                          "isPicture":  false,
+                                          "text":  "Key Project Parameters for the Decision",
+                                          "fontNames":  [
+                                                            "Calibri"
+                                                        ],
+                                          "minFontPt":  30,
+                                          "maxFontPt":  30,
+                                          "textHeightPt":  36,
+                                          "textWidthPt":  497.9,
+                                          "textOverflows":  false
+                                      },
+                                      {
+                                          "name":  "Text 1",
+                                          "type":  1,
+                                          "leftPt":  50.4,
+                                          "topPt":  136.8,
+                                          "widthPt":  418.7,
+                                          "heightPt":  187.2,
+                                          "insideSlide":  true,
+                                          "hasText":  true,
+                                          "hasChart":  false,
+                                          "isPicture":  false,
+                                          "text":  "30\rTeam Size\rTotal team members",
+                                          "fontNames":  [
+                                                            "Calibri"
+                                                        ],
+                                          "minFontPt":  13,
+                                          "maxFontPt":  48,
+                                          "textHeightPt":  94.8,
+                                          "textWidthPt":  111.9,
+                                          "textOverflows":  false
+                                      },
+                                      {
+                                          "name":  "Text 2",
+                                          "type":  1,
+                                          "leftPt":  490.7,
+                                          "topPt":  136.8,
+                                          "widthPt":  418.7,
+                                          "heightPt":  187.2,
+                                          "insideSlide":  true,
+                                          "hasText":  true,
+                                          "hasChart":  false,
+                                          "isPicture":  false,
+                                          "text":  "2026-11-15\rDecision Date\rDeadline for choice",
+                                          "fontNames":  [
+                                                            "Calibri"
+                                                        ],
+                                          "minFontPt":  13,
+                                          "maxFontPt":  48,
+                                          "textHeightPt":  94.8,
+                                          "textWidthPt":  235.4,
+                                          "textOverflows":  false
+                                      },
+                                      {
+                                          "name":  "Text 3",
+                                          "type":  1,
+                                          "leftPt":  50.4,
+                                          "topPt":  349.2,
+                                          "widthPt":  859,
+                                          "heightPt":  122.4,
+                                          "insideSlide":  true,
+                                          "hasText":  true,
+                                          "hasChart":  false,
+                                          "isPicture":  false,
+                                          "text":  "The team size is established at 30 people.\rA final decision is required by November 15, 2026.",
+                                          "fontNames":  [
+                                                            "Calibri"
+                                                        ],
+                                          "minFontPt":  20,
+                                          "maxFontPt":  20,
+                                          "textHeightPt":  58,
+                                          "textWidthPt":  412.6,
+                                          "textOverflows":  false
+                                      },
+                                      {
+                                          "name":  "Text 3",
+                                          "type":  14,
+                                          "leftPt":  50.4,
+                                          "topPt":  122.4,
+                                          "widthPt":  859,
+                                          "heightPt":  349.2,
+                                          "insideSlide":  true,
+                                          "hasText":  false,
+                                          "hasChart":  false,
+                                          "isPicture":  false
+                                      },
+                                      {
+                                          "name":  "Slide Number Placeholder 0",
+                                          "type":  14,
+                                          "leftPt":  856.8,
+                                          "topPt":  500.4,
+                                          "widthPt":  52.6,
+                                          "heightPt":  21.6,
+                                          "insideSlide":  true,
+                                          "hasText":  true,
+                                          "hasChart":  false,
+                                          "isPicture":  false,
+                                          "text":  "2",
+                                          "fontNames":  [
+                                                            "Calibri"
+                                                        ],
+                                          "minFontPt":  10,
+                                          "maxFontPt":  10,
+                                          "textHeightPt":  12,
+                                          "textWidthPt":  7.4,
+                                          "textOverflows":  false
+                                      }
+                                  ]
+                   },
+                   {
+                       "index":  3,
+                       "layout":  "NAGEX_CONTENT",
+                       "title":  "Cost Comparison Across the Three Options",
+                       "notes":  "This chart compares the financial costs of the three alternatives. Option B requires $9,500, Option A requires $18,000, and Option C requires $24,000.",
+                       "shapes":  [
+                                      {
+                                          "name":  "Text 3",
+                                          "type":  14,
+                                          "leftPt":  50.4,
+                                          "topPt":  27.4,
+                                          "widthPt":  859,
+                                          "heightPt":  73.4,
+                                          "insideSlide":  true,
+                                          "hasText":  true,
+                                          "hasChart":  false,
+                                          "isPicture":  false,
+                                          "text":  "Cost Comparison Across the Three Options",
+                                          "fontNames":  [
+                                                            "Calibri"
+                                                        ],
+                                          "minFontPt":  30,
+                                          "maxFontPt":  30,
+                                          "textHeightPt":  36,
+                                          "textWidthPt":  536.5,
+                                          "textOverflows":  false
+                                      },
+                                      {
+                                          "name":  "Chart",
+                                          "type":  3,
+                                          "leftPt":  50.4,
+                                          "topPt":  122.4,
+                                          "widthPt":  554.4,
+                                          "heightPt":  320.4,
+                                          "insideSlide":  true,
+                                          "hasText":  false,
+                                          "hasChart":  true,
+                                          "isPicture":  false,
+                                          "chart":  {
+                                                        "chartType":  51,
+                                                        "hasTitle":  false,
+                                                        "title":  "",
+                                                        "hasLegend":  false,
+                                                        "series":  [
+                                                                       {
+                                                                           "name":  "Cost in USD",
+                                                                           "values":  [
+                                                                                          18000,
+                                                                                          9500,
+                                                                                          24000
+                                                                                      ],
+                                                                           "categories":  [
+                                                                                              "Option A",
+                                                                                              "Option B",
+                                                                                              "Option C"
+                                                                                          ]
+                                                                       }
+                                                                   ]
+                                                    }
+                                      },
+                                      {
+                                          "name":  "Text 1",
+                                          "type":  1,
+                                          "leftPt":  626.4,
+                                          "topPt":  136.8,
+                                          "widthPt":  283,
+                                          "heightPt":  291.6,
+                                          "insideSlide":  true,
+                                          "hasText":  true,
+                                          "hasChart":  false,
+                                          "isPicture":  false,
+                                          "text":  "Option B is the lowest cost at $9,500.\rOption C is the highest cost at $24,000.",
+                                          "fontNames":  [
+                                                            "Calibri"
+                                                        ],
+                                          "minFontPt":  20,
+                                          "maxFontPt":  20,
+                                          "textHeightPt":  106,
+                                          "textWidthPt":  246.7,
+                                          "textOverflows":  false
+                                      },
+                                      {
+                                          "name":  "Text 2",
+                                          "type":  1,
+                                          "leftPt":  50.4,
+                                          "topPt":  468,
+                                          "widthPt":  859,
+                                          "heightPt":  25.2,
+                                          "insideSlide":  true,
+                                          "hasText":  true,
+                                          "hasChart":  false,
+                                          "isPicture":  false,
+                                          "text":  "Internal project budget estimates",
+                                          "fontNames":  [
+                                                            "Calibri"
+                                                        ],
+                                          "minFontPt":  12,
+                                          "maxFontPt":  12,
+                                          "textHeightPt":  14.4,
+                                          "textWidthPt":  163.8,
+                                          "textOverflows":  false
+                                      },
+                                      {
+                                          "name":  "Text 3",
+                                          "type":  14,
+                                          "leftPt":  50.4,
+                                          "topPt":  122.4,
+                                          "widthPt":  859,
+                                          "heightPt":  349.2,
+                                          "insideSlide":  true,
+                                          "hasText":  false,
+                                          "hasChart":  false,
+                                          "isPicture":  false
+                                      },
+                                      {
+                                          "name":  "Slide Number Placeholder 0",
+                                          "type":  14,
+                                          "leftPt":  856.8,
+                                          "topPt":  500.4,
+                                          "widthPt":  52.6,
+                                          "heightPt":  21.6,
+                                          "insideSlide":  true,
+                                          "hasText":  true,
+                                          "hasChart":  false,
+                                          "isPicture":  false,
+                                          "text":  "3",
+                                          "fontNames":  [
+                                                            "Calibri"
+                                                        ],
+                                          "minFontPt":  10,
+                                          "maxFontPt":  10,
+                                          "textHeightPt":  12,
+                                          "textWidthPt":  7.4,
+                                          "textOverflows":  false
+                                      }
+                                  ]
+                   },
+                   {
+                       "index":  4,
+                       "layout":  "NAGEX_CONTENT",
+                       "title":  "Comprehensive Option Comparison Matrix",
+                       "notes":  "The comparison table lays out cost, duration, and risk side by side. Every option spans 12 weeks, while risks and costs differ.",
+                       "shapes":  [
+                                      {
+                                          "name":  "Text 3",
+                                          "type":  14,
+                                          "leftPt":  50.4,
+                                          "topPt":  27.4,
+                                          "widthPt":  859,
+                                          "heightPt":  73.4,
+                                          "insideSlide":  true,
+                                          "hasText":  true,
+                                          "hasChart":  false,
+                                          "isPicture":  false,
+                                          "text":  "Comprehensive Option Comparison Matrix",
+                                          "fontNames":  [
+                                                            "Calibri"
+                                                        ],
+                                          "minFontPt":  30,
+                                          "maxFontPt":  30,
+                                          "textHeightPt":  36,
+                                          "textWidthPt":  539.4,
+                                          "textOverflows":  false
+                                      },
+                                      {
+                                          "name":  "Table 0",
+                                          "type":  19,
+                                          "leftPt":  50.4,
+                                          "topPt":  126,
+                                          "widthPt":  859,
+                                          "heightPt":  129.8,
+                                          "insideSlide":  true,
+                                          "hasText":  false,
+                                          "hasChart":  false,
+                                          "isPicture":  false,
+                                          "table":  {
+                                                        "rows":  4,
+                                                        "columns":  4,
+                                                        "cells":  [
+                                                                      "Option",
+                                                                      "Cost",
+                                                                      "Duration",
+                                                                      "Risk",
+                                                                      "Option A (hybrid, 3 office days)",
+                                                                      "$18,000",
+                                                                      "12 weeks",
+                                                                      "Low",
+                                                                      "Option B (fully remote)",
+                                                                      "$9,500",
+                                                                      "12 weeks",
+                                                                      "Medium",
+                                                                      "Option C (office only)",
+                                                                      "$24,000",
+                                                                      "12 weeks",
+                                                                      "Low"
+                                                                  ]
+                                                    }
+                                      },
+                                      {
+                                          "name":  "Text 1",
+                                          "type":  1,
+                                          "leftPt":  50.4,
+                                          "topPt":  277.4,
+                                          "widthPt":  859,
+                                          "heightPt":  215.8,
+                                          "insideSlide":  true,
+                                          "hasText":  true,
+                                          "hasChart":  false,
+                                          "isPicture":  false,
+                                          "text":  "All options share a duration of 12 weeks.\rRisk levels vary between Low and Medium.",
+                                          "fontNames":  [
+                                                            "Calibri"
+                                                        ],
+                                          "minFontPt":  18,
+                                          "maxFontPt":  18,
+                                          "textHeightPt":  53.2,
+                                          "textWidthPt":  318.5,
+                                          "textOverflows":  false
+                                      },
+                                      {
+                                          "name":  "Text 3",
+                                          "type":  14,
+                                          "leftPt":  50.4,
+                                          "topPt":  122.4,
+                                          "widthPt":  859,
+                                          "heightPt":  349.2,
+                                          "insideSlide":  true,
+                                          "hasText":  false,
+                                          "hasChart":  false,
+                                          "isPicture":  false
+                                      },
+                                      {
+                                          "name":  "Slide Number Placeholder 0",
+                                          "type":  14,
+                                          "leftPt":  856.8,
+                                          "topPt":  500.4,
+                                          "widthPt":  52.6,
+                                          "heightPt":  21.6,
+                                          "insideSlide":  true,
+                                          "hasText":  true,
+                                          "hasChart":  false,
+                                          "isPicture":  false,
+                                          "text":  "4",
+                                          "fontNames":  [
+                                                            "Calibri"
+                                                        ],
+                                          "minFontPt":  10,
+                                          "maxFontPt":  10,
+                                          "textHeightPt":  12,
+                                          "textWidthPt":  7.4,
+                                          "textOverflows":  false
+                                      }
+                                  ]
+                   },
+                   {
+                       "index":  5,
+                       "layout":  "NAGEX_CONTENT",
+                       "title":  "Weekly Processing Volume Overview",
+                       "notes":  "This slide displays the weekly processing volume bar chart to provide additional operational context for the review.",
+                       "shapes":  [
+                                      {
+                                          "name":  "Text 3",
+                                          "type":  14,
+                                          "leftPt":  50.4,
+                                          "topPt":  27.4,
+                                          "widthPt":  859,
+                                          "heightPt":  73.4,
+                                          "insideSlide":  true,
+                                          "hasText":  true,
+                                          "hasChart":  false,
+                                          "isPicture":  false,
+                                          "text":  "Weekly Processing Volume Overview",
+                                          "fontNames":  [
+                                                            "Calibri"
+                                                        ],
+                                          "minFontPt":  30,
+                                          "maxFontPt":  30,
+                                          "textHeightPt":  36,
+                                          "textWidthPt":  465.9,
+                                          "textOverflows":  false
+                                      },
+                                      {
+                                          "name":  "Picture",
+                                          "type":  13,
+                                          "leftPt":  50.4,
+                                          "topPt":  150.6,
+                                          "widthPt":  460.8,
+                                          "heightPt":  256.7,
+                                          "insideSlide":  true,
+                                          "hasText":  false,
+                                          "hasChart":  false,
+                                          "isPicture":  true,
+                                          "altText":  "주간 처리 건수 막대그래프"
+                                      },
+                                      {
+                                          "name":  "Text 1",
+                                          "type":  1,
+                                          "leftPt":  50.4,
+                                          "topPt":  439.2,
+                                          "widthPt":  460.8,
+                                          "heightPt":  28.8,
+                                          "insideSlide":  true,
+                                          "hasText":  true,
+                                          "hasChart":  false,
+                                          "isPicture":  false,
+                                          "text":  "주간 처리 건수 막대그래프",
+                                          "fontNames":  [
+                                                            "Calibri"
+                                                        ],
+                                          "minFontPt":  12,
+                                          "maxFontPt":  12,
+                                          "textHeightPt":  14.4,
+                                          "textWidthPt":  143,
+                                          "textOverflows":  false
+                                      },
+                                      {
+                                          "name":  "Text 2",
+                                          "type":  1,
+                                          "leftPt":  532.8,
+                                          "topPt":  129.6,
+                                          "widthPt":  376.6,
+                                          "heightPt":  334.8,
+                                          "insideSlide":  true,
+                                          "hasText":  true,
+                                          "hasChart":  false,
+                                          "isPicture":  false,
+                                          "text":  "Reference data visualization for workflow considerations.",
+                                          "fontNames":  [
+                                                            "Calibri"
+                                                        ],
+                                          "minFontPt":  22,
+                                          "maxFontPt":  22,
+                                          "textHeightPt":  52.8,
+                                          "textWidthPt":  284.3,
+                                          "textOverflows":  false
+                                      },
+                                      {
+                                          "name":  "Text 3",
+                                          "type":  14,
+                                          "leftPt":  50.4,
+                                          "topPt":  122.4,
+                                          "widthPt":  859,
+                                          "heightPt":  349.2,
+                                          "insideSlide":  true,
+                                          "hasText":  false,
+                                          "hasChart":  false,
+                                          "isPicture":  false
+                                      },
+                                      {
+                                          "name":  "Slide Number Placeholder 0",
+                                          "type":  14,
+                                          "leftPt":  856.8,
+                                          "topPt":  500.4,
+                                          "widthPt":  52.6,
+                                          "heightPt":  21.6,
+                                          "insideSlide":  true,
+                                          "hasText":  true,
+                                          "hasChart":  false,
+                                          "isPicture":  false,
+                                          "text":  "5",
+                                          "fontNames":  [
+                                                            "Calibri"
+                                                        ],
+                                          "minFontPt":  10,
+                                          "maxFontPt":  10,
+                                          "textHeightPt":  12,
+                                          "textWidthPt":  7.4,
+                                          "textOverflows":  false
+                                      }
+                                  ]
+                   },
+                   {
+                       "index":  6,
+                       "layout":  "NAGEX_CONTENT",
+                       "title":  "Summary of Findings and Next Steps",
+                       "notes":  "To summarize, we have three viable paths for our 30-person team, all lasting 12 weeks. Leadership should weigh the cost savings of Option B against its medium risk, or choose the low-risk profiles of Options A and C before the November 15, 2026 deadline.",
+                       "shapes":  [
+                                      {
+                                          "name":  "Text 3",
+                                          "type":  14,
+                                          "leftPt":  50.4,
+                                          "topPt":  27.4,
+                                          "widthPt":  859,
+                                          "heightPt":  73.4,
+                                          "insideSlide":  true,
+                                          "hasText":  true,
+                                          "hasChart":  false,
+                                          "isPicture":  false,
+                                          "text":  "Summary of Findings and Next Steps",
+                                          "fontNames":  [
+                                                            "Calibri"
+                                                        ],
+                                          "minFontPt":  30,
+                                          "maxFontPt":  30,
+                                          "textHeightPt":  36,
+                                          "textWidthPt":  460.8,
+                                          "textOverflows":  false
+                                      },
+                                      {
+                                          "name":  "Text 3",
+                                          "type":  14,
+                                          "leftPt":  50.4,
+                                          "topPt":  122.4,
+                                          "widthPt":  859,
+                                          "heightPt":  349.2,
+                                          "insideSlide":  true,
+                                          "hasText":  true,
+                                          "hasChart":  false,
+                                          "isPicture":  false,
+                                          "text":  "Option B offers the lowest cost at $9,500 with medium risk.\rOptions A and C carry low risk but higher costs of $18,000 and $24,000 respectively.\rAll three alternatives run for a duration of 12 weeks.\rLeadership must select an approach for the 30-person team before November 15, 2026.",
+                                          "fontNames":  [
+                                                            "Calibri"
+                                                        ],
+                                          "minFontPt":  24,
+                                          "maxFontPt":  24,
+                                          "textHeightPt":  191.3,
+                                          "textWidthPt":  819,
+                                          "textOverflows":  false
+                                      },
+                                      {
+                                          "name":  "Slide Number Placeholder 0",
+                                          "type":  14,
+                                          "leftPt":  856.8,
+                                          "topPt":  500.4,
+                                          "widthPt":  52.6,
+                                          "heightPt":  21.6,
+                                          "insideSlide":  true,
+                                          "hasText":  true,
+                                          "hasChart":  false,
+                                          "isPicture":  false,
+                                          "text":  "6",
+                                          "fontNames":  [
+                                                            "Calibri"
+                                                        ],
+                                          "minFontPt":  10,
+                                          "maxFontPt":  10,
+                                          "textHeightPt":  12,
+                                          "textWidthPt":  7.4,
+                                          "textOverflows":  false
+                                      }
+                                  ]
+                   }
+               ],
+    "editRoundTrip":  {
+                          "saved":  true,
+                          "reopened":  true,
+                          "editSurvived":  true,
+                          "slidesAfterEdit":  6
+                      }
+}

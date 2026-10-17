@@ -1,0 +1,45 @@
+{
+  "file": "docs/evidence/outcome-quality-20261017/run3/input-chart.png",
+  "pixels": {
+    "width": 700,
+    "height": 390,
+    "meanLuma": 199.50325736017828,
+    "stdLuma": 80.29384802353998,
+    "distinctColors": 283,
+    "edgeShare": 0.03150356359649123
+  },
+  "technical": "PASS",
+  "quality": "PASS",
+  "checks": [
+    {
+      "id": "FORMAT_IS_PNG_OR_JPEG",
+      "kind": "TECHNICAL",
+      "status": "PASS",
+      "detail": "PNG 700x390"
+    },
+    {
+      "id": "RESOLUTION_AT_LEAST_ASKED",
+      "kind": "QUALITY",
+      "status": "PASS",
+      "detail": "700x390, at least 600x0 asked"
+    },
+    {
+      "id": "ASPECT_RATIO_AS_ASKED",
+      "kind": "QUALITY",
+      "status": "PASS",
+      "detail": "1.795 (700x390), 16:9 = 1.778 asked"
+    },
+    {
+      "id": "NOT_BLANK_OR_FLAT",
+      "kind": "QUALITY",
+      "status": "PASS",
+      "detail": "luma std 80.3, 283 distinct colours, edge share 3.2%"
+    },
+    {
+      "id": "TEXT_LEGIBLE_AS_ASKED",
+      "kind": "QUALITY",
+      "status": "PASS",
+      "detail": "2 text(s) read back (reader: read back by the assistant from the picture (not an independent reader), advisory)"
+    }
+  ]
+}

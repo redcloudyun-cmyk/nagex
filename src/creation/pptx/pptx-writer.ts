@@ -2,6 +2,7 @@
 // master, two layouts and a theme. No third-party dependency. The package is structurally verified by tests (zip integrity, well-formed XML,
 // content types, relationship targets, slide count and text); it has not been opened in Microsoft PowerPoint by this code path.
 import { buildZip, type ZipEntry } from './zip-writer.js';
+import { wrappedLines } from './text-fit.js';
 
 export interface DeckSlide {
   title: string;
@@ -43,18 +44,6 @@ function rels(items: Array<{ id: string; type: string; target: string }>): strin
 const lang = (locale: 'en' | 'ko') => (locale === 'ko' ? 'ko-KR' : 'en-US');
 
 // ── text fitting ───────────────────────────────────────────────────────────────────────────────────────────────────────────
-// Width of one character in units of the font size: full-width (Hangul, CJK, emoji) ~1.0, other characters ~0.55, a space ~0.3.
-function textUnits(text: string): number {
-  let units = 0;
-  for (const ch of text) {
-    const c = ch.codePointAt(0) ?? 0;
-    const wide = (c >= 0x1100 && c <= 0x11ff) || (c >= 0x2e80 && c <= 0xd7ff) || (c >= 0xf900 && c <= 0xfaff) || (c >= 0xff00 && c <= 0xffef) || c >= 0x1f300;
-    units += wide ? 1 : c === 32 ? 0.3 : 0.55;
-  }
-  return units;
-}
-const wrappedLines = (text: string, sizePt: number, widthPt: number): number => Math.max(1, Math.ceil((textUnits(text) * sizePt) / widthPt));
-
 // usable text widths / heights in points (placeholder size minus insets and bullet indent) of the master and layouts below
 const TITLE_WIDTH_PT = 813;
 const COVER_WIDTH_PT = 706;

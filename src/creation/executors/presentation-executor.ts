@@ -1,14 +1,17 @@
 import crypto from 'node:crypto';
 import type { AiService } from '../../model-gateway/ai-service.js';
-import { outlineToMarkdown, type PresentationOutline } from '../../model-gateway/presentation-outline.js';
+import { outlineToMarkdown, type OutlineDemotion, type PresentationOutline } from '../../model-gateway/presentation-outline.js';
 import type { ArtifactStore } from '../../artifacts/artifact.store.js';
 import type { AuditLogger } from '../../governance/audit.logger.js';
 import type { MemoryRecord } from '../../context/memory.engine.js';
 import type { DocumentStore } from '../document.store.js';
+import type { ImageStore } from '../image.store.js';
+import { imageSize } from '../image-size.js';
+import { groundingCorpus, groundOutline } from '../pptx/number-grounding.js';
 import type { PresentationStore, PresentationRecord } from '../presentation.store.js';
 import type { CreationProviderRouter } from '../providers/creation-provider-router.js';
 import type { PresentationCreationSpec } from '../specs/creation-spec.types.js';
-import { PPTX_MIME } from '../pptx/pptx-writer.js';
+import { RICH_PPTX_MIME as PPTX_MIME } from '../pptx/rich-deck-writer.js';
 import { requestedSlideCount } from '../slide-count.js';
 import { revisionSlideTarget } from '../slide-revision.js';
 import type { CreationExecutor, CreationKind, CreationRequest, CreationResult } from '../creation-runtime.types.js';
@@ -19,11 +22,38 @@ export interface PresentationExecutorDeps {
   providerRouter: CreationProviderRouter;
   artifactStore?: ArtifactStore;
   documentStore?: DocumentStore;
+  // the person's own stored pictures, which a deck may place on a slide (owner-checked, PNG / JPEG only). Absent -> pictures are never offered.
+  imageStore?: ImageStore;
   auditLogger?: AuditLogger;
   getRelevantMemories?: (tenantId: string, ownerId: string, query: string) => MemoryRecord[];
 }
 
 const MAX_SOURCE_CHARS = 8000;
+const MAX_OFFERED_IMAGES = 6;
+
+/** A picture of the person's that the planner may place, under a reference only (never a URL, never an id of the store). */
+interface OfferedImage { ref: string; title: string; bytes: Buffer }
+
+/** What the plan is checked against and what it may use: the figures the person gave, the pictures the person owns, the titles of what the deck rests on. */
+interface PlanContext { known: Set<string>; images: Map<string, OfferedImage>; sourceTitles: string[] }
+
+const LAYOUT_NAME = {
+  ko: { CHART: '차트', METRICS: '핵심 수치', TABLE: '표', IMAGE: '그림', QUOTE: '인용문', SECTION: '구분 슬라이드', BULLETS: '슬라이드' },
+  en: { CHART: 'chart', METRICS: 'key figures', TABLE: 'table', IMAGE: 'picture', QUOTE: 'quote', SECTION: 'section break', BULLETS: 'slide' },
+} as const;
+const DEMOTION_REASON = {
+  ko: { UNGROUNDED_NUMBERS: '수치가 요청이나 자료에 없어 글로 바꿨어요', IMAGE_NOT_AVAILABLE: '사용할 수 있는 그림이 없어 글로 바꿨어요', INVALID: '형식이 맞지 않아 글로 바꿨어요', PLACEHOLDER_ONLY: '채울 내용이 없어 뺐어요' },
+  en: { UNGROUNDED_NUMBERS: 'its figures are not in your request or sources, so it is shown as text', IMAGE_NOT_AVAILABLE: 'no usable picture was available, so it is shown as text', INVALID: 'its data was not in a usable form, so it is shown as text', PLACEHOLDER_ONLY: 'there was nothing to put on it, so it was left out' },
+} as const;
+
+/** One plain sentence per demoted slide: what was asked for, which slide, and why it is text instead. */
+export function demotionNotices(demotions: OutlineDemotion[], locale: 'en' | 'ko'): string[] {
+  return demotions.map((d) => {
+    const reason = d.code === 'UNGROUNDED_NUMBERS' || d.code === 'IMAGE_NOT_AVAILABLE' || d.code === 'PLACEHOLDER_ONLY' ? DEMOTION_REASON[locale][d.code] : DEMOTION_REASON[locale].INVALID;
+    const name = LAYOUT_NAME[locale][d.layout];
+    return locale === 'ko' ? `${d.slide}번 슬라이드의 ${name}: ${reason}.` : `Slide ${d.slide} (${name}): ${reason}.`;
+  });
+}
 
 function failure(errorCode: string, errorMessage: string): CreationResult {
   return {
@@ -65,17 +95,27 @@ export class PresentationExecutor implements CreationExecutor<CreationRequest, C
   constructor(private readonly deps: PresentationExecutorDeps) {}
 
   // Source context: only documents the caller owns (an unknown or foreign reference is refused, never silently ignored).
-  private loadSources(request: CreationRequest): { text: string } | { error: CreationResult } {
+  private loadSources(request: CreationRequest): { text: string; titles: string[]; images: OfferedImage[] } | { error: CreationResult } {
     const { tenantId, ownerId } = request;
     let text = '';
+    const titles: string[] = [];
+    const images: OfferedImage[] = [];
     for (const ref of request.sourceRefs || []) {
       if (ref.type !== 'ARTIFACT') continue;
       const artifact = this.deps.artifactStore?.get(ref.id, tenantId, ownerId);
+      // the person's own picture: offered to the planner under a reference, when it is a PNG or a JPEG (anything else is not offered - and not an error: the deck simply cannot use it)
+      if (artifact && artifact.type === 'IMAGE') {
+        const record = this.deps.imageStore?.get(artifact.sourceId, tenantId, ownerId);
+        const bytes = record ? this.deps.imageStore!.getBinary(record.binaryStoragePath) : null;
+        if (record && bytes && imageSize(bytes) && images.length < MAX_OFFERED_IMAGES) images.push({ ref: `image_${images.length + 1}`, title: record.title, bytes });
+        continue;
+      }
       const document = artifact && artifact.type === 'DOCUMENT' ? this.deps.documentStore?.get(artifact.sourceId, tenantId, ownerId) : null;
       if (!document) return { error: failure('UNAUTHORIZED_REFERENCE', 'A source document for this presentation was not found.') };
       text += `${text ? '\n\n' : ''}# ${document.title}\n${document.content}`.slice(0, MAX_SOURCE_CHARS);
+      titles.push(document.title);
     }
-    return { text };
+    return { text, titles, images };
   }
 
   public async execute(request: CreationRequest): Promise<CreationResult> {
@@ -87,13 +127,16 @@ export class PresentationExecutor implements CreationExecutor<CreationRequest, C
     const sources = this.loadSources(request);
     if ('error' in sources) return sources.error;
     const sourceContext = sources.text;
+    const offered = new Map(sources.images.map((image) => [image.ref, image] as const));
 
     let outline: PresentationOutline;
+    let memoryText = '';
     let modelMeta: { provider?: string; model?: string; latencyMs?: number } = {};
     // "8장짜리": the number the person named is the TOTAL (title slide included) unless they say otherwise; the model is told an exact number of content slides
     const wanted = requestedSlideCount(prompt);
     try {
       const memories = this.deps.getRelevantMemories ? this.deps.getRelevantMemories(tenantId, ownerId, prompt) : [];
+      memoryText = memories.map((memory) => `${memory.content.subject} ${memory.content.predicate} ${String(memory.content.value)}`).join('\n');
       const outcome = await this.deps.aiService.presentationOutline({
         prompt: prompt.trim(),
         sourceContext: sourceContext || undefined,
@@ -103,6 +146,7 @@ export class PresentationExecutor implements CreationExecutor<CreationRequest, C
         mode: options.routingMode || 'auto',
         requestId,
         contentSlides: wanted?.contentSlides,
+        images: sources.images.map((image) => ({ ref: image.ref, title: image.title })),
       });
       outline = outcome.data;
       modelMeta = { provider: outcome.provider, model: outcome.model, latencyMs: outcome.latencyMs };
@@ -110,7 +154,9 @@ export class PresentationExecutor implements CreationExecutor<CreationRequest, C
       return failure(error?.code || 'PRESENTATION_PLANNING_FAILED', error?.message || 'The presentation could not be planned.');
     }
 
-    return this.produce(request, locale, outline, modelMeta, wanted ? { totalSlides: wanted.totalSlides, clamped: wanted.clamped } : null);
+    // the figures the plan may state are the ones the person gave: the request, the instructions, the source documents and what NAgex remembers for them
+    const context: PlanContext = { known: groundingCorpus(prompt, options.style, sourceContext, memoryText), images: offered, sourceTitles: sources.titles };
+    return this.produce(request, locale, outline, modelMeta, wanted ? { totalSlides: wanted.totalSlides, clamped: wanted.clamped } : null, context);
   }
 
   /**
@@ -206,8 +252,10 @@ export class PresentationExecutor implements CreationExecutor<CreationRequest, C
 
     // the deck's source document, when it still exists and is still the owner's, informs the revision; if it is gone the revision rests on the deck itself
     let sourceContext = '';
+    let offered = new Map<string, OfferedImage>();
+    let sourceTitles: string[] = [];
     const sources = this.loadSources({ creationKind: 'PRESENTATION', prompt: instruction, sourceRefs: parent.sourceRefs, tenantId, ownerId, requestId });
-    if (!('error' in sources)) sourceContext = sources.text;
+    if (!('error' in sources)) { sourceContext = sources.text; sourceTitles = sources.titles; offered = new Map(sources.images.map((image) => [image.ref, image] as const)); }
 
     const target = revisionSlideTarget(instruction, parent.slides.length);
     const existing = outlineToMarkdown({ title: parent.title, subtitle: parent.subtitle, slides: parent.slides });
@@ -231,6 +279,7 @@ export class PresentationExecutor implements CreationExecutor<CreationRequest, C
         mode: params.routingMode || 'auto',
         requestId,
         contentSlides: target?.contentSlides,
+        images: [...offered.values()].map((image) => ({ ref: image.ref, title: image.title })),
       });
       outline = outcome.data;
       modelMeta = { provider: outcome.provider, model: outcome.model, latencyMs: outcome.latencyMs };
@@ -238,12 +287,15 @@ export class PresentationExecutor implements CreationExecutor<CreationRequest, C
       return failure(error?.code || 'PRESENTATION_PLANNING_FAILED', error?.message || 'The presentation could not be revised.');
     }
 
+    // a revision may keep every figure of the deck it revises (they were the person's when it was made) and add the ones in the instruction and the sources
+    const context: PlanContext = { known: groundingCorpus(instruction, sourceContext, existing), images: offered, sourceTitles };
     return this.produce(
       { creationKind: 'PRESENTATION', prompt: instruction, sourceRefs: parent.sourceRefs, tenantId, ownerId, requestId, options: { locale } },
       locale,
       outline,
       modelMeta,
       target ? { totalSlides: target.contentSlides + 1, clamped: false } : null,
+      context,
       { parent },
     );
   }
@@ -255,9 +307,22 @@ export class PresentationExecutor implements CreationExecutor<CreationRequest, C
     outline: PresentationOutline,
     modelMeta: { provider?: string; model?: string; latencyMs?: number },
     wanted: { totalSlides: number; clamped: boolean } | null,
+    context: PlanContext,
     revision?: { parent: PresentationRecord },
   ): Promise<CreationResult> {
     const { tenantId, ownerId, requestId, options = {} } = request;
+
+    // 1. the figures of every chart / table / key-figure card are the person's - or the slide is text. 2. a picture is one the person owns and offered - or the slide is text. Both are SAID, never silent.
+    const grounded = groundOutline(outline, context.known);
+    const demotions: OutlineDemotion[] = [...(grounded.outline.demotions ?? [])];
+    const checkedSlides = grounded.outline.slides.map((slide, index) => {
+      if (slide.layout !== 'IMAGE' || !slide.image || context.images.has(slide.image.ref)) return slide;
+      demotions.push({ slide: index + 1, layout: 'IMAGE', code: 'IMAGE_NOT_AVAILABLE' });
+      const { image: _image, layout: _layout, ...text } = slide;
+      return text;
+    });
+    outline = { ...grounded.outline, slides: checkedSlides, ...(demotions.length ? { demotions } : {}) };
+    const notices = demotionNotices(demotions, locale);
 
     const spec: PresentationCreationSpec = {
       creationKind: 'PRESENTATION',
@@ -266,7 +331,12 @@ export class PresentationExecutor implements CreationExecutor<CreationRequest, C
       audience: options.targetAudience,
       locale,
       sourceRefs: request.sourceRefs,
-      slides: outline.slides.map((slide, index) => ({ slideId: `s${index + 1}`, objective: slide.title, title: slide.title, bullets: slide.bullets })),
+      slides: outline.slides.map((slide, index) => ({
+        slideId: `s${index + 1}`, objective: slide.title, title: slide.title, bullets: slide.bullets,
+        layout: slide.layout, chart: slide.chart, metrics: slide.metrics, table: slide.table, quote: slide.quote, attribution: slide.attribution, subtitle: slide.subtitle, notes: slide.notes,
+        image: slide.image ? { bytes: context.images.get(slide.image.ref)!.bytes, alt: slide.image.alt, caption: slide.image.caption } : undefined,
+      })),
+      sources: context.sourceTitles.length ? context.sourceTitles : undefined,
       tenantId,
       ownerId,
       requestId,
@@ -283,6 +353,13 @@ export class PresentationExecutor implements CreationExecutor<CreationRequest, C
     if (providerResult.status !== 'COMPLETED' || !buffer || buffer.length === 0) {
       return failure(providerResult.errorCode || 'PRESENTATION_RENDER_FAILED', providerResult.errorMessage || 'The presentation file could not be produced.');
     }
+
+    // what the file contains beyond bullets, from the writer's own report (a plain deck has none of it and its result keeps its old keys)
+    const built = (providerResult.output?.rawDeckJson as { report?: { charts?: number; tables?: number; images?: number } } | undefined)?.report;
+    const speakerNotes = outline.slides.filter((slide) => Boolean(slide.notes)).length;
+    const visuals = (built?.charts ?? 0) + (built?.tables ?? 0) + (built?.images ?? 0) + speakerNotes > 0
+      ? { charts: built?.charts ?? 0, tables: built?.tables ?? 0, images: built?.images ?? 0, speakerNotes }
+      : null;
 
     const presentationId = `pres_${crypto.randomBytes(12).toString('hex')}`;
     const now = new Date().toISOString();
@@ -344,7 +421,7 @@ export class PresentationExecutor implements CreationExecutor<CreationRequest, C
       creationKind: 'PRESENTATION',
       title: record.title,
       summary,
-      content: outlineToMarkdown(outline),
+      content: outlineToMarkdown(outline) + (notices.length ? `\n\n${notices.map((notice) => `> ※ ${notice}`).join('\n')}` : ''),
       openTarget,
       artifactId,
       mimeType: PPTX_MIME,
@@ -352,6 +429,9 @@ export class PresentationExecutor implements CreationExecutor<CreationRequest, C
       // slideCount = content slides (as before; the file has one more, the title slide); requestedSlideCount only when the person named a size, so a shortfall is visible. A request without a named size keeps exactly the old keys.
       metadata: {
         slideCount: outline.slides.length,
+        // what the deck contains beyond bullets, and what was asked for but is text instead (and why) - facts, not claims about how it looks
+        ...(visuals ? { visuals } : {}),
+        ...(demotions.length ? { demotions, notices } : {}),
         ...(wanted ? { requestedSlideCount: wanted.totalSlides, ...(wanted.clamped ? { requestedSlideCountReduced: true } : {}) } : {}),
         downloadTarget: `${openTarget}/download`,
         byteLength: buffer.length,

@@ -1,0 +1,97 @@
+﻿{
+    "file":  "DOC-1.docx",
+    "bytes":  6617,
+    "extension":  ".docx",
+    "renderedBy":  "Microsoft Word 16.0",
+    "opened":  true,
+    "problems":  [
+
+                 ],
+    "compatibilityMode":  15,
+    "pages":  1,
+    "words":  96,
+    "paragraphs":  34,
+    "page":  {
+                 "widthPt":  595.3,
+                 "heightPt":  841.9,
+                 "orientation":  0,
+                 "leftMarginPt":  56.7,
+                 "rightMarginPt":  56.7,
+                 "topMarginPt":  56.7,
+                 "bottomMarginPt":  56.7,
+                 "textWidthPt":  481.9
+             },
+    "sections":  1,
+    "header":  {
+                   "text":  "2026년 3분기 운영 보고서",
+                   "exists":  true
+               },
+    "footer":  {
+                   "text":  "1 / 1",
+                   "exists":  true,
+                   "pageNumberFields":  2
+               },
+    "styles":  {
+                   "표준":  24,
+                   "제목":  1,
+                   "글머리 기호":  4,
+                   "제목 2":  5
+               },
+    "outline":  [
+                    {
+                        "level":  2,
+                        "text":  "1. 개요",
+                        "page":  1
+                    },
+                    {
+                        "level":  2,
+                        "text":  "2. 처리 시간 변화",
+                        "page":  1
+                    },
+                    {
+                        "level":  2,
+                        "text":  "3. 비용과 승인",
+                        "page":  1
+                    },
+                    {
+                        "level":  2,
+                        "text":  "4. 위험과 대응",
+                        "page":  1
+                    },
+                    {
+                        "level":  2,
+                        "text":  "5. 다음 분기 계획",
+                        "page":  1
+                    }
+                ],
+    "tables":  [
+                   {
+                       "rows":  4,
+                       "columns":  4,
+                       "widthPt":  481.9,
+                       "fitsTextWidth":  true,
+                       "headingRowRepeats":  true,
+                       "startsOnPage":  1,
+                       "firstRowText":  "업무 구분 | 도입 전 | 도입 후 | 단축률 |"
+                   }
+               ],
+    "inlineShapes":  [
+
+                     ],
+    "floatingShapes":  0,
+    "hyperlinks":  0,
+    "fields":  0,
+    "footnotes":  0,
+    "fonts":  {
+                  "맑은 고딕":  34
+              },
+    "pagePictures":  [
+                         "page-1.png"
+                     ],
+    "editRoundTrip":  {
+                          "saved":  true,
+                          "reopened":  true,
+                          "editSurvived":  true,
+                          "pagesAfterEdit":  1
+                      }
+}

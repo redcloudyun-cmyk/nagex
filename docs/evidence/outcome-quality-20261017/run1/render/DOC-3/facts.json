@@ -1,0 +1,90 @@
+﻿{
+    "file":  "DOC-3.docx",
+    "bytes":  12421,
+    "extension":  ".docx",
+    "renderedBy":  "Microsoft Word 16.0",
+    "opened":  true,
+    "problems":  [
+
+                 ],
+    "compatibilityMode":  15,
+    "pages":  1,
+    "words":  67,
+    "paragraphs":  31,
+    "page":  {
+                 "widthPt":  595.3,
+                 "heightPt":  841.9,
+                 "orientation":  0,
+                 "leftMarginPt":  56.7,
+                 "rightMarginPt":  56.7,
+                 "topMarginPt":  56.7,
+                 "bottomMarginPt":  56.7,
+                 "textWidthPt":  481.9
+             },
+    "sections":  1,
+    "header":  {
+                   "text":  "주간 운영 회의록",
+                   "exists":  true
+               },
+    "footer":  {
+                   "text":  "1 / 1",
+                   "exists":  true,
+                   "pageNumberFields":  2
+               },
+    "styles":  {
+                   "표준":  23,
+                   "글머리 기호":  4,
+                   "제목":  1,
+                   "캡션":  1,
+                   "제목 2":  2
+               },
+    "outline":  [
+                    {
+                        "level":  2,
+                        "text":  "1. 주간 처리 건수 현황",
+                        "page":  1
+                    },
+                    {
+                        "level":  2,
+                        "text":  "2. 주요 결정 사항 및 할 일",
+                        "page":  1
+                    }
+                ],
+    "tables":  [
+                   {
+                       "rows":  4,
+                       "columns":  4,
+                       "widthPt":  481.9,
+                       "fitsTextWidth":  true,
+                       "headingRowRepeats":  true,
+                       "startsOnPage":  1,
+                       "firstRowText":  "구분 | 내용 | 담당 팀 | 기한 |"
+                   }
+               ],
+    "inlineShapes":  [
+                         {
+                             "widthPt":  481.9,
+                             "heightPt":  268.5,
+                             "fitsTextWidth":  true,
+                             "altText":  "주간 처리 건수 막대그래프",
+                             "type":  3,
+                             "page":  1
+                         }
+                     ],
+    "floatingShapes":  0,
+    "hyperlinks":  0,
+    "fields":  0,
+    "footnotes":  0,
+    "fonts":  {
+                  "맑은 고딕":  31
+              },
+    "pagePictures":  [
+                         "page-1.png"
+                     ],
+    "editRoundTrip":  {
+                          "saved":  true,
+                          "reopened":  true,
+                          "editSurvived":  true,
+                          "pagesAfterEdit":  1
+                      }
+}

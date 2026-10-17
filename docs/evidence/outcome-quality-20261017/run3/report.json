@@ -1,0 +1,689 @@
+{
+  "at": "2026-10-17T08:46:39.012Z",
+  "reports": [
+    {
+      "id": "DECK-1",
+      "file": "DECK-1.pptx",
+      "bytes": 43424,
+      "measuredBy": "Microsoft PowerPoint 16.0",
+      "artifact": "PPTX",
+      "technical": "PASS",
+      "quality": "PARTIAL",
+      "checks": [
+        {
+          "id": "PACKAGE_VALID",
+          "kind": "TECHNICAL",
+          "status": "PASS",
+          "detail": "zip, XML, content types and relationships are consistent"
+        },
+        {
+          "id": "SIXTEEN_BY_NINE",
+          "kind": "QUALITY",
+          "status": "PASS",
+          "detail": "slide size 12192000 x 6858000 EMU"
+        },
+        {
+          "id": "EVERY_SLIDE_HAS_A_TITLE_PLACEHOLDER",
+          "kind": "QUALITY",
+          "status": "PASS",
+          "detail": "7 slide(s), each titled (outline view and screen readers work)"
+        },
+        {
+          "id": "BAR_CHARTS_START_AT_ZERO",
+          "kind": "QUALITY",
+          "status": "PASS",
+          "detail": "1 bar chart(s), 0 without an explicit zero baseline"
+        },
+        {
+          "id": "CHARTS_ARE_NATIVE_WITH_DATA",
+          "kind": "QUALITY",
+          "status": "PASS",
+          "detail": "1 chart(s), 1 embedded workbook(s)"
+        },
+        {
+          "id": "CHARTS_PRESENT",
+          "kind": "QUALITY",
+          "status": "PASS",
+          "detail": "1 native chart(s) in the file, 1 expected"
+        },
+        {
+          "id": "PICTURES_HAVE_ALT_TEXT",
+          "kind": "QUALITY",
+          "status": "PASS",
+          "detail": "0 picture(s), 0 without alt text"
+        },
+        {
+          "id": "SPEAKER_NOTES_PRESENT",
+          "kind": "QUALITY",
+          "status": "PASS",
+          "detail": "7 note(s) for 6 content slide(s) (at least 80%)"
+        },
+        {
+          "id": "SLIDES_ARE_NOT_WALLS_OF_TEXT",
+          "kind": "QUALITY",
+          "status": "PASS",
+          "detail": "no slide over 90 words"
+        },
+        {
+          "id": "NO_PLACEHOLDER_TEXT",
+          "kind": "QUALITY",
+          "status": "PASS",
+          "detail": "no placeholder or \"withheld\" text"
+        },
+        {
+          "id": "REQUIRED_FACTS_PRESENT",
+          "kind": "QUALITY",
+          "status": "PASS",
+          "detail": "2 of 2 present"
+        },
+        {
+          "id": "NO_INVENTED_FIGURES",
+          "kind": "QUALITY",
+          "status": "PASS",
+          "detail": "every stated figure is in what the person gave"
+        },
+        {
+          "id": "SLIDE_COUNT_IN_RANGE",
+          "kind": "QUALITY",
+          "status": "PASS",
+          "detail": "7 slide(s), expected 7-8"
+        },
+        {
+          "id": "OPENS_IN_POWERPOINT",
+          "kind": "TECHNICAL",
+          "status": "PASS",
+          "detail": "Microsoft PowerPoint 16.0"
+        },
+        {
+          "id": "NO_TEXT_OVERFLOW",
+          "kind": "QUALITY",
+          "status": "PASS",
+          "detail": "no text taller than its box (BoundHeight read back from PowerPoint)"
+        },
+        {
+          "id": "EVERYTHING_INSIDE_THE_SLIDE",
+          "kind": "QUALITY",
+          "status": "PASS",
+          "detail": "every shape within the 16:9 slide"
+        },
+        {
+          "id": "READABLE_FONT_SIZES",
+          "kind": "QUALITY",
+          "status": "PASS",
+          "detail": "no text under 12 pt (page numbers and the brand mark aside)"
+        },
+        {
+          "id": "FONTS_CONSISTENT",
+          "kind": "QUALITY",
+          "status": "PASS",
+          "detail": "1 font family(ies): Malgun Gothic"
+        },
+        {
+          "id": "CHART_DATA_AS_EXPECTED",
+          "kind": "QUALITY",
+          "status": "NOT_RUN",
+          "detail": "no chart data was expected"
+        },
+        {
+          "id": "EDIT_AND_SAVE_SURVIVES",
+          "kind": "QUALITY",
+          "status": "PASS",
+          "detail": "opened, the first text edited, saved as a copy, reopened, the edit read back"
+        }
+      ],
+      "stats": {
+        "slides": 7,
+        "charts": 1,
+        "pictures": 0,
+        "notes": 7,
+        "words": 203
+      }
+    },
+    {
+      "id": "DECK-2",
+      "file": "DECK-2.pptx",
+      "bytes": 44372,
+      "measuredBy": "Microsoft PowerPoint 16.0",
+      "artifact": "PPTX",
+      "technical": "PASS",
+      "quality": "PARTIAL",
+      "checks": [
+        {
+          "id": "PACKAGE_VALID",
+          "kind": "TECHNICAL",
+          "status": "PASS",
+          "detail": "zip, XML, content types and relationships are consistent"
+        },
+        {
+          "id": "SIXTEEN_BY_NINE",
+          "kind": "QUALITY",
+          "status": "PASS",
+          "detail": "slide size 12192000 x 6858000 EMU"
+        },
+        {
+          "id": "EVERY_SLIDE_HAS_A_TITLE_PLACEHOLDER",
+          "kind": "QUALITY",
+          "status": "PASS",
+          "detail": "6 slide(s), each titled (outline view and screen readers work)"
+        },
+        {
+          "id": "BAR_CHARTS_START_AT_ZERO",
+          "kind": "QUALITY",
+          "status": "PASS",
+          "detail": "1 bar chart(s), 0 without an explicit zero baseline"
+        },
+        {
+          "id": "CHARTS_ARE_NATIVE_WITH_DATA",
+          "kind": "QUALITY",
+          "status": "PASS",
+          "detail": "1 chart(s), 1 embedded workbook(s)"
+        },
+        {
+          "id": "PICTURES_PRESENT",
+          "kind": "QUALITY",
+          "status": "PASS",
+          "detail": "1 picture(s) in the file, 1 expected"
+        },
+        {
+          "id": "CHARTS_PRESENT",
+          "kind": "QUALITY",
+          "status": "PASS",
+          "detail": "1 native chart(s) in the file, 1 expected"
+        },
+        {
+          "id": "PICTURES_HAVE_ALT_TEXT",
+          "kind": "QUALITY",
+          "status": "PASS",
+          "detail": "1 picture(s), 0 without alt text"
+        },
+        {
+          "id": "SPEAKER_NOTES_PRESENT",
+          "kind": "QUALITY",
+          "status": "PASS",
+          "detail": "5 note(s) for 5 content slide(s) (at least 80%)"
+        },
+        {
+          "id": "SLIDES_ARE_NOT_WALLS_OF_TEXT",
+          "kind": "QUALITY",
+          "status": "PASS",
+          "detail": "no slide over 90 words"
+        },
+        {
+          "id": "NO_PLACEHOLDER_TEXT",
+          "kind": "QUALITY",
+          "status": "PASS",
+          "detail": "no placeholder or \"withheld\" text"
+        },
+        {
+          "id": "REQUIRED_FACTS_PRESENT",
+          "kind": "QUALITY",
+          "status": "PASS",
+          "detail": "3 of 3 present"
+        },
+        {
+          "id": "NO_INVENTED_FIGURES",
+          "kind": "QUALITY",
+          "status": "PASS",
+          "detail": "every stated figure is in what the person gave"
+        },
+        {
+          "id": "SLIDE_COUNT_IN_RANGE",
+          "kind": "QUALITY",
+          "status": "PASS",
+          "detail": "6 slide(s), expected 6-7"
+        },
+        {
+          "id": "OPENS_IN_POWERPOINT",
+          "kind": "TECHNICAL",
+          "status": "PASS",
+          "detail": "Microsoft PowerPoint 16.0"
+        },
+        {
+          "id": "NO_TEXT_OVERFLOW",
+          "kind": "QUALITY",
+          "status": "PASS",
+          "detail": "no text taller than its box (BoundHeight read back from PowerPoint)"
+        },
+        {
+          "id": "EVERYTHING_INSIDE_THE_SLIDE",
+          "kind": "QUALITY",
+          "status": "PASS",
+          "detail": "every shape within the 16:9 slide"
+        },
+        {
+          "id": "READABLE_FONT_SIZES",
+          "kind": "QUALITY",
+          "status": "PASS",
+          "detail": "no text under 12 pt (page numbers and the brand mark aside)"
+        },
+        {
+          "id": "FONTS_CONSISTENT",
+          "kind": "QUALITY",
+          "status": "PASS",
+          "detail": "1 font family(ies): Calibri"
+        },
+        {
+          "id": "CHART_DATA_AS_EXPECTED",
+          "kind": "QUALITY",
+          "status": "NOT_RUN",
+          "detail": "no chart data was expected"
+        },
+        {
+          "id": "EDIT_AND_SAVE_SURVIVES",
+          "kind": "QUALITY",
+          "status": "PASS",
+          "detail": "opened, the first text edited, saved as a copy, reopened, the edit read back"
+        }
+      ],
+      "stats": {
+        "slides": 6,
+        "charts": 1,
+        "pictures": 1,
+        "notes": 5,
+        "words": 194
+      }
+    },
+    {
+      "id": "DOC-1",
+      "file": "DOC-1.docx",
+      "bytes": 6983,
+      "measuredBy": "Microsoft Word 16.0",
+      "artifact": "DOCX",
+      "technical": "PASS",
+      "quality": "PASS",
+      "checks": [
+        {
+          "id": "PACKAGE_VALID",
+          "kind": "TECHNICAL",
+          "status": "PASS",
+          "detail": "zip, XML, content types and relationships are consistent"
+        },
+        {
+          "id": "HAS_TITLE",
+          "kind": "QUALITY",
+          "status": "PASS",
+          "detail": "a Title paragraph"
+        },
+        {
+          "id": "HEADINGS_ARE_REAL_AND_ORDERED",
+          "kind": "QUALITY",
+          "status": "PASS",
+          "detail": "5 real heading(s), no skipped level"
+        },
+        {
+          "id": "TABLES_HAVE_HEADER_ROWS",
+          "kind": "QUALITY",
+          "status": "PASS",
+          "detail": "1 table(s), 1 header row(s)"
+        },
+        {
+          "id": "PICTURES_HAVE_ALT_TEXT",
+          "kind": "QUALITY",
+          "status": "PASS",
+          "detail": "0 picture(s), 0 with alt text"
+        },
+        {
+          "id": "NO_MISSING_PICTURES",
+          "kind": "QUALITY",
+          "status": "PASS",
+          "detail": "every referenced picture is in the file"
+        },
+        {
+          "id": "FOOTER_PAGE_NUMBERS",
+          "kind": "QUALITY",
+          "status": "PASS",
+          "detail": "page / pages field in the footer"
+        },
+        {
+          "id": "MODERN_COMPATIBILITY_SETTING",
+          "kind": "QUALITY",
+          "status": "PASS",
+          "detail": "compatibility mode 15 declared"
+        },
+        {
+          "id": "NO_PLACEHOLDER_TEXT",
+          "kind": "QUALITY",
+          "status": "PASS",
+          "detail": "no placeholder or \"withheld\" text"
+        },
+        {
+          "id": "REQUIRED_FACTS_PRESENT",
+          "kind": "QUALITY",
+          "status": "PASS",
+          "detail": "9 of 9 present"
+        },
+        {
+          "id": "NO_INVENTED_FIGURES",
+          "kind": "QUALITY",
+          "status": "PASS",
+          "detail": "every stated figure is in what the person gave"
+        },
+        {
+          "id": "OPENS_IN_WORD",
+          "kind": "TECHNICAL",
+          "status": "PASS",
+          "detail": "Microsoft Word 16.0"
+        },
+        {
+          "id": "NOT_COMPATIBILITY_MODE",
+          "kind": "QUALITY",
+          "status": "PASS",
+          "detail": "compatibility mode 15"
+        },
+        {
+          "id": "PAGE_COUNT_IN_RANGE",
+          "kind": "QUALITY",
+          "status": "PASS",
+          "detail": "1 page(s), expected 1-6"
+        },
+        {
+          "id": "TABLES_FIT_THE_PAGE",
+          "kind": "QUALITY",
+          "status": "PASS",
+          "detail": "1 table(s), 0 wider than the text"
+        },
+        {
+          "id": "PICTURES_FIT_THE_PAGE",
+          "kind": "QUALITY",
+          "status": "PASS",
+          "detail": "0 picture(s), 0 wider than the text"
+        },
+        {
+          "id": "FOOTER_FIELDS_LIVE",
+          "kind": "QUALITY",
+          "status": "PASS",
+          "detail": "2 field(s) in the footer"
+        },
+        {
+          "id": "FONTS_CONSISTENT",
+          "kind": "QUALITY",
+          "status": "PASS",
+          "detail": "1 font family(ies): 맑은 고딕"
+        },
+        {
+          "id": "EDIT_AND_SAVE_SURVIVES",
+          "kind": "QUALITY",
+          "status": "PASS",
+          "detail": "opened for editing, a paragraph added, saved, reopened, the edit read back"
+        }
+      ],
+      "stats": {
+        "words": 153,
+        "headings": 5,
+        "tables": 1,
+        "pictures": 0,
+        "pages": 1
+      }
+    },
+    {
+      "id": "DOC-2",
+      "file": "DOC-2.docx",
+      "bytes": 6937,
+      "measuredBy": "Microsoft Word 16.0",
+      "artifact": "DOCX",
+      "technical": "PASS",
+      "quality": "PASS",
+      "checks": [
+        {
+          "id": "PACKAGE_VALID",
+          "kind": "TECHNICAL",
+          "status": "PASS",
+          "detail": "zip, XML, content types and relationships are consistent"
+        },
+        {
+          "id": "HAS_TITLE",
+          "kind": "QUALITY",
+          "status": "PASS",
+          "detail": "a Title paragraph"
+        },
+        {
+          "id": "HEADINGS_ARE_REAL_AND_ORDERED",
+          "kind": "QUALITY",
+          "status": "PASS",
+          "detail": "4 real heading(s), no skipped level"
+        },
+        {
+          "id": "TABLES_HAVE_HEADER_ROWS",
+          "kind": "QUALITY",
+          "status": "PASS",
+          "detail": "1 table(s), 1 header row(s)"
+        },
+        {
+          "id": "PICTURES_HAVE_ALT_TEXT",
+          "kind": "QUALITY",
+          "status": "PASS",
+          "detail": "0 picture(s), 0 with alt text"
+        },
+        {
+          "id": "NO_MISSING_PICTURES",
+          "kind": "QUALITY",
+          "status": "PASS",
+          "detail": "every referenced picture is in the file"
+        },
+        {
+          "id": "FOOTER_PAGE_NUMBERS",
+          "kind": "QUALITY",
+          "status": "PASS",
+          "detail": "page / pages field in the footer"
+        },
+        {
+          "id": "MODERN_COMPATIBILITY_SETTING",
+          "kind": "QUALITY",
+          "status": "PASS",
+          "detail": "compatibility mode 15 declared"
+        },
+        {
+          "id": "NO_PLACEHOLDER_TEXT",
+          "kind": "QUALITY",
+          "status": "PASS",
+          "detail": "no placeholder or \"withheld\" text"
+        },
+        {
+          "id": "REQUIRED_FACTS_PRESENT",
+          "kind": "QUALITY",
+          "status": "PASS",
+          "detail": "4 of 4 present"
+        },
+        {
+          "id": "NO_INVENTED_FIGURES",
+          "kind": "QUALITY",
+          "status": "PASS",
+          "detail": "every stated figure is in what the person gave"
+        },
+        {
+          "id": "OPENS_IN_WORD",
+          "kind": "TECHNICAL",
+          "status": "PASS",
+          "detail": "Microsoft Word 16.0"
+        },
+        {
+          "id": "NOT_COMPATIBILITY_MODE",
+          "kind": "QUALITY",
+          "status": "PASS",
+          "detail": "compatibility mode 15"
+        },
+        {
+          "id": "PAGE_COUNT_IN_RANGE",
+          "kind": "QUALITY",
+          "status": "PASS",
+          "detail": "1 page(s), expected 1-4"
+        },
+        {
+          "id": "TABLES_FIT_THE_PAGE",
+          "kind": "QUALITY",
+          "status": "PASS",
+          "detail": "1 table(s), 0 wider than the text"
+        },
+        {
+          "id": "PICTURES_FIT_THE_PAGE",
+          "kind": "QUALITY",
+          "status": "PASS",
+          "detail": "0 picture(s), 0 wider than the text"
+        },
+        {
+          "id": "FOOTER_FIELDS_LIVE",
+          "kind": "QUALITY",
+          "status": "PASS",
+          "detail": "2 field(s) in the footer"
+        },
+        {
+          "id": "FONTS_CONSISTENT",
+          "kind": "QUALITY",
+          "status": "PASS",
+          "detail": "1 font family(ies): Calibri"
+        },
+        {
+          "id": "EDIT_AND_SAVE_SURVIVES",
+          "kind": "QUALITY",
+          "status": "PASS",
+          "detail": "opened for editing, a paragraph added, saved, reopened, the edit read back"
+        }
+      ],
+      "stats": {
+        "words": 232,
+        "headings": 4,
+        "tables": 1,
+        "pictures": 0,
+        "pages": 1
+      }
+    },
+    {
+      "id": "DOC-3",
+      "file": "DOC-3.docx",
+      "bytes": 12698,
+      "measuredBy": "Microsoft Word 16.0",
+      "artifact": "DOCX",
+      "technical": "PASS",
+      "quality": "PASS",
+      "checks": [
+        {
+          "id": "PACKAGE_VALID",
+          "kind": "TECHNICAL",
+          "status": "PASS",
+          "detail": "zip, XML, content types and relationships are consistent"
+        },
+        {
+          "id": "HAS_TITLE",
+          "kind": "QUALITY",
+          "status": "PASS",
+          "detail": "a Title paragraph"
+        },
+        {
+          "id": "HEADINGS_ARE_REAL_AND_ORDERED",
+          "kind": "QUALITY",
+          "status": "PASS",
+          "detail": "4 real heading(s), no skipped level"
+        },
+        {
+          "id": "TABLES_HAVE_HEADER_ROWS",
+          "kind": "QUALITY",
+          "status": "PASS",
+          "detail": "1 table(s), 1 header row(s)"
+        },
+        {
+          "id": "PICTURES_HAVE_ALT_TEXT",
+          "kind": "QUALITY",
+          "status": "PASS",
+          "detail": "1 picture(s), 1 with alt text"
+        },
+        {
+          "id": "PICTURES_PRESENT",
+          "kind": "QUALITY",
+          "status": "PASS",
+          "detail": "1 picture(s) in the file, 1 expected"
+        },
+        {
+          "id": "NO_MISSING_PICTURES",
+          "kind": "QUALITY",
+          "status": "PASS",
+          "detail": "every referenced picture is in the file"
+        },
+        {
+          "id": "FOOTER_PAGE_NUMBERS",
+          "kind": "QUALITY",
+          "status": "PASS",
+          "detail": "page / pages field in the footer"
+        },
+        {
+          "id": "MODERN_COMPATIBILITY_SETTING",
+          "kind": "QUALITY",
+          "status": "PASS",
+          "detail": "compatibility mode 15 declared"
+        },
+        {
+          "id": "NO_PLACEHOLDER_TEXT",
+          "kind": "QUALITY",
+          "status": "PASS",
+          "detail": "no placeholder or \"withheld\" text"
+        },
+        {
+          "id": "REQUIRED_FACTS_PRESENT",
+          "kind": "QUALITY",
+          "status": "PASS",
+          "detail": "9 of 9 present"
+        },
+        {
+          "id": "NO_INVENTED_FIGURES",
+          "kind": "QUALITY",
+          "status": "PASS",
+          "detail": "every stated figure is in what the person gave"
+        },
+        {
+          "id": "OPENS_IN_WORD",
+          "kind": "TECHNICAL",
+          "status": "PASS",
+          "detail": "Microsoft Word 16.0"
+        },
+        {
+          "id": "NOT_COMPATIBILITY_MODE",
+          "kind": "QUALITY",
+          "status": "PASS",
+          "detail": "compatibility mode 15"
+        },
+        {
+          "id": "PAGE_COUNT_IN_RANGE",
+          "kind": "QUALITY",
+          "status": "PASS",
+          "detail": "2 page(s), expected 1-4"
+        },
+        {
+          "id": "TABLES_FIT_THE_PAGE",
+          "kind": "QUALITY",
+          "status": "PASS",
+          "detail": "1 table(s), 0 wider than the text"
+        },
+        {
+          "id": "PICTURES_FIT_THE_PAGE",
+          "kind": "QUALITY",
+          "status": "PASS",
+          "detail": "1 picture(s), 0 wider than the text"
+        },
+        {
+          "id": "FOOTER_FIELDS_LIVE",
+          "kind": "QUALITY",
+          "status": "PASS",
+          "detail": "2 field(s) in the footer"
+        },
+        {
+          "id": "FONTS_CONSISTENT",
+          "kind": "QUALITY",
+          "status": "PASS",
+          "detail": "1 font family(ies): 맑은 고딕"
+        },
+        {
+          "id": "EDIT_AND_SAVE_SURVIVES",
+          "kind": "QUALITY",
+          "status": "PASS",
+          "detail": "opened for editing, a paragraph added, saved, reopened, the edit read back"
+        }
+      ],
+      "stats": {
+        "words": 133,
+        "headings": 4,
+        "tables": 1,
+        "pictures": 1,
+        "pages": 2
+      }
+    }
+  ]
+}

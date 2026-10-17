@@ -661,10 +661,12 @@ export function createNagexApplication(): NagexApplication {
   }
 
   const documentStore = new DocumentStore();
+  const imageStore = new ImageStore();
   const documentExecutor = new DocumentExecutor({
     aiService,
     documentStore,
     artifactStore,
+    imageStore,
     auditLogger,
     getRelevantMemories,
   });
@@ -708,7 +710,6 @@ export function createNagexApplication(): NagexApplication {
   });
   const previewLinkSigner = new PreviewLinkSigner();
 
-  const imageStore = new ImageStore();
   const imageExecutor = new ImageExecutor({
     imageStore,
     artifactStore,
@@ -728,6 +729,7 @@ export function createNagexApplication(): NagexApplication {
     providerRouter: creationProviderRouter,
     artifactStore,
     documentStore,
+    imageStore,
     auditLogger,
     getRelevantMemories,
   });

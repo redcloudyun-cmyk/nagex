@@ -8,6 +8,7 @@ import type { RoutingMode } from './model-provider.js';
 import { UnifiedModelRouter } from './unified-model-router.js';
 import { classifyPlanRequest, isConcreteSuggestion } from './plan-request-kind.js';
 import { detectRequestLanguage, languageInstruction } from '../common/request-language.js';
+import { placeholderRetryInstruction, placeholdersIn } from '../creation/placeholder-text.js';
 import { normalizePresentationOutline, OUTLINE_LIMITS, type PresentationOutline } from './presentation-outline.js';
 import { parseStructuredJson } from './structured-json.js';
 import { buildTimeContext, timeContextPromptLines } from '../common/time-context.js';
@@ -975,7 +976,9 @@ export class AiService {
     requestId?: string;
     // The words the page count is read from. A revision's prompt carries the whole existing document, whose own text ("see page 2") is not a request - the revision passes only its instruction here.
     lengthRequest?: string;
-  }): Promise<AiServiceResponse<{ title: string; summary: string; content: string }>> {
+    // the person's own pictures the document may place, by reference (never an address); none = the document has no pictures
+    images?: Array<{ ref: string; title: string }>;
+  }): Promise<AiServiceResponse<{ title: string; summary: string; content: string; review?: { retried: boolean; placeholdersFirstDraft: string[]; placeholdersRemaining: string[] } }>> {
     const requestId = input.requestId || `doc_${randomUUID()}`;
     const mode = input.mode || 'auto';
     const isKo = input.locale === 'ko';
@@ -991,11 +994,18 @@ export class AiService {
       'Produce clear Markdown output with a title, executive summary, and well-organized sections.',
       'Do not claim to have taken external actions. Do not invent fake facts or fake sources.',
       'Do not invent statistics, percentages, prices, market shares, dates, names of companies or people, or quotations. When a figure or a name is needed and neither the request nor the context gives it, write a clearly marked assumption ("Assumption: ..." / "가정: ...") or an input placeholder ("[to be provided]" / "[입력 필요]"); comparisons without data are qualitative.',
+      // completeness without invention (measured on a real run: a model that was told not to invent left two requested sections as "withheld" placeholders)
+      'Write EVERY section the request names. When the facts for a section are not given, write that section qualitatively from the facts that ARE given - what they imply, what to watch, what to decide - with no new figure, name or date. Only when nothing honest can be said, give ONE short line that names the information needed. Never leave a whole section as a placeholder and never write "[TBD]", "[To Be Provided]", "[입력 필요]" or similar.',
+      'A table cell whose value is not given reads "미정" in a Korean document and "not set" in an English one - never a bracketed placeholder. Use every date, name and figure the request gives; never leave a bracket where the request states the value.',
+      'Do not add header fields such as To, From, Date or Author unless the request supplies them.',
       input.instructions ? `Specific instructions: ${input.instructions}` : null,
       input.documentKind ? `Document type: ${input.documentKind}` : null,
       input.memories && input.memories.length > 0 ? `Relevant personal memory context:\n${summarizeMemories(input.memories)}` : null,
       input.sourceContext ? `Source background & context:\n${input.sourceContext}` : null,
       pages ? lengthInstruction(pages, lengthLocale) : null,
+      input.images && input.images.length > 0
+        ? `The person's own pictures you may place (use these refs only, each on a line of its own, where it helps the reader): ${input.images.map((image) => `"${image.ref}" = ${JSON.stringify(image.title)}`).join(', ')}. Write a picture as ![what it shows](ref "short caption"). A picture does not replace the text: also state in the text the figures it shows. Never write any other picture, address or URL.`
+        : null,
       'Return JSON with exact structure: {"title":"string","summary":"string (1-2 sentences)","content":"complete markdown text"}',
     ]
       .filter((line): line is string => line !== null)
@@ -1034,12 +1044,26 @@ export class AiService {
       }
     }
 
+    // A draft that still says content is missing (a placeholder, a "withheld" section) is asked for ONCE more, naming exactly what remains - one bounded extra call, never a loop. The better draft is kept
+    // (the one with fewer such marks); NAgex never patches the text itself, and a document that still has them says so in its own text and in the result's review.
+    let review: { retried: boolean; placeholdersFirstDraft: string[]; placeholdersRemaining: string[] } | undefined;
+    {
+      const first = placeholdersIn(String(parseJsonObject(response.text, requestId, 'document synthesis').content ?? ''));
+      if (first.length > 0) {
+        const second = await generate(placeholderRetryInstruction(first, lengthLocale)).catch(() => null);
+        const secondFound = second ? placeholdersIn(String(parseJsonObject(second.text, requestId, 'document synthesis').content ?? '')) : first;
+        if (second && secondFound.length < first.length) response = second;
+        review = { retried: true, placeholdersFirstDraft: first, placeholdersRemaining: secondFound.length < first.length ? secondFound : first };
+      }
+    }
+
     const parsed = parseJsonObject(response.text, requestId, 'document synthesis');
     return {
       data: {
         title: requireString(parsed.title, 'title', requestId),
         summary: requireString(parsed.summary, 'summary', requestId),
         content: requireString(parsed.content, 'content', requestId),
+        ...(review ? { review } : {}),
       },
       provider: response.provider,
       model: response.model,
@@ -1059,6 +1083,8 @@ export class AiService {
     requestId?: string;
     // the size the person asked for (creation/slide-count.ts): an exact number of content slides, the title slide not counted
     contentSlides?: number;
+    // the person's own pictures a slide may use, by reference (never a URL); none = the IMAGE layout is not offered
+    images?: Array<{ ref: string; title: string }>;
   }): Promise<AiServiceResponse<PresentationOutline>> {
     const requestId = input.requestId || `deck_${randomUUID()}`;
     const mode = input.mode || 'auto';
@@ -1073,11 +1099,25 @@ export class AiService {
         ? `Each content slide has a short title and 2 to ${OUTLINE_LIMITS.maxBulletsPerSlide} concise bullets (one idea per bullet, no more than ${OUTLINE_LIMITS.maxBulletChars} characters). ${slideCountInstruction(input.contentSlides)}`
         : `Use ${OUTLINE_LIMITS.minContentSlides + 2} to ${OUTLINE_LIMITS.maxContentSlides - 4} content slides (more only when the request needs it), each with a short title and 2 to ${OUTLINE_LIMITS.maxBulletsPerSlide} concise bullets (one idea per bullet, no more than ${OUTLINE_LIMITS.maxBulletChars} characters).`,
       'Do not invent facts, numbers, quotes or sources. When source context is provided, ground the slides in it; otherwise write general, non-specific points and keep claims modest.',
+      // layouts: a visual only where the person's own data supports it - the numbers are checked afterwards and a slide whose numbers are not found is shown as plain text
+      'A slide may set "layout". Use "BULLETS" (the default) unless a visual is clearly better AND the data for it is in the request or the source context:',
+      '- "CHART": "chart":{"type":"BAR"|"LINE"|"PIE","categories":[2 to 12 labels],"series":[{"name":"...","values":[one number per category]}],"unit":"%","sourceNote":"where the numbers come from"} - ONLY numbers that appear in the request or the source context, copied exactly. Never estimate, round, convert, sum or compute a number. A PIE has one series.',
+      '- "METRICS": "metrics":[2 to 4 of {"label":"...","value":"73%","note":"..."}] - values copied exactly from the request or the source context.',
+      '- "TABLE": "table":{"headers":[2 to 6 column names],"rows":[[one cell per column], ...]} - a comparison; every figure copied exactly from the request or the source context; no row longer than the header.',
+      input.images && input.images.length > 0
+        ? `- "IMAGE": "image":{"ref":"<one of the available pictures>","alt":"what the picture shows","caption":"optional"}. Available pictures (use these refs only): ${input.images.map((image) => `"${image.ref}" = ${JSON.stringify(image.title)}`).join(', ')}.`
+        : '- No picture is available: do not use the "IMAGE" layout.',
+      '- "QUOTE": "quote" and "attribution" - ONLY a quotation the request or the source context actually contains.',
+      '- "SECTION": a divider for a long deck: a "title" and an optional "subtitle"; no bullets.',
+      'A slide with a chart, key figures, a table or a picture also has 1 to 3 short "bullets" (at most 100 characters each) that say what it shows. A slide title states the conclusion, not only the topic.',
+      'Give every content slide "notes": one to three sentences the presenter would say, in plain language, adding no fact that is not on the slide or in the source.',
+      'Never make a slide that only says information is missing or withheld. When a part of the request has no data, cover it qualitatively from what IS given, or leave that slide out and let the other slides carry the count.',
+      'You know a picture only by its title: describe it by that title, and do not claim what it shows beyond the title or tie it to a conclusion.',
       'Do not mention that you are an AI model and do not claim that a file was created or sent.',
       input.instructions ? `Specific instructions: ${input.instructions}` : null,
       input.memories && input.memories.length > 0 ? `Relevant personal memory context:\n${summarizeMemories(input.memories)}` : null,
       input.sourceContext ? `Source background & context:\n${input.sourceContext}` : null,
-      'Return JSON with exact structure: {"title":"deck title","subtitle":"one line (may be empty)","slides":[{"title":"slide title","bullets":["point","point"]}]}',
+      'Return JSON with exact structure: {"title":"deck title","subtitle":"one line (may be empty)","slides":[{"layout":"BULLETS","title":"slide title","bullets":["point","point"],"notes":"what the presenter says"}]} - the optional fields chart, metrics, table, image, quote, attribution and subtitle go on the slide that uses them.',
     ]
       .filter((line): line is string => line !== null)
       .join('\n\n');

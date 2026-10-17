@@ -1,0 +1,22 @@
+Workplace Strategy Decision Deck
+Evaluation of options for leadership review
+Key Project Parameters for the Decision
+30Team SizeTotal team members
+2026-11-15Decision DateDeadline for choice
+The team size is established at 30 people.A final decision is required by November 15, 2026.
+2
+Cost Comparison Across the Three Options
+Option B is the lowest cost at $9,500.Option C is the highest cost at $24,000.
+Internal project budget estimates
+3
+Comprehensive Option Comparison Matrix
+Option | Cost | Duration | Risk | Option A (hybrid, 3 office days) | $18,000 | 12 weeks | Low | Option B (fully remote) | $9,500 | 12 weeks | Medium | Option C (office only) | $24,000 | 12 weeks | Low
+All options share a duration of 12 weeks.Risk levels vary between Low and Medium.
+4
+Weekly Processing Volume Overview
+주간 처리 건수 막대그래프
+Reference data visualization for workflow considerations.
+5
+Summary of Findings and Next Steps
+Option B offers the lowest cost at $9,500 with medium risk.Options A and C carry low risk but higher costs of $18,000 and $24,000 respectively.All three alternatives run for a duration of 12 weeks.Leadership must select an approach for the 30-person team before November 15, 2026.
+6

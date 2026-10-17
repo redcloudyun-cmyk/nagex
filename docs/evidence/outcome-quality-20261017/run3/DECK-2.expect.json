@@ -1,0 +1,27 @@
+{
+  "id": "DECK-2",
+  "file": "DECK-2.pptx",
+  "kind": "PPTX",
+  "corpus": "Make a 6-slide decision deck for leadership from these facts: show the three options' costs as a chart, the comparison as a table, the key figures as cards, and put the attached picture where it helps. Use only these facts and add no other numbers:\n- Option A (hybrid, 3 office days): cost $18,000, 12 weeks, risk Low\n- Option B (fully remote): cost $9,500, 12 weeks, risk Medium\n- Option C (office only): cost $24,000, 12 weeks, risk Low\n- Team size: 30 people. Decision needed by 2026-11-15.",
+  "locale": "en",
+  "requiredFacts": [
+    {
+      "id": "$18,000",
+      "text": "$18,000"
+    },
+    {
+      "id": "$9,500",
+      "text": "$9,500"
+    },
+    {
+      "id": "$24,000",
+      "text": "$24,000"
+    }
+  ],
+  "minCharts": 1,
+  "minPictures": 1,
+  "pages": {
+    "min": 6,
+    "max": 7
+  }
+}
