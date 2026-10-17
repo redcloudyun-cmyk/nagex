@@ -68,6 +68,10 @@ Read:
 Read:
 `MASTER` + AI/Decision (§10.1-10.2) + Trust + Testing + `docs/adr/ADR-0017-goal-driven-adaptive-execution.md` + `docs/evidence/NAGEX_ADAPTIVE_EXECUTION_IMAGE_RECOVERY_20261017.md`.
 
+### Current-fact answer / web search / grounding / answer-quality task
+Read:
+`MASTER` + AI/Decision (§10.1-10.3) + Trust + Testing + `docs/adr/ADR-0018-current-fact-answers.md` + `docs/evidence/NAGEX_WEB_ANSWER_QUALITY_20261017.md`.
+
 ### Security/auth/approval task
 Read:
 `MASTER` + Trust + relevant ADR/debt + Testing.

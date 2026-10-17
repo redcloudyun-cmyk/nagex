@@ -13,6 +13,7 @@ export type CapabilityKind =
   | 'IMAGE_GENERATION'
   | 'VIDEO_GENERATION'
   | 'TEXT_REASONING'
+  | 'WEB_SEARCH'
   | 'CODE_GENERATION'
   | 'SITE_DEPLOYMENT'
   | 'BROWSER_ACTION'

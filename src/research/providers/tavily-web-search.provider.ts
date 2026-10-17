@@ -1,4 +1,4 @@
-import type { SearchQueryInput, SearchQueryResult, SearchResult, WebSearchProviderPort } from '../web-search-provider.port.js';
+import { retryAfterMsOf, type SearchQueryInput, type SearchQueryResult, type SearchResult, type WebSearchProviderPort } from '../web-search-provider.port.js';
 
 export interface TavilyProviderOptions {
   apiKey?: string;
@@ -61,6 +61,7 @@ export class TavilyWebSearchProvider implements WebSearchProviderPort {
           results: [],
           error: `Authentication failed (HTTP ${response.status}).`,
           provider: this.name,
+          httpStatus: response.status,
         };
       }
 
@@ -70,6 +71,8 @@ export class TavilyWebSearchProvider implements WebSearchProviderPort {
           results: [],
           error: 'Tavily API rate limit exceeded.',
           provider: this.name,
+          httpStatus: 429,
+          retryAfterMs: retryAfterMsOf(response.headers),
         };
       }
 

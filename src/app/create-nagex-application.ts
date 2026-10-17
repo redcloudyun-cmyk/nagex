@@ -184,6 +184,7 @@ import { QuestionClassificationService } from '../research/question-classificati
 import { WebSearchService } from '../research/web-search.service.js';
 import { EvidencePackService } from '../research/evidence-pack.service.js';
 import { SourceFetcher } from '../research/source-fetcher.js';
+import { ModelSearchQueryPlanner } from '../research/search-query-planner.js';
 import { ResearchRunStore } from '../research/research-run.store.js';
 import { ResearchReportService } from '../research/research-report.service.js';
 import { ArtifactVersionService } from '../creation/artifact-version.service.js';
@@ -412,9 +413,19 @@ export function createNagexApplication(): NagexApplication {
     gmailService,
   });
 
+  // Goal-driven adaptive execution: what NAgex has SEEN each route do (quota seen exhausted, outcomes), and - only when the operator turned JEV on AND gave it a key - an advisory ranker of the eligible
+  // routes. Without them the planner is deterministic; with them nothing about authority changes (an advisor can reorder the eligible set or add a question, never approve or remove a check).
+  // Shared by every consumer of the adaptive layer: web search recovery and the Product Builder's image routes.
+  const routeLedger = new RouteOutcomeLedger();
+  const routeAdvisor = process.env.NAGEX_JEV_DECISION_ENABLED === 'true' && jevDecisionKey ? new RouteAdvisor(new JevRouteAdvisor({ apiKey: jevDecisionKey })) : null;
+
   const questionClassificationService = new QuestionClassificationService();
-  const webSearchService = new WebSearchService();
-  const evidencePackService = new EvidencePackService(questionClassificationService, webSearchService, { allowLocalTestDestinations: process.env.NAGEX_ALLOW_LOCAL_TEST_URLS === '1' });
+  // Web search is a goal with routes (ADR-0017): the operator's configured provider first, then the alternatives the operator listed in NAGEX_WEB_SEARCH_FALLBACKS - never anything NAgex adds on its own.
+  const webSearchService = new WebSearchService(undefined, { memory: routeLedger, advisor: routeAdvisor });
+  // The pages of the best sources are read (robots.txt, the outbound policy and byte/time budgets apply) so an answer rests on the page and not only on a search snippet. Loopback fixtures are reachable
+  // only behind the established test-only switch; real runs never set it.
+  const evidenceFetcher = new SourceFetcher(process.env.NAGEX_ALLOW_LOCAL_TEST_URLS === '1' ? { allowLocalTestDestinations: true, perHostIntervalMs: 0 } : {});
+  const evidencePackService = new EvidencePackService(questionClassificationService, webSearchService, { allowLocalTestDestinations: process.env.NAGEX_ALLOW_LOCAL_TEST_URLS === '1', fetcher: evidenceFetcher, queryPlanner: new ModelSearchQueryPlanner(aiService) });
   const perspectiveCompareService = new PerspectiveCompareService(modelRouter, evidencePackService);
   const forecastCompareService = new ForecastCompareService(modelRouter, evidencePackService);
 
@@ -668,10 +679,6 @@ export function createNagexApplication(): NagexApplication {
   const productLocalUrls = process.env.NAGEX_ALLOW_LOCAL_TEST_URLS === '1'; // the established test-only switch for loopback fixtures; real runs never set it
   const productPlanning = new GatewayPlanningAdapter(modelRouter);
   const productSiteTester = new PlaywrightSiteTester();
-  // Goal-driven adaptive execution: what NAgex has SEEN each route do (quota seen exhausted, outcomes), and - only when the operator turned JEV on AND gave it a key - an advisory ranker of the eligible
-  // routes. Without them the planner is deterministic; with them nothing about authority changes (an advisor can reorder the eligible set or add a question, never approve or remove a check).
-  const routeLedger = new RouteOutcomeLedger();
-  const routeAdvisor = process.env.NAGEX_JEV_DECISION_ENABLED === 'true' && jevDecisionKey ? new RouteAdvisor(new JevRouteAdvisor({ apiKey: jevDecisionKey })) : null;
   const productProjectStore = new ProductProjectStore();
   const productBuilderService = new ProductBuilderService({
     store: productProjectStore,
