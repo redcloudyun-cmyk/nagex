@@ -4865,6 +4865,43 @@
       "assertionIntent": "Where NAgex finds the JEV credential and what that does to the JEV advisors: the key is read under either historical name (NAGEX_JEV_API_KEY, or the original JEVMODEL_API_KEY - the same credential) through one resolver; the description of the configuration carries the NAME of the variable and booleans, never the value; the device, route and verification advisors exist exactly when the switch is on AND a key exists, and building the application sends nothing; the configuration check reads only the JEV names of a .env file and prints no key; the live check does nothing without NAGEX_LIVE_JEV=1 and its one request (exercised with an injected fetch) returns a failed call's body without the key.",
       "notes": "No request to the real JEV service is made. JEV_LIVE stays NOT_RUN until a person runs scripts/jev-live-check.mjs with NAGEX_LIVE_JEV=1 where the key is kept."
     },
+    "composer_keys": {
+      "milestone": "ENTER-SUBMIT-P0-20261017",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": ["browser","ux"],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": true,
+      "deterministic": true,
+      "assertionIntent": "The one shared definition of \"this Enter sends\": a plain (or Ctrl/Cmd) Enter sends; Shift/Alt+Enter and other keys do not; the Enter that confirms an IME composition never sends whichever signal the browser gives (isComposing, keyCode 229, between compositionstart/compositionend, compositionend a moment ago) and the next deliberate Enter sends; the composition flag cannot get stuck (cleared by blur and by a non-composing input event); it works without a watcher; every page with a message box loads the script before its consumers.",
+      "notes": "The real public/composer-keys.js runs in a vm sandbox; the page-order check reads the HTML."
+    },
+    "composer_enter_browser": {
+      "milestone": "ENTER-SUBMIT-P0-20261017",
+      "classification": "REAL_BROWSER_CERT",
+      "canonical": true,
+      "scopes": ["browser","ux"],
+      "externalDependencies": [],
+      "realBrowser": true,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "On every reachable message box besides Main - the ambient Ask sheet, Canvas Ask and Quick Wake - in real Chromium with a real CDP IME composition: the Enter that confirms a Korean syllable sends nothing (the truncated text is never sent), committing sends nothing, the next Enter sends the full confirmed text once and empties the box; Enter and the Send button cause the very same requests in the same order (one submit logic); an empty box and Shift+Enter send nothing and leave the text alone; a composition that never reported its end does not leave Enter dead; the shared script is what runs on the page.",
+      "notes": "Production server in-process with disposable signed-in users and providers scrubbed; the request each keystroke causes is what is counted. No model is called.",
+      "writesRepositoryArtifacts": false
+    },
+    "frontend_asset_versioning": {
+      "milestone": "ENTER-SUBMIT-P0-20261017",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": ["browser","ux"],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": true,
+      "deterministic": true,
+      "assertionIntent": "Every versioned asset a page references (?v=<build version>) is part of the build-version hash, exists and is served with no-store headers, so a deployed front-end fix cannot be hidden behind a stale cached copy; the shared composer script is among them.",
+      "notes": "Reads the page HTML and asks the real server for each asset. Several assets were missing from the hash list before this test."
+    },
     "jev_idempotency": {
       "milestone": "JEV-IDEMPOTENCY-20261017",
       "classification": "CANONICAL_BEHAVIOR",
