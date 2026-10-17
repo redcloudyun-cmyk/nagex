@@ -6,6 +6,7 @@
 export interface SearchQueryPlannerPort {
   plan(input: { question: string; language: 'ko' | 'en'; today: string; requestId?: string }): Promise<string[]>;
 }
+import type { PipelineTelemetry } from '../observability/pipeline-telemetry.js';
 
 /** The part of AiService the planner needs (kept narrow so a test can stand in for it). */
 export interface QueryPlanningModel {
@@ -13,18 +14,26 @@ export interface QueryPlanningModel {
 }
 
 export class ModelSearchQueryPlanner implements SearchQueryPlannerPort {
-  constructor(private readonly model: QueryPlanningModel, private readonly deadlineMs = 6_000) {}
+  constructor(private readonly model: QueryPlanningModel, private readonly deadlineMs = 6_000, private readonly telemetry?: PipelineTelemetry) {}
 
   public async plan(input: { question: string; language: 'ko' | 'en'; today: string; requestId?: string }): Promise<string[]> {
+    const requestId = input.requestId ?? 'query_plan_unscoped';
+    const finish = this.telemetry?.start(requestId, 'QUERY_PLANNING');
     let timer: NodeJS.Timeout | undefined;
     try {
       const answer = await Promise.race([
         this.model.researchPlanQueries({ query: input.question, locale: input.language, today: input.today, requestId: input.requestId ? `${input.requestId}_qplan` : undefined }),
         new Promise<null>((resolve) => { timer = setTimeout(() => resolve(null), this.deadlineMs); }),
       ]);
-      if (!answer) return [];
-      return cleanQueries(answer.data.queries);
-    } catch {
+      if (!answer) {
+        finish?.({ attemptCount: 1, errorCode: 'QUERY_PLANNING_TIMEOUT' });
+        return [];
+      }
+      const queries = cleanQueries(answer.data.queries);
+      finish?.({ attemptCount: 1, details: { queryCount: queries.length } });
+      return queries;
+    } catch (error) {
+      finish?.({ attemptCount: 1, errorCode: error instanceof Error ? error.name : 'QUERY_PLANNING_FAILED' });
       return [];
     } finally {
       if (timer) clearTimeout(timer);

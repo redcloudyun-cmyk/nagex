@@ -7376,6 +7376,21 @@
       "notes": "Production server in-process; the identity providers are scripted (navigation answered locally, server token calls stubbed); every outside request is blocked and listed.",
       "writesRepositoryArtifacts": false
     },
+    "pipeline_optimization_p0a": {
+      "milestone": "PIPELINE-OPTIMIZATION-P0A",
+      "classification": "CANONICAL_ARCHITECTURE",
+      "canonical": true,
+      "scopes": [
+        "runtime",
+        "model-routing"
+      ],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "Per-request pipeline telemetry reports phase timing, provider/model attempts, token usage, cache state, cost availability and errors without prompt, response, evidence body, personal data or credentials; JEV state distinguishes disabled, shadow, advisory and actually applied decisions; the LLM evidence projection removes a snippet only when the normalized snippet is wholly represented by the excerpt while preserving source identity, URL and the original Evidence Pack.",
+      "notes": "Pure deterministic contracts; no network and no paid provider calls."
+    },
     "response_quality": {
       "milestone": "QUALITY-TODO",
       "classification": "CANONICAL_BEHAVIOR",

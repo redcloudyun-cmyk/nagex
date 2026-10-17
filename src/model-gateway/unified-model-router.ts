@@ -17,6 +17,7 @@ import {
 import { buildJevAdvisoryRecord, buildJevShadowTelemetry, JevShadowEvaluator, validateJevShadowOutput } from './jev-shadow-evaluator.js';
 import { ModelRoutingPolicy, isDegradedNow } from './model-routing-policy.js';
 import type { ModelRoutingContext, ModelRoutingDecision } from './model-routing.types.js';
+import type { PipelineTelemetry } from '../observability/pipeline-telemetry.js';
 
 export interface RouterLogger {
   info(event: string, fields: Record<string, unknown>): void;
@@ -87,7 +88,8 @@ export class UnifiedModelRouter {
     private readonly logger: RouterLogger = safeLogger,
     routingPolicy?: ModelRoutingPolicy,
     private readonly jevShadowEvaluator: JevAdvisoryEvaluator | null = new JevShadowEvaluator(),
-    private readonly jevAdvisoryConfig: JevAdvisoryConfig = resolveJevAdvisoryConfig()
+    private readonly jevAdvisoryConfig: JevAdvisoryConfig = resolveJevAdvisoryConfig(),
+    private readonly pipelineTelemetry?: PipelineTelemetry
   ) {
     this.providers = new Map(providers.map((provider) => [provider.name, provider]));
     this.configuredPriority = providers.map((p) => p.name);
@@ -104,7 +106,15 @@ export class UnifiedModelRouter {
     decision: ModelRoutingDecision;
     selectedModel: string | null;
   }): void {
-    if (!this.jevShadowEvaluator || !this.shouldRunJevAdvisory()) return;
+    if (!this.jevShadowEvaluator || !this.jevAdvisoryConfig.enabled || this.jevAdvisoryConfig.sampleRate <= 0) {
+      this.pipelineTelemetry?.jev({ requestId: input.requestId, surface: 'MODEL_ROUTER', state: 'DISABLED', callCount: 0, latencyMs: 0, failed: false });
+      return;
+    }
+    if (!this.shouldRunJevAdvisory()) {
+      this.pipelineTelemetry?.jev({ requestId: input.requestId, surface: 'MODEL_ROUTER', state: 'SHADOW', callCount: 0, latencyMs: 0, failed: false });
+      return;
+    }
+    const startedAt = Date.now();
     void Promise.resolve()
       .then(() => this.jevShadowEvaluator!.evaluate({
         taskKind: input.context.taskKind,
@@ -142,6 +152,7 @@ export class UnifiedModelRouter {
           parserVersion: record.parserVersion,
           scorerVersion: record.scorerVersion,
         });
+        this.pipelineTelemetry?.jev({ requestId: input.requestId, surface: 'MODEL_ROUTER', state: 'SHADOW', callCount: 1, latencyMs: Date.now() - startedAt, failed: false });
       })
       .catch((error) => {
         const code = error instanceof Error && error.message.includes('Invalid JEV shadow') ? 'JEV_ADVISORY_MALFORMED' : 'JEV_ADVISORY_FAILED';
@@ -150,6 +161,7 @@ export class UnifiedModelRouter {
           taskKind: input.context.taskKind,
           code,
         });
+        this.pipelineTelemetry?.jev({ requestId: input.requestId, surface: 'MODEL_ROUTER', state: 'SHADOW', callCount: 1, latencyMs: Date.now() - startedAt, failed: true, errorCode: code });
       });
   }
 
@@ -238,12 +250,14 @@ export class UnifiedModelRouter {
       requestId,
     };
 
+    const finishRouting = this.pipelineTelemetry?.start(requestId, 'MODEL_ROUTING');
     const decision: ModelRoutingDecision = this.routingPolicy.select(
       input.mode,
       context,
       [...this.providers.values()],
       this.configuredPriority
     );
+    finishRouting?.({ provider: decision.selectedProvider, attemptCount: 1, details: { taskKind: context.taskKind, fallbackCandidates: decision.fallbackProviders.length } });
     const selectedModel = this.providers.get(decision.selectedProvider)?.model ?? null;
 
     this.observeJevAdvisory({ requestId, context, decision, selectedModel });
@@ -280,6 +294,8 @@ export class UnifiedModelRouter {
     const preferredProviderInstance = preferredProvider ? this.providers.get(preferredProvider) : undefined;
     const preferredSkippedAsDegraded = Boolean(preferredProviderInstance && decision.selectedProvider !== preferredProvider && isDegradedNow(preferredProviderInstance.status()));
     const failures: Array<{ provider: string; code: string; reason: ModelFailureReason }> = [];
+    const finishGeneration = this.pipelineTelemetry?.start(requestId, 'LLM_GENERATION', { taskKind: context.taskKind });
+    let totalAttempts = 0;
     for (const provider of candidates) {
       try {
         // A reasoning model sometimes answers with a structure the task validator rejects (a list of objects, a missing field). The PREFERRED provider gets one more try before the
@@ -291,6 +307,7 @@ export class UnifiedModelRouter {
         let attempts = 0;
         for (;;) {
           attempts++;
+          totalAttempts++;
           result = await provider.generate({
             messages: input.messages,
             requestId,
@@ -343,6 +360,7 @@ export class UnifiedModelRouter {
           finishReason: result.meta?.finishReason ?? null,
         });
         this.recordCall(trace, result.model, result.latencyMs, requestId);
+        finishGeneration?.({ provider: result.provider, model: result.model, attemptCount: totalAttempts, inputTokens: result.usage?.inputTokens, outputTokens: result.usage?.outputTokens, reasoningTokens: result.usage?.reasoningTokens });
         return { ...result, routing: trace };
       } catch (error) {
         const normalized = error instanceof ModelProviderError
@@ -364,6 +382,8 @@ export class UnifiedModelRouter {
         });
       }
     }
+
+    finishGeneration?.({ attemptCount: totalAttempts, errorCode: 'ALL_MODEL_PROVIDERS_FAILED', details: { providerFailures: failures.length } });
 
     throw new NagexError({
       code: 'ALL_MODEL_PROVIDERS_FAILED',

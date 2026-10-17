@@ -15,7 +15,8 @@ import { buildTimeContext, timeContextPromptLines } from '../common/time-context
 import { groundScheduleSteps, type ScheduleClock } from '../planning/schedule-grounding.js';
 import { capabilityBriefFor, capabilityBriefLines } from './capability-brief.js';
 import { analyzeRequest, checkCoverage, coverageCorrection, requestShapeInstructions } from './request-analysis.js';
-import { KNOWLEDGE_BOUNDARY, answerMatchesLanguage, challengePromptBlock, evidencePromptBlock, redactReleaseDenials, revisionInstruction, stripInternalMarkers, unsupportedReleaseDenials, unverifiedPromptBlock, validateCitations, type ChatTurnKind } from './chat-grounding.js';
+import { KNOWLEDGE_BOUNDARY, answerMatchesLanguage, challengePromptBlock, evidenceProjectionStats, evidencePromptBlock, redactReleaseDenials, revisionInstruction, stripInternalMarkers, unsupportedReleaseDenials, unverifiedPromptBlock, validateCitations, type ChatTurnKind } from './chat-grounding.js';
+import type { PipelineTelemetry } from '../observability/pipeline-telemetry.js';
 
 export type PlanStepNecessity = 'REQUIRED' | 'OPTIONAL';
 
@@ -463,7 +464,7 @@ export const MAX_PLAN_USER_TOOLS = 25;
 export class AiService {
   private userToolProvider?: PlanUserToolProvider;
 
-  constructor(private readonly router: UnifiedModelRouter) {}
+  constructor(private readonly router: UnifiedModelRouter, private readonly pipelineTelemetry?: PipelineTelemetry) {}
 
   // Which optional capabilities this installation really has (video needs a configured video service). Absent = none, which is the shipped brief.
   private capabilityProbe?: () => { video?: boolean };
@@ -625,6 +626,7 @@ export class AiService {
     revision?: { previousAnswer: string; problems: string[] };
   }): Promise<AiServiceResponse<{ message: string; evidencePackId?: string; sources?: EvidenceSource[]; grounding?: { citedSourceIds: string[]; removedCitations: string[]; languageRewritten: boolean; releaseDenial?: 'NONE' | 'REWRITTEN' | 'REDACTED' } }>> {
     const requestId = input.requestId || `chat_${randomUUID()}`;
+    const finishContext = this.pipelineTelemetry?.start(requestId, 'CONTEXT_ASSEMBLY');
     // what the request asks for (parts, an exact count of items, how big an answer it deserves) is told to the model and checked afterwards
     const shape = analyzeRequest(input.message);
     const systemContent = [
@@ -665,6 +667,20 @@ export class AiService {
       messages.push({ role: 'assistant', content: input.revision.previousAnswer });
       messages.push({ role: 'user', content: revisionInstruction(input.revision.problems) });
     }
+    const projection = evidenceProjectionStats(input.evidencePack);
+    finishContext?.({
+      attemptCount: 1,
+      details: {
+        conversationMessages: input.conversation?.length ?? 0,
+        memoryCount: input.memories?.length ?? 0,
+        evidenceSources: projection.sourceCount,
+        snippetsOmitted: projection.snippetsOmitted,
+        evidenceCharactersBefore: projection.charactersBefore,
+        evidenceCharactersAfter: projection.charactersAfter,
+        estimatedInputTokensBefore: Math.ceil(projection.charactersBefore / 4),
+        estimatedInputTokensAfter: Math.ceil(projection.charactersAfter / 4),
+      },
+    });
     const generateChat =(turns: Array<{ role: 'system' | 'user' | 'assistant'; content: string }>) => this.router.generate({
       mode: input.mode,
       requestId,

@@ -52,6 +52,7 @@ import type { ScheduleClock } from '../../planning/schedule-grounding.js';
 import { calendarQuestionRange, renderCalendarContext, type CalendarWindowReader } from '../../planning/calendar-context.js';
 import { buildCalendarReschedulePlan, parseRescheduleRequest } from '../../planning/calendar-reschedule.js';
 import type { DirectoryResult } from '../../planning/calendar-event-directory.js';
+import type { PipelineTelemetry } from '../../observability/pipeline-telemetry.js';
 
 // The person's own clock for this request: the server's "now" (never the browser's) and their effective timezone - a timezone they set in their profile, else the one of the device that sent the
 // request, else UTC. See common/time-context.ts.
@@ -86,6 +87,7 @@ export interface ConversationRouteDeps {
   readCalendarWindow?: CalendarWindowReader;
   // the events a request like "방금 만든 회의를 한 시간 늦춰줘" can mean (what NAgex created lately + the calendar window); absent when the calendar integration is not wired
   rescheduleCandidates?: (input: { tenantId: string; principalId: string; clock: ScheduleClock; requestId: string }) => Promise<DirectoryResult>;
+  pipelineTelemetry?: PipelineTelemetry;
 }
 
 export const handleConversationRoutes: AsyncRouteRegistrar<ConversationRouteDeps> = async (method, pathname, body, headers, _query, deps): Promise<ApiResult | undefined> => {
@@ -177,6 +179,7 @@ export const handleConversationRoutes: AsyncRouteRegistrar<ConversationRouteDeps
     const tenantId = callerIdentity(headers).tenantId;
     const principalId = callerIdentity(headers).principalId;
     const requestId = getHeaderValue(headers, 'x-request-id') || `req_chat_${crypto.randomUUID()}`;
+    const finishResponse = deps.pipelineTelemetry?.start(requestId, 'FINAL_RESPONSE');
     const session = sessionStore.getOrCreateMain(tenantId, principalId);
 
     // Section 6: Persist USER message BEFORE AI reasoning
@@ -224,13 +227,15 @@ export const handleConversationRoutes: AsyncRouteRegistrar<ConversationRouteDeps
 
     // A turn is read in the light of the conversation: "make it a table" and "isn't that wrong, X is on sale now" have no subject of their own, so the subject of the earlier question travels with
     // them to the freshness check and the search. The person's Web switch (requestMetadata.allowWebResearch) is honoured: OFF means nothing is looked up, and the answer says so.
+    const finishIntent = deps.pipelineTelemetry?.start(requestId, 'INTENT_ANALYSIS');
     const turn = analyzeTurn(message, conversation);
     const webMode = parseWebMode(body);
     const answerLanguage = detectRequestLanguage(message);
+    const wanted = decideLevel({ question: turn.retrievalQuery, freshness: 'NONE', category: 'GENERAL', turnKind: turn.kind, preference: parseVerificationPreference(body) });
+    finishIntent?.({ attemptCount: 1, details: { turnKind: turn.kind, verificationLevel: wanted.level } });
     let evidencePack: EvidencePack | undefined;
     if (deps.evidencePackService) {
       // A request that will be checked deeply (a comparison, research, a high-impact decision, or the person asked for it) is looked up even when its words do not look "current": a check needs evidence.
-      const wanted = decideLevel({ question: turn.retrievalQuery, freshness: 'NONE', category: 'GENERAL', turnKind: turn.kind, preference: parseVerificationPreference(body) });
       evidencePack = await deps.evidencePackService.buildEvidencePack(turn.retrievalQuery, { requestId, webMode, scopeKey: `${tenantId}|${principalId}`, planQueries: true, forceSearch: ['L2', 'L3'].includes(wanted.level) });
       // A question whose whole answer is a live value (a price, a quote, the weather, a headline) is not answered from memory when it could not be checked: that would be an invented value (R22.4).
       // The reply says why, in the person's language, and what they can do. Everything else (a product's specifications, a technology, a company, a policy) is still ANSWERED - from what the model knows,
@@ -247,6 +252,7 @@ export const handleConversationRoutes: AsyncRouteRegistrar<ConversationRouteDeps
           request_id: requestId,
           details: { sessionId: session.sessionId, messageId: botMsgRecord.messageId, role: 'ASSISTANT', source: 'SYSTEM', basis: 'NOT_VERIFIED_LIVE', evidenceStatus: evidencePack.status },
         });
+        finishResponse?.({ attemptCount: 0, details: { outcome: 'LIVE_VALUE_REFUSAL' } });
         return {
           status: 200,
           data: {
@@ -308,6 +314,7 @@ export const handleConversationRoutes: AsyncRouteRegistrar<ConversationRouteDeps
         allowRetrieval: webMode !== 'OFF',
         answerProvider: result.provider ?? null,
         requestId,
+        telemetry: deps.pipelineTelemetry,
         revise: async (problems, previousAnswer, pack) => {
           const again = await service.chat({ ...chatArgs, evidencePack: pack, revision: { previousAnswer, problems } }).catch(() => null);
           return again ? again.data.message : null;
@@ -368,6 +375,7 @@ export const handleConversationRoutes: AsyncRouteRegistrar<ConversationRouteDeps
       details: { sessionId: session.sessionId, messageId: assistantMsgRecord.messageId, role: 'ASSISTANT', source: 'WEB', basis: grounding.basis, evidenceStatus: grounding.evidenceStatus, sourcesRetrieved, turnKind: turn.kind, ...(verification ? { verificationLevel: verification.level, verificationStatus: verification.status, verificationRevision: verification.revision } : {}) },
     });
 
+    finishResponse?.({ provider: result.provider ?? null, model: result.model ?? null, attemptCount: 1, details: { outcome: 'ANSWERED', sources: sourcesRetrieved } });
     return { status: 200, data: { ...result, data: { ...result.data, sources: clientSources, messageId: assistantMsgRecord.messageId, grounding, ...(verification ? { verification } : {}) } } };
   }
   if (pathname === '/api/v1/ambient/intent' && method === 'POST') {

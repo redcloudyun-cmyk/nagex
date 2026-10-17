@@ -6,6 +6,7 @@ import { AnswerVerifier } from './answer-verifier.js';
 import { answerIsHedged, decideLevel, type LevelAdvice, type VerificationPreference } from './verification-policy.js';
 import type { EvidencePack, EvidenceSource } from '../research/evidence-pack.types.js';
 import type { VerificationLevel, VerificationReport } from './verification.types.js';
+import type { PipelineTelemetry } from '../observability/pipeline-telemetry.js';
 
 /** An advisor (JEV or any provider) may only ask for MORE checking; it sees buckets, never content. */
 export interface VerificationAdvisorPort {
@@ -39,6 +40,7 @@ export interface FlowInput {
   requestId?: string;
   /** asks the model to write the answer again, once, correcting the listed statements; null when it cannot */
   revise: (problems: string[], previousAnswer: string, pack: EvidencePack | undefined) => Promise<string | null>;
+  telemetry?: PipelineTelemetry;
 }
 
 export interface FlowResult { message: string; report: VerificationReport; sources: EvidenceSource[] }
@@ -63,16 +65,29 @@ export async function runVerificationFlow(input: FlowInput): Promise<FlowResult>
   const base = decideLevel({ question: input.question, freshness: input.pack?.freshnessRequirement ?? 'NONE', category: input.pack?.category ?? 'GENERAL', turnKind: input.turnKind, preference: input.preference, observedUncertainty: hedged });
   // the advisor is asked about the level the rules chose; it may only raise it, and a failing advisor is no advice
   let advice: LevelAdvice | null = null;
+  let jevLatencyMs = 0;
+  let jevFailed = false;
   if (input.advisor) {
+    const startedAt = Date.now();
     try {
       advice = await input.advisor.advise({
         freshness: input.pack?.freshnessRequirement ?? 'NONE', category: input.pack?.category ?? 'GENERAL', turnKind: input.turnKind, comparison: base.reasons.includes('COMPARISON_OF_NAMED_THINGS'),
         research: base.reasons.includes('RESEARCH_INTENT'), highImpact: base.reasons.filter((r) => r.startsWith('HIGH_IMPACT_')), hedged,
         sourcesBucket: sourcesNow.length === 0 ? 'NONE' : sourcesNow.length < 3 ? 'FEW' : 'SEVERAL', baseLevel: base.level,
       });
-    } catch { advice = null; }
+    } catch {
+      advice = null;
+      jevFailed = true;
+    }
+    jevLatencyMs = Date.now() - startedAt;
+  } else {
+    input.telemetry?.jev({ requestId: input.requestId ?? 'verification_unscoped', surface: 'VERIFICATION', state: 'DISABLED', callCount: 0, latencyMs: 0, failed: false });
   }
   const decision = advice ? decideLevel({ question: input.question, freshness: input.pack?.freshnessRequirement ?? 'NONE', category: input.pack?.category ?? 'GENERAL', turnKind: input.turnKind, preference: input.preference, observedUncertainty: hedged, advice }) : base;
+  if (input.advisor) {
+    const applied = Boolean(advice && rankOf(decision.level) > rankOf(base.level));
+    input.telemetry?.jev({ requestId: input.requestId ?? 'verification_unscoped', surface: 'VERIFICATION', state: applied ? 'APPLIED' : 'ADVISORY', callCount: 1, latencyMs: jevLatencyMs, failed: jevFailed, ...(jevFailed ? { errorCode: 'JEV_VERIFICATION_FAILED' } : {}) });
+  }
 
   const common = { question: input.question, language: input.language, pack: input.pack, decision, answerProvider: input.answerProvider, requestId: input.requestId, allowRetrieval: input.allowRetrieval };
   const first = await input.verifier.verify({ ...common, answer: input.answer });
@@ -84,7 +99,9 @@ export async function runVerificationFlow(input: FlowInput): Promise<FlowResult>
   if (rankOf(decision.level) >= rankOf('L2') && (bad(report).length > 0 || silentConflict(report)) && sources.length > 0) {
     const problems = [...bad(report).map((c) => (c.status === 'CONTRADICTED' && c.found ? `${c.text} (a source states: ${c.found})` : c.text)), ...conflictProblems(report)];
     const packWithAdded: EvidencePack | undefined = input.pack ? { ...input.pack, sources } : undefined;
+    const finishRewrite = input.telemetry?.start(input.requestId ?? 'answer_rewrite_unscoped', 'ANSWER_REWRITE');
     const revised = await input.revise(problems, message, packWithAdded).catch(() => null);
+    finishRewrite?.({ attemptCount: 1, errorCode: revised ? null : 'ANSWER_REWRITE_UNAVAILABLE', details: { problemCount: problems.length } });
     if (revised && revised.trim()) {
       const second = await input.verifier.verify({ ...common, answer: revised, reuse: { facts: first.facts, review: first.report.review, sources } });
       // accepted only when it is better: fewer unsupported statements, or a disagreement between sources that the answer now says out loud

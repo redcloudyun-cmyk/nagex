@@ -559,7 +559,7 @@ export async function handleAsyncApiRequest(
     // intent, plans/resolve).
     {
       const conversationResult = await handleConversationRoutes(method, pathname, body, headers, query, {
-        service, planResolver, sessionStore, convStore, convContextService, auditLogger, getRelevantMemories, memoryExtractor: app.conversationMemoryExtractor, evidencePackService: app.evidencePackService, answerVerifier: app.answerVerifier, verificationAdvisor: app.verificationAdvisor,
+        service, planResolver, sessionStore, convStore, convContextService, auditLogger, getRelevantMemories, memoryExtractor: app.conversationMemoryExtractor, evidencePackService: app.evidencePackService, answerVerifier: app.answerVerifier, verificationAdvisor: app.verificationAdvisor, pipelineTelemetry: app.pipelineTelemetry,
         // the person's own timezone (profile) and calendar (read-only) for date-aware answers and plans
         getProfileTimezone: (principalId) => (customDeps?.identityStore ?? identityStore).getProfile(principalId)?.timezone,
         readCalendarWindow: async ({ tenantId, principalId, timeMin, timeMax, requestId }) => {
