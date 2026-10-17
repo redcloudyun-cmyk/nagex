@@ -17,7 +17,8 @@ export interface ExpectationSurface {
   truncated: boolean;
 }
 
-function readExpectationSurface(root: any, maxChars: number): ExpectationSurface {
+// exported so its budget logic can be tested without a browser; in production it runs inside the page (see readExpectationSurfaceInPage)
+export function readExpectationSurface(root: any, maxChars: number): ExpectationSurface {
   if (!root) return { found: false, texts: [], truncated: false };
 
   const texts: string[] = [];
@@ -26,7 +27,10 @@ function readExpectationSurface(root: any, maxChars: number): ExpectationSurface
   const push = (value: string): void => {
     const text = String(value || '').replace(/\s+/g, ' ').trim();
     if (!text) return;
-    if (used + text.length > maxChars) { truncated = true; return; }
+    const room = maxChars - used;
+    if (room <= 0) { truncated = true; return; }
+    // a block longer than what is left is CLIPPED to it (and reported as cut), never dropped: dropping a long page whole made every check on a long page look at nothing
+    if (text.length > room) { texts.push(text.slice(0, room)); used = maxChars; truncated = true; return; }
     used += text.length;
     texts.push(text);
   };
@@ -60,7 +64,8 @@ function readExpectationSurface(root: any, maxChars: number): ExpectationSurface
 /** (element, maxChars) => ExpectationSurface - evaluate on a locator (`body` for the whole page) */
 export const readExpectationSurfaceInPage = asPageFunction<(el: unknown, maxChars: number) => ExpectationSurface>(`(el, maxChars) => {\n${readExpectationSurface.toString()}\nreturn readExpectationSurface(el, maxChars);\n}`);
 
-export const EXPECTATION_SURFACE_CHARS = 60_000;
+// large enough for a long encyclopedia article (the text of a page is read once per check and compared in memory; it is never sent to a model or stored)
+export const EXPECTATION_SURFACE_CHARS = 400_000;
 export const MAX_EXPECTATION_CHARS = 300;
 
 /** "₩1,100,000원" / "1 100 000" / "1100000.00" -> 1100000 ; anything that is not just a number -> null */
