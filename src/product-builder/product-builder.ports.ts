@@ -4,6 +4,7 @@
 import type { BlockerNeed, BuildPlan, DeploymentRecord, DeployTarget, DesignSpec, MockupItem, ProductPlan, SiteCheck, TestReport } from './product-builder.types.js';
 export type { DeployTarget } from './product-builder.types.js';
 import type { GeneratedFile } from './product-workspace.js';
+import type { RouteCandidate } from '../adaptive/route-candidate.js';
 
 export interface PlanningPort {
   draftPlan(input: { request: string; locale: 'en' | 'ko'; previous: ProductPlan | null; feedback: string | null; requestId: string }): Promise<ProductPlan>;
@@ -12,12 +13,16 @@ export interface PlanningPort {
 }
 
 export type MockupOutcome =
-  | { ok: true; images: Array<{ caption: string; mimeType: string; data: Buffer }> }
-  | { ok: false; code: string; need: BlockerNeed; message: string };
+  // each image has been CHECKED (a real, complete image; its real type and size) by whoever produced it
+  | { ok: true; images: Array<{ caption: string; mimeType: string; data: Buffer; width?: number; height?: number; sha256?: string }> }
+  // providerCode / httpStatus are the provider's own evidence, kept so the failure can be classified (quota is not rate limiting is not a refusal)
+  | { ok: false; code: string; need: BlockerNeed; message: string; providerCode?: string; httpStatus?: number; retryAfterMs?: number; chargeable?: boolean };
 
 /** Visual mockups of the product: REAL generated images. An implementation must not return placeholder pictures as if they were generated. */
 export interface MockupPort {
   readonly providerId: string;
+  /** the verified facts about this route (what it costs, who receives the data, how it has behaved); a port that does not describe itself is treated as an unknown third party */
+  readonly route?: () => RouteCandidate;
   available(): boolean;
   generate(input: { plan: ProductPlan; count: number; feedback: string | null; requestId: string }): Promise<MockupOutcome>;
 }

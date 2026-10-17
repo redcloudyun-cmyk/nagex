@@ -1,0 +1,25 @@
+{
+  "missionId": "ADAPTIVE-EXECUTION-SLICE-1-IMAGE-QUOTA-RECOVERY",
+  "date": "2026-10-17",
+  "branch": "topic/p0-adaptive-execution-20261017",
+  "baseSha": "1348b3e",
+  "finalSha": "the commit that adds this file (the integration merge SHA is in the delivery report)",
+  "track": "B",
+  "filesChanged": {
+    "added": ["src/adaptive/*", "src/product-builder/product-builder.adaptive.ts", "docs/adr/ADR-0017-goal-driven-adaptive-execution.md", "docs/evidence/NAGEX_ADAPTIVE_EXECUTION_IMAGE_RECOVERY_20261017.md", "tests/adaptive_execution_core.test.ts", "tests/product_builder_adaptive_mockups.test.ts", "tests/product_builder_adaptive_browser.test.ts"],
+    "modified": ["src/product-builder/product-builder.service.ts", "src/product-builder/adapters/image-provider-mockup.adapter.ts", "src/app/create-nagex-application.ts", "src/creation/providers/*", "public/main-surface.js", "public/i18n.js", "tests/_local_ai_world.ts", "tests/_product_builder_fakes.ts", "tests/google_oauth_persistence.test.ts (flake)"]
+  },
+  "tests": {
+    "focused": "adaptive_execution_core 28/28; product_builder_adaptive_mockups 13/13; product_builder_adaptive_browser 5/5 (real Chromium, production server); product_builder_workflow 29/29",
+    "regression": "3623 tests, 0 failed, 8 skipped",
+    "browserGate": "467 tests, 461 pass, 0 fail, 6 skipped"
+  },
+  "blockers": [
+    { "id": "REAL_IMAGE_PROVIDER", "need": "an authorized image provider with credentials other than the exhausted Google key (OpenAI key, NVIDIA NIM key/endpoint, or a local image endpoint), or image quota for the existing key", "status": "WAITING_APPROVAL_AND_CREDENTIAL" },
+    { "id": "LIVE_JEV", "need": "NAGEX_JEV_API_KEY and an explicit decision to run the live check", "status": "NOT_RUN" }
+  ],
+  "dependencies": [],
+  "nextIndependentTask": "Computer Use: documented OpenAI computer tool adapter + semantic/visual hybrid (see the Astra directive); then route video / deployment / coding engine through the planner",
+  "approvalRequired": "NO for the next code task; YES for any real image request, any live JEV call, any real deployment",
+  "integrationReadiness": "READY after the browser gate and CI"
+}

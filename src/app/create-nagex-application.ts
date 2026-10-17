@@ -139,6 +139,13 @@ import { LocalPptxPresentationAdapter } from '../creation/providers/adapters/loc
 import { CreationProviderRouter } from '../creation/providers/creation-provider-router.js';
 import { OpenAIImageAdapter } from '../creation/providers/adapters/openai-image-adapter.js';
 import { GoogleImageAdapter } from '../creation/providers/adapters/google-image-adapter.js';
+import { NvidiaNimImageAdapter } from '../creation/providers/adapters/nvidia-nim-image-adapter.js';
+import { LocalImageAdapter } from '../creation/providers/adapters/local-image-adapter.js';
+import { RecoveryPlanner } from '../adaptive/recovery-planner.js';
+import { RouteAdvisor } from '../adaptive/route-advisor.js';
+import { JevRouteAdvisor } from '../adaptive/jev-route-advisor.js';
+import { RouteOutcomeLedger } from '../adaptive/route-outcome-ledger.js';
+import { describeImageRoute } from '../adaptive/image-route-catalog.js';
 import { HiggsfieldVideoAdapter } from '../creation/providers/adapters/higgsfield-video-adapter.js';
 import { VeoVideoAdapter } from '../creation/providers/adapters/veo-video-adapter.js';
 import { VideoStore } from '../creation/video.store.js';
@@ -641,6 +648,13 @@ export function createNagexApplication(): NagexApplication {
   creationProviderRouter.registerImageProvider(new OpenAIImageAdapter());
   // Registered after OpenAI: the router takes the first configured provider, so Google serves images only when no OpenAI credential exists (or when asked for by id).
   creationProviderRouter.registerImageProvider(new GoogleImageAdapter());
+  // More routes for the same goal. An operator may list further Google image models (each is its own route: same company, its own quota and price); NVIDIA NIM and a local image endpoint are registered so
+  // that they are DISCOVERED as alternatives when configured - each reports UNCONFIGURED (and is never used) until its own key or endpoint exists.
+  for (const model of String(process.env.NAGEX_IMAGE_GOOGLE_FALLBACK_MODELS || '').split(',').map((m) => m.trim()).filter(Boolean).slice(0, 4)) {
+    creationProviderRouter.registerImageProvider(new GoogleImageAdapter({ modelId: model, providerId: `google/${model}` }));
+  }
+  creationProviderRouter.registerImageProvider(new NvidiaNimImageAdapter());
+  creationProviderRouter.registerImageProvider(new LocalImageAdapter());
   // Video: asynchronous, paid jobs. Each adapter reports UNCONFIGURED until its own credential (and, for Veo, the operator's explicit NAGEX_VEO_ENABLED) exists,
   // so with neither configured video stays 'not available' everywhere (router, capability brief, UI).
   creationProviderRouter.registerVideoProvider(new HiggsfieldVideoAdapter());
@@ -654,13 +668,18 @@ export function createNagexApplication(): NagexApplication {
   const productLocalUrls = process.env.NAGEX_ALLOW_LOCAL_TEST_URLS === '1'; // the established test-only switch for loopback fixtures; real runs never set it
   const productPlanning = new GatewayPlanningAdapter(modelRouter);
   const productSiteTester = new PlaywrightSiteTester();
+  // Goal-driven adaptive execution: what NAgex has SEEN each route do (quota seen exhausted, outcomes), and - only when the operator turned JEV on AND gave it a key - an advisory ranker of the eligible
+  // routes. Without them the planner is deterministic; with them nothing about authority changes (an advisor can reorder the eligible set or add a question, never approve or remove a check).
+  const routeLedger = new RouteOutcomeLedger();
+  const routeAdvisor = process.env.NAGEX_JEV_DECISION_ENABLED === 'true' && jevDecisionKey ? new RouteAdvisor(new JevRouteAdvisor({ apiKey: jevDecisionKey })) : null;
   const productProjectStore = new ProductProjectStore();
   const productBuilderService = new ProductBuilderService({
     store: productProjectStore,
     workspaces: new ProductWorkspaceStore(path.join(productProjectStore.baseDir, 'workspaces')),
     approvals: actionApprovals,
     planning: productPlanning.configured() ? productPlanning : null,
-    mockups: creationProviderRouter.listImageProviders().map((provider) => new ImageProviderMockupAdapter(provider)),
+    mockups: creationProviderRouter.listImageProviders().map((provider) => new ImageProviderMockupAdapter(provider, '16:9', { route: () => describeImageRoute(provider, routeLedger) })),
+    adaptive: { planner: new RecoveryPlanner({ advisor: routeAdvisor }), ledger: routeLedger },
     engine: new GatewayStaticSiteEngine(modelRouter),
     tester: productSiteTester,
     deployers: [new VercelDeployAdapter(productLocalUrls ? { pollMs: 200, allowLocalHttp: true } : {})],

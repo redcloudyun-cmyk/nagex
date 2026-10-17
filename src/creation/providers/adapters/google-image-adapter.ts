@@ -21,6 +21,8 @@ import type { ImageCreationSpec } from '../../specs/creation-spec.types.js';
 export interface GoogleImageAdapterOptions {
   apiKey?: string;
   modelId?: string;
+  /** the id this adapter registers under (default 'google'); needed to register more than one Google model as separate routes */
+  providerId?: string;
   baseUrl?: string;
   /** request timeout; image models routinely take 10-40 s */
   timeoutMs?: number;
@@ -46,18 +48,24 @@ interface GoogleImagePayload {
 }
 
 export class GoogleImageAdapter implements ImageProviderPort {
-  public readonly providerId = 'google';
+  public readonly providerId: string;
   private readonly apiKey: string;
   private readonly modelId: string;
   private readonly baseUrl: string;
   private readonly timeoutMs: number;
 
   constructor(options?: GoogleImageAdapterOptions) {
+    // a second adapter for another model of the same service has its own id (the router keys providers by it); the default is unchanged
+    this.providerId = options?.providerId || 'google';
     this.apiKey = options?.apiKey || process.env.NAGEX_GOOGLE_API_KEY || process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY || '';
     this.modelId = options?.modelId || process.env.NAGEX_IMAGE_GOOGLE_MODEL || DEFAULT_MODEL;
     // NAGEX_IMAGE_GOOGLE_BASE_URL is an operator setting (a proxy, a regional endpoint, a local stand-in in tests); the key is sent there, so it is never taken from a request.
     this.baseUrl = (options?.baseUrl || process.env.NAGEX_IMAGE_GOOGLE_BASE_URL || 'https://generativelanguage.googleapis.com/v1beta').replace(/\/+$/, '');
     this.timeoutMs = options?.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+  }
+
+  public getModelId(): string {
+    return this.modelId;
   }
 
   public getStatus(): ProviderAvailabilityStatus {

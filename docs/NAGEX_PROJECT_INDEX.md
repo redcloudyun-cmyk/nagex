@@ -64,6 +64,10 @@ Add Creation only when the provider is a creation provider.
 Read:
 `MASTER` + Creation (§20) + Trust + Execution + Testing + `docs/adr/ADR-0016-ai-product-builder.md` + `docs/evidence/NAGEX_PRODUCT_BUILDER_E2E_20261017.md`.
 
+### Provider failure / fallback / "adaptive execution" task
+Read:
+`MASTER` + AI/Decision (§10.1-10.2) + Trust + Testing + `docs/adr/ADR-0017-goal-driven-adaptive-execution.md` + `docs/evidence/NAGEX_ADAPTIVE_EXECUTION_IMAGE_RECOVERY_20261017.md`.
+
 ### Security/auth/approval task
 Read:
 `MASTER` + Trust + relevant ADR/debt + Testing.

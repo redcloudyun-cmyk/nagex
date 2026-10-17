@@ -261,8 +261,9 @@ test('refresh_token is preserved when Google omits one on a later save (e.g. a r
 });
 
 test('atomic replacement: the envelope matches the required shape and no temp files are left behind', () => {
-  const filePath = tmpStorePath();
-  const dir = path.dirname(filePath);
+  // a PRIVATE directory: the check below lists every ".tmp-" file in the directory, and the shared OS temp directory holds the atomic-write temp files of every other test process running at the same time
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'nagex-oauth-atomic-'));
+  const filePath = path.join(dir, 'google-oauth.json');
   const env = { NAGEX_TOKEN_ENCRYPTION_KEY: freshKey() };
   try {
     const store = new PersistentGoogleOAuthTokenStore({ filePath, env });
@@ -282,6 +283,6 @@ test('atomic replacement: the envelope matches the required shape and no temp fi
     const leftovers = fs.readdirSync(dir).filter((name) => name.includes('.tmp-'));
     assert.deepEqual(leftovers, []);
   } finally {
-    fs.rmSync(filePath, { force: true });
+    fs.rmSync(dir, { recursive: true, force: true });
   }
 });

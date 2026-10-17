@@ -26,6 +26,10 @@ export class OpenAIImageAdapter implements ImageProviderPort {
     this.baseUrl = options?.baseUrl || 'https://api.openai.com/v1';
   }
 
+  public getModelId(): string {
+    return this.modelId;
+  }
+
   public getStatus(): ProviderAvailabilityStatus {
     return this.apiKey.trim() ? 'AVAILABLE' : 'UNCONFIGURED';
   }
@@ -189,6 +193,8 @@ export class OpenAIImageAdapter implements ImageProviderPort {
           createdAt,
           completedAt,
           latencyMs,
+          // the provider's own HTTP status, so a failure can be classified (quota, rate limit, billing ...) instead of guessed from words
+          ...(typeof error?.status === 'number' ? { customData: { httpStatus: error.status } } : {}),
         },
       };
     }

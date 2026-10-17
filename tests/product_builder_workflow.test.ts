@@ -209,7 +209,7 @@ describe('what cannot be done ends BLOCKED with the reason - never a pretend res
     assert.equal(p.blocker?.need, 'QUOTA');
     assert.equal(p.blocker?.code, 'IMAGE_QUOTA_EXCEEDED');
     assert.equal(p.blocker?.blockedAt, 'MOCKUP_GENERATING');
-    assert.match(p.blocker!.message, /image-provider-b/, 'the person is told another provider exists');
+    assert.deepEqual(p.recovery!.options.map((o) => o.providerId), ['image-provider-b'], 'the person is told another provider exists');
     assert.equal(p.mockups, null, 'no mockups were invented');
     assert.equal(other.calls, 0, 'NAgex did not switch provider on its own');
     assert.equal(r.engine!.calls.length, 0);

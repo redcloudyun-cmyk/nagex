@@ -4634,6 +4634,43 @@
       "assertionIntent": "A generation that legitimately outlasts a chat answer can ask the Model Gateway for a larger output ceiling (Gemini generationConfig.maxOutputTokens, OpenAI max_output_tokens) and a longer but always bounded time budget (1 s to 5 min) for that one request; a request that asks for neither is sent exactly as before and times out at the provider's own limit; a malformed value is ignored.",
       "notes": "Fake endpoints with real abort semantics; proves the request shape and the time budget, not a vendor's behaviour."
     },
+    "adaptive_execution_core": {
+      "milestone": "PRODUCT-BUILDER-20261017",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": ["architecture","model-routing","security","runtime"],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "The adaptive-execution core, without any provider: failures from every vendor vocabulary reduce to twelve normalized classes whose retry and fallback rules differ (quota is never hammered, a denial is never routed around, an unknown outcome is never duplicated); hard eligibility (configured, authenticated, available, within quota and its cool-down, compatible input, sensitivity ceiling, spending ceiling, not already tried) comes before any ranking and cannot be overridden by a recommendation; a switch that changes the company, the processing location, the price (or makes it unknown) or the input capability is material and needs the person unless an explicit standing authorization covers every change; the planner is bounded by attempt, switch and retry budgets; an advisor (JEV) can only reorder the eligible set or add a question, is optional and falls back deterministically; the JEV adapter uses only the repository's verified System One shape against a simulated service; an image is verified at the byte level; outcomes and route history persist and are owner-scoped.",
+      "notes": "Plain and deterministic. The JEV service is SIMULATED (no credential on this machine): the request/answer shape is the repository's verified one, no live call is claimed."
+    },
+    "product_builder_adaptive_mockups": {
+      "milestone": "PRODUCT-BUILDER-20261017",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": ["architecture","security","permission-approval-hardening","runtime"],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "Image quota recovery for the Product Builder mockups, through the real service, planner, ledger, route history and Approval Authority: the first provider's quota failure is classified, the other registered routes are discovered and filtered by real availability, authorization, sensitivity and compatibility, the eligible ones are ranked (deterministically or by an advisor), the person decides when the company or price changes (an approval bound to the exact route and its terms, used once), the chosen route's pictures are verified at the byte level and stored with their real type and size, and the project reaches the design decision; nothing eligible ends resumably with exactly what is missing; a refusal is not routed around; an unknown outcome waits for reconciliation; a short outage is retried once and bounded.",
+      "notes": "Providers are SCRIPTED STAND-INS: this certifies the orchestration, not that any real image provider produced a picture."
+    },
+    "product_builder_adaptive_browser": {
+      "milestone": "PRODUCT-BUILDER-20261017",
+      "classification": "REAL_BROWSER_CERT",
+      "canonical": true,
+      "scopes": ["browser","ux","security","permission-approval-hardening"],
+      "externalDependencies": [],
+      "realBrowser": true,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "Goal-driven adaptive execution through the whole product in real Chromium against the production server: the real Google image adapter's quota answer is classified (QUOTA_EXHAUSTED), the other registered routes are discovered from the real registry and filtered by real availability (OpenAI and the local GPU are not configured and are not offered), the person approves NVIDIA through the Approval Authority (bound to the exact route and terms, used once), the real NVIDIA NIM adapter speaks its real wire to a local stand-in, its bytes are verified, stored, served as a real PNG and shown, and the project reaches the design decision; the exhausted account is not called again by the next project; a '200' that is not an image is a failure of the goal and ends resumably with exactly what is missing; Korean and phone; nobody else can choose a route for someone's project.",
+      "notes": "STAND-INS: the Google and NVIDIA image endpoints are local servers and the model is the local deterministic one. No real provider, key or money. The tests depend on each other in order (the exhausted account stays out for its cool-down within the server's life).",
+      "writesRepositoryArtifacts": false
+    },
     "device_enrollment": {
       "milestone": "WINDOWS-DESKTOP-20261016",
       "classification": "CANONICAL_BEHAVIOR",

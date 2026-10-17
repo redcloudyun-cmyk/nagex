@@ -2030,3 +2030,23 @@
   :root:not([data-theme="light"]) .main-pb-check[data-passed="true"] .main-pb-check-mark { color: #7fdba0; }
   :root:not([data-theme="light"]) .main-pb-check[data-passed="false"] .main-pb-check-mark { color: #f4a3a3; }
 }
+
+/* ── Product Builder: the route decision (what failed, what else can be used, what changes, what was tried) ──────────────────────────────────── */
+.main-pb-recovery { margin-top: 8px; display: flex; flex-direction: column; gap: 6px; }
+.main-pb-recovery-class { margin: 0; font-size: .9rem; font-weight: 600; overflow-wrap: anywhere; }
+.main-pb-recovery-lead, .main-pb-recovery-note, .main-pb-recovery-ranked { margin: 0; font-size: .86rem; color: #46526b; overflow-wrap: anywhere; }
+.main-pb-recovery-ranked { font-size: .8rem; font-style: italic; }
+.main-pb-options, .main-pb-missing { margin: 0; padding-left: 0; list-style: none; display: flex; flex-direction: column; gap: 8px; }
+.main-pb-option { padding: 8px 10px; border: 1px solid rgba(59, 111, 208, .35); border-radius: 8px; background: rgba(59, 111, 208, .06); }
+.main-pb-option-name { font-size: .9rem; }
+.main-pb-option-changes { margin: 4px 0 0; padding-left: 18px; font-size: .84rem; }
+.main-pb-missing { gap: 2px; font-size: .86rem; }
+.main-pb-routes { margin-top: 6px; font-size: .84rem; }
+.main-pb-routes summary { cursor: pointer; min-height: 28px; color: #55637d; }
+.main-pb-route-list { margin: 4px 0 0; padding-left: 20px; }
+.main-pb-route-attempt { margin: 2px 0; overflow-wrap: anywhere; }
+.main-pb-actions .main-pb-use-route { text-align: left; }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .main-pb-recovery-lead, :root:not([data-theme="light"]) .main-pb-recovery-note, :root:not([data-theme="light"]) .main-pb-recovery-ranked, :root:not([data-theme="light"]) .main-pb-routes summary { color: #9fb0cc; }
+  :root:not([data-theme="light"]) .main-pb-option { border-color: #2a3a63; background: rgba(127, 168, 255, .08); }
+}

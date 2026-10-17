@@ -7,6 +7,7 @@ import zlib from 'node:zlib';
 import type { AddressInfo } from 'node:net';
 import type { CodingEnginePort, DeployOutcome, DeployPort, DeployTarget, DeployVerifierPort, ImplementOutcome, MockupOutcome, MockupPort, PlanningPort, SiteTesterPort } from '../src/product-builder/product-builder.ports.js';
 import type { BuildPlan, DesignSpec, ProductPlan, SiteCheck, TestReport } from '../src/product-builder/product-builder.types.js';
+import { routeIdOf, type RouteCandidate } from '../src/adaptive/route-candidate.js';
 
 // A STAND-IN for a generated picture: a plain wireframe (header bar, three cards, a table) drawn by this file - NOT the output of any image model. It exists so tests have a real, valid PNG to show.
 function crc32(buf: Buffer): number {
@@ -80,15 +81,30 @@ export class FakePlanning implements PlanningPort {
 
 export class FakeMockups implements MockupPort {
   public calls = 0;
-  public outcome: 'OK' | 'QUOTA' | 'EMPTY' = 'OK';
+  /** OK, or the way this stand-in fails: QUOTA / AUTH / REFUSED / TRANSIENT (a short outage that passes after `transientFailures` calls) / EMPTY / BAD_IMAGE (a "200" that is not an image) */
+  public outcome: 'OK' | 'QUOTA' | 'EMPTY' | 'AUTH' | 'REFUSED' | 'TRANSIENT' | 'UNCERTAIN' = 'OK';
+  public transientFailures = 1;
   public isAvailable = true;
-  constructor(public readonly providerId: string = 'mock-image-provider') {}
+  /** the company behind this stand-in: two stand-ins with the same vendor share data-handling terms */
+  constructor(public readonly providerId: string = 'mock-image-provider', public readonly vendorId: string = providerId, public maxSensitivity: 'S0' | 'S1' | 'S2' | 'S3' = 'S1') {}
   available(): boolean { return this.isAvailable; }
+  readonly route = (): RouteCandidate => ({
+    routeId: routeIdOf('IMAGE_GENERATION', this.providerId, null), capability: 'IMAGE_GENERATION', provider: this.providerId, model: null, label: this.providerId,
+    inputs: ['TEXT'], outputs: ['IMAGE'], limits: { aspectRatios: ['16:9'], maxReferenceImages: 0 },
+    auth: this.isAvailable ? 'CONFIGURED' : 'UNCONFIGURED', availability: this.isAvailable ? 'AVAILABLE' : 'UNAVAILABLE', quota: 'UNKNOWN', quotaExhaustedAt: null,
+    cost: { usd: null, unknown: true, basis: 'UNKNOWN' },
+    dataHandling: { processing: 'THIRD_PARTY_CLOUD', vendorId: this.vendorId, maxSensitivity: this.maxSensitivity, region: null },
+    approval: { required: true, reason: 'test stand-in' }, executionRoute: 'API', reliability: null,
+  });
   async generate(): Promise<MockupOutcome> {
     this.calls += 1;
-    if (this.outcome === 'QUOTA') return { ok: false, code: 'IMAGE_QUOTA_EXCEEDED', need: 'QUOTA', message: `The image provider (${this.providerId}) has no quota left for pictures.` };
+    if (this.outcome === 'QUOTA') return { ok: false, code: 'IMAGE_QUOTA_EXCEEDED', need: 'QUOTA', providerCode: 'PROVIDER_QUOTA_EXCEEDED', httpStatus: 429, message: `The image provider (${this.providerId}) has no quota left for pictures.` };
+    if (this.outcome === 'AUTH') return { ok: false, code: 'IMAGE_PROVIDER_AUTH_FAILED', need: 'CREDENTIAL', providerCode: 'PROVIDER_AUTH_FAILED', httpStatus: 401, message: `The image provider (${this.providerId}) rejected NAgex's credential.` };
+    if (this.outcome === 'REFUSED') return { ok: false, code: 'IMAGE_CONTENT_REJECTED', need: 'PERSON', providerCode: 'CONTENT_REJECTED', message: `The image provider (${this.providerId}) declined to draw this.` };
+    if (this.outcome === 'UNCERTAIN') return { ok: false, code: 'IMAGE_GENERATION_FAILED', need: 'PERSON', providerCode: 'TIMEOUT', message: `The image provider (${this.providerId}) did not answer.`, chargeable: true };
+    if (this.outcome === 'TRANSIENT' && this.calls <= this.transientFailures) return { ok: false, code: 'IMAGE_GENERATION_FAILED', need: 'PERSON', providerCode: 'PROVIDER_UNAVAILABLE_ERROR', httpStatus: 503, message: `The image provider (${this.providerId}) is briefly unavailable.`, chargeable: false };
     if (this.outcome === 'EMPTY') return { ok: true, images: [] };
-    return { ok: true, images: [1, 2, 3].map((n) => ({ caption: `Home screen, variant ${n}`, mimeType: 'image/png', data: TINY_PNG })) };
+    return { ok: true, images: [1, 2, 3].map((n) => ({ caption: `Home screen, variant ${n}`, mimeType: 'image/png', data: TINY_PNG, width: 480, height: 300 })) };
   }
 }
 

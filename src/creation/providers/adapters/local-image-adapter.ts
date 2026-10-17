@@ -15,6 +15,10 @@ export class LocalImageAdapter implements ImageProviderPort {
     this.endpointUrl = endpointUrl || process.env.NAGEX_LOCAL_IMAGE_ENDPOINT || 'http://127.0.0.1:7860/sdapi/v1/txt2img';
   }
 
+  public getModelId(): string {
+    return 'local-endpoint';
+  }
+
   public getStatus(): ProviderAvailabilityStatus {
     return process.env.NAGEX_LOCAL_IMAGE_ENDPOINT ? 'AVAILABLE' : 'UNCONFIGURED';
   }
