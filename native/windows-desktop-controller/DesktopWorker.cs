@@ -179,6 +179,7 @@ namespace NagexDesktopWorker
         public string mode; // OPEN_APP only: ISOLATED (default: the hidden desktop) | INTERACTIVE (the user's desktop; the window is found by handle)
         public string expectClass; // OPEN_APP INTERACTIVE only: the window class the application's window must have
         public string expectImage; // OPEN_APP INTERACTIVE only: the file name the owning process image must contain
+        public string expectAnchorId; // OPEN_APP INTERACTIVE only (optional): an automation id the new window must contain - a generic frame class (a packaged application) is not identity enough on its own
         public SelectorDto selector; // OBSERVE / mutation: instead of target
     }
 
@@ -631,6 +632,8 @@ namespace NagexDesktopWorker
                     if (before.Contains(hwnd)) continue;
                     string image = Win32Native.ImageOf(w.Current.ProcessId);
                     if (image.IndexOf(req.expectImage, StringComparison.OrdinalIgnoreCase) < 0) continue;
+                    // a window that does not (yet) hold the anchor control is not adopted: it is another application's window, or this one is still loading (the next poll looks again)
+                    if (!string.IsNullOrEmpty(req.expectAnchorId) && w.FindFirst(TreeScope.Descendants, new PropertyCondition(AutomationElement.AutomationIdProperty, req.expectAnchorId)) == null) continue;
                     fresh.Add(w);
                 }
                 if (fresh.Count > 1)

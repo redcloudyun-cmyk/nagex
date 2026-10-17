@@ -83,7 +83,7 @@ test('a device that is not enrolled has no executor and advertises nothing it ca
   const unenrolled = createDesktopPlanWiring({ credentialStore: store, dataDir: dir, controller: fake, report: async () => true });
   assert.equal(unenrolled.executor, null);
   assert.equal(unenrolled.onPendingCommand, undefined, 'nobody to act for: a delivered command has nowhere to go');
-  assert.deepEqual(unenrolled.capabilityInventory, ['desktop:UIA_INTERACTIVE:NOTEPAD']);
+  assert.deepEqual(unenrolled.capabilityInventory, ['desktop:UIA_INTERACTIVE:NOTEPAD', 'desktop:UIA_INTERACTIVE:CALCULATOR'], 'it reports every application whose executor is present');
   fake.available = false;
   assert.deepEqual(createDesktopPlanWiring({ credentialStore: store, dataDir: dir, controller: fake, report: async () => true }).capabilityInventory, [], 'no controller, no claim');
   store.save({ ...ID, privateKeyPem: 'pem', agentVersion: 't' });

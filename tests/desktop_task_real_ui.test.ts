@@ -1,6 +1,9 @@
 // REAL DEVICE, THROUGH THE WEB UI: the person types a natural-language request into NAgex Main (real Chromium, the real Main screen, Korean), sees ONE card that names the PC and waits, approves it, and the real
 // Local Device Agent drives a real Notepad window on this PC to write the text and save it; the card turns "done" only after the PC read the saved file back - and this test then reads the file itself.
 //
+// The SECOND canonical action (calculate in the Calculator) is proven the same way: a real Calculator window is opened by the native controller, the operands are entered and read back from the display,
+// the result is read from the display and compared with NAgex's own calculation - and the card says done only then. The same Observe - Plan - Authorize - Act - Verify loop, a different application.
+//
 //   - the server, the Main UI, the signed device transport, the enrollment, the approval store, the device executor AND the native Windows controller are the REAL ones (no scripted stand-in: that is
 //     tests/desktop_task_browser.test.ts, which runs everywhere);
 //   - the click on "Approve" is made by this test's browser automation, standing in for the person: it proves that nothing happens BEFORE it and that the approval is what releases the action - it is
@@ -8,7 +11,8 @@
 //   - the file is saved into a DEDICATED sub-folder of the real Documents folder (removed afterwards), so an existing NAgex-Test.txt and every Notepad window the person already has open are never touched.
 //
 // Opt-in: set NAGEX_REAL_WINDOWS_E2E=1 on a Windows PC with an unlocked interactive desktop and the controller built (native/windows-desktop-controller/build.ps1). Otherwise the file is SKIPPED with
-// that reason - never reported as passed.
+// that reason - never reported as passed. Run the real desktop files ONE AT A TIME (node --test --test-concurrency=1): two of them driving the same screen at once open and count each other's windows and
+// fail each other (seen 2026-10-17: 5 failures in a parallel run, 11/11 in a serial run of the same code).
 import { execFileSync } from 'node:child_process';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
@@ -48,6 +52,37 @@ function notepadWindows(): Array<{ hwnd: number; titleLength: number }> {
   return out ? out.split(/\r?\n/).map((line) => { const [hwnd, len] = line.trim().split(','); return { hwnd: Number(hwnd), titleLength: Number(len) }; }) : [];
 }
 
+/** Calculator windows currently open, by handle only (a window is a Calculator when its frame holds the result display; nothing else about it is read) */
+function calculatorWindows(): number[] {
+  const script = "Add-Type -AssemblyName UIAutomationClient,UIAutomationTypes; $u=[System.Windows.Automation.AutomationElement]; $c=New-Object System.Windows.Automation.PropertyCondition($u::ClassNameProperty,'ApplicationFrameWindow'); $a=New-Object System.Windows.Automation.PropertyCondition($u::AutomationIdProperty,'CalculatorResults'); $u::RootElement.FindAll([System.Windows.Automation.TreeScope]::Children,$c) | ForEach-Object { if ($_.FindFirst([System.Windows.Automation.TreeScope]::Descendants,$a)) { $_.Current.NativeWindowHandle } }";
+  const out = execFileSync('powershell', [...POWERSHELL, script], { encoding: 'utf8' }).trim();
+  return out ? out.split(/\r?\n/).map((line) => Number(line.trim())).sort((a, b) => a - b) : [];
+}
+
+/** the text the result display of one Calculator window shows (only ever used on the stand-in window this test opened itself) */
+function calculatorDisplay(hwnd: number): string {
+  const script = "Add-Type -AssemblyName UIAutomationClient,UIAutomationTypes; $u=[System.Windows.Automation.AutomationElement]; $w=$u::FromHandle([IntPtr]" + hwnd + "); $a=New-Object System.Windows.Automation.PropertyCondition($u::AutomationIdProperty,'CalculatorResults'); $e=$w.FindFirst([System.Windows.Automation.TreeScope]::Descendants,$a); if ($e) { $e.Current.Name }";
+  return execFileSync('powershell', [...POWERSHELL, script], { encoding: 'utf8' }).trim();
+}
+
+/** opens a Calculator the way the person would (this is the stand-in for a window they already have; NAgex must leave it alone) */
+async function standInCalculator(): Promise<number> {
+  const before = new Set(calculatorWindows());
+  execFileSync('powershell', [...POWERSHELL, 'Start-Process calc.exe'], { encoding: 'utf8' });
+  const deadline = Date.now() + 15000;
+  while (Date.now() < deadline) {
+    const fresh = calculatorWindows().filter((h) => !before.has(h));
+    if (fresh.length === 1) return fresh[0];
+    await new Promise((resolve) => setTimeout(resolve, 300));
+  }
+  throw new Error('the stand-in Calculator did not appear');
+}
+
+function closeStandIn(hwnd: number): void {
+  const script = "Add-Type -AssemblyName UIAutomationClient,UIAutomationTypes; $u=[System.Windows.Automation.AutomationElement]; try { $w=$u::FromHandle([IntPtr]" + hwnd + "); $p=$w.GetCurrentPattern([System.Windows.Automation.WindowPattern]::Pattern); $p.Close() } catch { }";
+  execFileSync('powershell', [...POWERSHELL, script], { encoding: 'utf8' });
+}
+
 describe('REAL DEVICE through the web UI: natural-language request -> approval card -> real Notepad -> verified file -> card', { skip: SKIP }, () => {
   let h: CanvasAskHarness;
   let dedicated = '';
@@ -70,7 +105,7 @@ describe('REAL DEVICE through the web UI: natural-language request -> approval c
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'nagex-real-ui-'));
     const store = new LocalDeviceCredentialStore(path.join(dir, 'device-credential.enc'), new PlaintextLocalStorageFallback());
     const probe = createDesktopPlanWiring({ credentialStore: store, dataDir: dir, resolveRoot: () => dedicated, report: async () => false });
-    assert.deepEqual(probe.capabilityInventory, ['desktop:UIA_INTERACTIVE:NOTEPAD'], 'this PC truthfully reports that it can drive Notepad (the native controller is built)');
+    assert.deepEqual(probe.capabilityInventory, ['desktop:UIA_INTERACTIVE:NOTEPAD', 'desktop:UIA_INTERACTIVE:CALCULATOR'], 'this PC truthfully reports that it can drive Notepad and the Calculator (the native controller is built)');
     const enrolled = await enrollThisDevice({ serverBaseUrl: h.origin, sessionId: user.sessionId, credentialStore: store, agentVersion: 'real-ui-e2e', capabilityInventory: probe.capabilityInventory, deviceName: name, platform: 'win32' });
     assert.equal(enrolled.enrolled, true);
     let runtime!: LocalDeviceAgentRuntime;
@@ -155,6 +190,87 @@ describe('REAL DEVICE through the web UI: natural-language request -> approval c
     await sleep(2500);
     assert.deepEqual(notepadWindows(), windowsBefore, 'no window was opened');
     assert.deepEqual(fs.readdirSync(dedicated), filesBefore, 'nothing was written');
+    await ctx.close();
+  });
+
+  const CALC = {
+    ko: { prompt: '계산기로 17 곱하기 24 계산해줘.', shown: '17 × 24', result: '408' },
+    en: { prompt: 'Use the Calculator to work out 1200 + 345.', shown: '1200 + 345', result: '1545' },
+  };
+
+  for (const locale of ['ko', 'en'] as const) {
+    it(locale + ': the Calculator - one card; nothing happens before Approve; after Approve a REAL Calculator is driven and the card says done only after the PC read the result from the display and it matched', async () => {
+      const c = CALC[locale];
+      const { user, ctx, page } = await personAndPage('real_ui_calc_' + locale, locale);
+      await enrolledRealPc(user, os.hostname());
+      const windowsBefore = calculatorWindows();
+
+      const t0 = Date.now();
+      await ask(page, c.prompt);
+      await waitCard(page, 'APPROVAL');
+      const tCard = Date.now();
+      const shown = await card(page).innerText();
+      assert.ok(shown.includes(os.hostname()), 'the PC is named');
+      assert.ok(shown.includes(c.shown), 'the exact calculation is shown');
+      assert.ok(shown.includes(c.result), 'and what NAgex will check the display against');
+      await shot(page, 'real-ui-calc-' + locale + '-1-approval-card.png');
+      await sleep(1500);
+      assert.deepEqual(calculatorWindows(), windowsBefore, 'no Calculator window is opened before the person approves');
+
+      await card(page).locator('.main-btask-approve').click();            // the person's click, made here by browser automation
+      const tApproved = Date.now();
+      await waitCard(page, 'COMPLETED', 90000);
+      const tDone = Date.now();
+      const done = await card(page).innerText();
+      await shot(page, 'real-ui-calc-' + locale + '-2-done-card.png');
+      assert.ok(done.includes(c.shown) && done.includes(c.result), 'the card shows the calculation and the result the PC read from the display');
+      assert.ok(locale === 'ko' ? done.includes('일치') : /matches NAgex's own check/.test(done), 'and that it matched NAgex\'s own calculation');
+      assert.doesNotMatch(await page.evaluate(() => document.body.innerText), NO_TECHNICAL_TEXT);
+      assert.deepEqual(calculatorWindows(), windowsBefore, 'the Calculator windows that were open before are untouched and the one NAgex opened is closed');
+      await card(page).locator('.main-btask-steps summary').click();
+      const steps = await card(page).locator('.main-btask-steps li').allInnerTexts();
+      assert.ok(steps.length >= 6, steps.join(' | '));
+      console.log(JSON.stringify({
+        event: 'real_ui_e2e_result', request: locale.toUpperCase() + ' natural-language -> Main card -> Approve (automation click) -> real Calculator -> display read back',
+        calculation: c.shown, expected: c.result, calculatorWindowsBefore: windowsBefore.length, calculatorWindowsAfter: calculatorWindows().length,
+        msToCard: tCard - t0, msApproveToDone: tDone - tApproved, msTotal: tDone - t0, cardSteps: steps,
+      }));
+      await ctx.close();
+    });
+  }
+
+  it('en: the Calculator - Decline ends it at once; nothing is sent to the PC and no Calculator window is opened', async () => {
+    const { user, ctx, page } = await personAndPage('real_ui_calc_decline_en', 'en');
+    await enrolledRealPc(user, os.hostname());
+    const windowsBefore = calculatorWindows();
+    await ask(page, CALC.en.prompt);
+    await waitCard(page, 'APPROVAL');
+    await card(page).locator('.main-btask-decline').click();
+    await waitCard(page, 'DECLINED');
+    await sleep(2500);
+    assert.deepEqual(calculatorWindows(), windowsBefore, 'no window was opened');
+    await ctx.close();
+  });
+
+  it('en: a Calculator the person already has open is left alone - NAgex opens its OWN window, calculates in it, closes only that one; the other window keeps its handle and what it shows', async () => {
+    const { user, ctx, page } = await personAndPage('real_ui_calc_standin_en', 'en');
+    await enrolledRealPc(user, os.hostname());
+    const persons = await standInCalculator();
+    try {
+      const displayBefore = calculatorDisplay(persons);
+      const windowsBefore = calculatorWindows();
+      assert.ok(windowsBefore.includes(persons));
+      await ask(page, CALC.en.prompt);
+      await waitCard(page, 'APPROVAL');
+      await card(page).locator('.main-btask-approve').click();
+      await waitCard(page, 'COMPLETED', 90000);
+      const windowsAfter = calculatorWindows();
+      assert.deepEqual(windowsAfter, windowsBefore, 'the person\'s window is still there, no other window is left behind');
+      assert.equal(calculatorDisplay(persons), displayBefore, 'and it shows what it showed - NAgex pressed nothing in it');
+      console.log(JSON.stringify({ event: 'real_ui_e2e_result', request: 'EN calculate while the person already has a Calculator open', personsWindowKept: true, personsDisplayUnchanged: true, windowsBefore: windowsBefore.length, windowsAfter: windowsAfter.length }));
+    } finally {
+      closeStandIn(persons);
+    }
     await ctx.close();
   });
 });

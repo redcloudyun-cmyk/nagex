@@ -57,6 +57,8 @@ export interface DesktopOpenAppOptions {
   expectClass?: string;
   /** INTERACTIVE: a file name the owning process image must contain */
   expectImage?: string;
+  /** INTERACTIVE (optional): an automation id the new window must contain before it is adopted (for an application whose window class is shared by others, such as a packaged one) */
+  expectAnchorId?: string;
 }
 
 export interface DesktopWorkerResult {
@@ -122,7 +124,7 @@ export class WindowsIsolatedDesktopController {
   public async openApp(executionSessionId: string, appExePath: string, appArgs: string, options: DesktopOpenAppOptions = {}): Promise<DesktopWorkerResult> {
     return this.send(executionSessionId, {
       cmd: 'OPEN_APP', requestId: this.newRequestId(), appExePath, appArgs,
-      ...(options.mode === 'INTERACTIVE' ? { mode: 'INTERACTIVE', expectClass: options.expectClass, expectImage: options.expectImage } : {}),
+      ...(options.mode === 'INTERACTIVE' ? { mode: 'INTERACTIVE', expectClass: options.expectClass, expectImage: options.expectImage, ...(options.expectAnchorId ? { expectAnchorId: options.expectAnchorId } : {}) } : {}),
     });
   }
 

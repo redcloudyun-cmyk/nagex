@@ -4483,6 +4483,43 @@
       "assertionIntent": "VERIFY on a long page: the page text budget CLIPS a page longer than the budget (and reports it was cut) instead of dropping it whole; a word near the start of a very long article is found (the real-site failure: a 2-character check on an article far longer than the old 60,000-character budget answered NOT SHOWN); a word only in the unread end is not claimed as found and the result says the page was cut; a short page is read whole; the budget covers a long encyclopedia article.",
       "notes": "The in-page reader is called with a stand-in element that has the same read interface. Found by the first live run of the browser agent on a real public site."
     },
+    "desktop_calculate_executor": {
+      "milestone": "DEVICE-CONTROL-20261017",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": ["device","security","permission-approval-hardening"],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "The device-side executor of the SECOND canonical desktop action (calculate in the Calculator), against a scripted controller: the keys of the approved calculation are pressed by their automation ids, every entry is read back from the display, the result is read from the display and compared with the expected result approved by the person - then and only then COMPLETED; a wrong display, a misread operand, a display that is not zero after clear, a missing key, an ambiguous or missing window each fail with the facts and never as done, and the window the device opened is closed; a command for another device/user/tenant, an expired plan, an unknown version, a replay (also after a restart), a plan whose expected result is not the result of its operands, an operator/operand/negative result the contract does not allow, a second command while one runs and a device without the controller are refused untouched; the report carries no path or name; the capability list claims what is present.",
+      "notes": "The native controller is a scripted stand-in (tests/_fake_calculator_port.ts). A real application is proven by the opt-in desktop_task_real_ui."
+    },
+    "desktop_calculate_command": {
+      "milestone": "DEVICE-CONTROL-20261017",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": ["device","security","permission-approval-hardening"],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "The server side of the second canonical desktop action: a calculation is queued as DESKTOP_EXECUTE_PLAN only with an approval of exactly its fields (operands, operator, the expected result computed by NAgex, the device); another action's approval, a changed operand or operator, a pending/declined/used approval, another person or tenant, a device that cannot drive the Calculator, an operator or operand outside the contract are each refused with their own code and a refused attempt does not burn the approval; the command carries WHAT and never HOW; the routes ask -> approve -> dispatch -> status are session-authenticated, owner-scoped and rebuilt from what was approved; the person's words (Korean and English) are read deterministically, questions and unsupported forms are not requests; routing makes it a desktop task only when an enrolled PC can drive the Calculator.",
+      "notes": "Real stores, real Ed25519 device keys, real signed transport, real route handler; no device executes anything."
+    },
+    "desktop_calculate_browser": {
+      "milestone": "DEVICE-CONTROL-20261017",
+      "classification": "REAL_BROWSER_CERT",
+      "canonical": true,
+      "scopes": ["browser","ux","device","security","permission-approval-hardening"],
+      "externalDependencies": [],
+      "realBrowser": true,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "The Main screen for \"calculate in the Calculator on my PC\" (Korean and English, real Chromium): ONE card names the PC, the exact calculation and what NAgex will check, and waits - nothing is sent to the PC before Approve; after Approve the card shows only what the PC reports, and done only after the PC read the result from the display and it matched NAgex's own calculation; Decline ends it with nothing sent; a Calculator that shows a different result is never reported as done; a PC without the Calculator, or none, is said plainly with no card and no approval; a question starts nothing and the Notepad action keeps its own card; no technical text leaks.",
+      "notes": "Real server, real enrollment, real signed transport, real device executor; the native Windows controller is a scripted stand-in (tests/_fake_calculator_port.ts) so this runs on any machine. A real application is proven by the opt-in desktop_task_real_ui.",
+      "writesRepositoryArtifacts": false
+    },
     "desktop_task_real_ui": {
       "milestone": "DEVICE-CONTROL-20261017",
       "classification": "LIVE_EXTERNAL",
