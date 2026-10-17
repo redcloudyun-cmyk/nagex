@@ -24,7 +24,7 @@ export async function runLiveCheck({ key, fetchFn = fetch, endpoint = JEV_SYSTEM
     });
     const latencyMs = now() - started;
     if (!response.ok) {
-      const blocker = response.status === 401 || response.status === 403 ? 'KEY_REJECTED_BY_JEV' : response.status === 422 ? 'REQUEST_SHAPE_REJECTED' : response.status === 429 ? 'RATE_LIMITED_OR_QUOTA' : `HTTP_${response.status}`;
+      const blocker = response.status === 402 ? 'INSUFFICIENT_CREDITS' : response.status === 409 ? 'IDEMPOTENCY_CONFLICT' : response.status === 401 || response.status === 403 ? 'KEY_REJECTED_BY_JEV' : response.status === 422 ? 'REQUEST_SHAPE_REJECTED' : response.status === 429 ? 'RATE_LIMITED_OR_QUOTA' : `HTTP_${response.status}`;
       return { live: 'FAIL', http: response.status, latencyMs, blocker, errorBody: scrubBody(await response.text().catch(() => ''), key) };
     }
     const payload = await response.json().catch(() => null);

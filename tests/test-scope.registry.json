@@ -248,6 +248,7 @@
       "web_answer_quality_route",
       "answer_verification_core",
       "jev_config",
+      "jev_idempotency",
       "answer_quality_benchmark"
     ],
     "personal-home": [
@@ -314,6 +315,7 @@
       "outcome_quality_live",
       "answer_verification_core",
       "jev_config",
+      "jev_idempotency",
       "presentation_rich_pipeline",
       "document_placeholder_retry",
       "answer_quality_benchmark"
@@ -576,6 +578,7 @@
       "web_answer_quality_route",
       "answer_verification_core",
       "jev_config",
+      "jev_idempotency",
       "answer_quality_benchmark"
     ]
   },

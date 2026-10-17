@@ -1,5 +1,6 @@
 import { JEV_SHADOW_FIXTURES } from '../dist/src/model-gateway/jev-shadow-fixtures.js';
-import { JevSystemOneProvider } from '../dist/src/model-gateway/jev-provider.js';
+import { JevSystemOneProvider, buildJevRequestBody } from '../dist/src/model-gateway/jev-provider.js';
+import { jevIdempotencyKey, newJevRunId } from '../dist/src/model-gateway/jev-idempotency.js';
 import { buildJevLiveResultRecord, persistJevLiveBenchmarkArtifacts } from '../dist/src/model-gateway/jev-live-results.js';
 import { ModelRoutingPolicy } from '../dist/src/model-gateway/model-routing-policy.js';
 import { resolveJevApiKey } from '../dist/src/model-gateway/jev-config.js';
@@ -107,6 +108,14 @@ function baselineNemotron(fixture) {
   return decision.selectedProvider === 'nebius';
 }
 
+// A retry of the SAME request (a timeout, a 5xx, a 429) is sent once more with the SAME Idempotency-Key: JEV answers a request it already processed instead of charging for it twice. Anything else is not retried.
+async function evaluateWithOneRetry(provider, input) {
+  try { return await provider.evaluate(input); } catch (error) {
+    if (error?.retryable !== true) throw error;
+    return await provider.evaluate(input);
+  }
+}
+
 function fixtureState(fixture) {
   return {
     fixtureId: fixture.id,
@@ -146,6 +155,10 @@ async function main() {
   if (fixtures.some((fixture) => !fixture)) throw new Error('Selected fixture id is missing from JEV_SHADOW_FIXTURES.');
 
   const provider = new JevSystemOneProvider({ apiKey, timeoutMs: Number(process.env.JEV_TIMEOUT_MS || 10_000) });
+  // one id per RUN: the Idempotency-Key of a fixture is derived from it and from the exact request body, so no key from an earlier run (or from an older version of a fixture's request) can meet this one
+  const runId = newJevRunId();
+  console.log(`IDEMPOTENCY_RUN_ID=${runId}`);
+  let aborted = null;
   let attempts = 0;
   let successes = 0;
   let failures = 0;
@@ -161,15 +174,15 @@ async function main() {
   for (const fixture of fixtures) {
     attempts++;
     try {
-      const out = await provider.evaluate({
+      const request = {
         fixtureId: fixture.id,
         state: fixtureState(fixture),
         taskKind: fixture.taskKind,
         requiresJson: fixture.requiresJson,
         requiresEvidenceGrounding: fixture.requiresEvidenceGrounding,
         signals: fixture.signals,
-        idempotencyKey: `nagex-jev-live-${fixture.id}`,
-      });
+      };
+      const out = await evaluateWithOneRetry(provider, { ...request, idempotencyKey: jevIdempotencyKey(runId, 'benchmark', buildJevRequestBody(request)) });
       successes++;
       latencies.push(out.latencyMs);
       resolvedModels.add(out.resolvedModel);
@@ -211,7 +224,10 @@ async function main() {
       }
     } catch (error) {
       failures++;
-      console.log(JSON.stringify({ event: 'jev_live_fixture_failed', fixtureId: fixture.id, code: error?.code ?? 'UNKNOWN' }));
+      const failureClass = error?.details?.failureClass ?? 'UNKNOWN';
+      console.log(JSON.stringify({ event: 'jev_live_fixture_failed', fixtureId: fixture.id, code: error?.code ?? 'UNKNOWN', httpStatus: error?.details?.status ?? null, failureClass }));
+      // these do not get better with the next request: stop here instead of sending the rest of the fixtures into the same wall
+      if (failureClass === 'INSUFFICIENT_CREDITS' || failureClass === 'IDEMPOTENCY_CONFLICT' || error?.code === 'IDEMPOTENCY_KEY_REUSED') { aborted = failureClass === 'UNKNOWN' ? error.code : failureClass; break; }
     }
   }
 
@@ -223,6 +239,7 @@ async function main() {
   const falseUpgradeRate = lowGoldCount === 0 ? 0 : summary.rawComplexityUpgradeCount / lowGoldCount;
   const passed = successes === fixtures.length && summary.jointExactAccuracy >= 0.95 && falseDowngradeRate <= 0.02;
 
+  if (aborted) console.log(`ABORTED_BECAUSE=${aborted}`);
   console.log(`JEV_LIVE_SAMPLE=${passed ? 'PASS' : 'FAIL'}`);
   console.log(`LIVE_FIXTURE_COUNT=${fixtures.length}`);
   console.log(`RESOLVED_JEV_MODEL=${[...resolvedModels].join('|') || 'NONE'}`);

@@ -1,4 +1,6 @@
+import { createHash } from 'node:crypto';
 import { ModelProviderError } from './model-provider.js';
+import { classifyJevHttpFailure, redactSecrets } from './jev-errors.js';
 import { validateJevShadowOutput } from './jev-shadow-evaluator.js';
 import type { JevReasoningLevel, JevShadowInput, JevShadowOutput } from './jev-shadow.types.js';
 
@@ -71,6 +73,41 @@ function buildState(input: JevShadowInput): unknown {
   };
 }
 
+/** The exact JSON object the provider sends for an input. One place, so an Idempotency-Key can be derived from what is REALLY sent (jev-idempotency.ts). */
+export function buildJevRequestBody(input: JevShadowInput): Record<string, unknown> {
+  return {
+    model: JEV_MODEL_ALIAS,
+    state: buildState(input),
+    questions: {
+      complexity: {
+        type: 'choice',
+        instructions: 'Choose only one complexity label. Do not include free-form reasoning.',
+        criteria: {
+          SIMPLE: 'Routine direct request with little or no planning.',
+          STANDARD: 'Normal task that needs some structure but not deep reasoning.',
+          HIGH_REASONING: 'Multi-step planning, synthesis, meeting preparation, research or long-context reasoning.',
+          UNCERTAIN: 'Ambiguous request where the safe response is to retain the current route.',
+        },
+        choices: ['SIMPLE', 'STANDARD', 'HIGH_REASONING', 'UNCERTAIN'],
+      },
+      high_risk: {
+        type: 'noul',
+        instructions: 'Return the probability from 0 to 1 that the request is consequential or high risk. This is advisory only and never approval authority.',
+      },
+      reasoning_level: {
+        type: 'score',
+        instructions: 'Return a 0 to 1 reasoning-complexity score. Do not include free-form reasoning.',
+        criteria: [
+          { max: 0.32, label: 'ROUTINE' },
+          { min: 0.33, max: 0.65, label: 'MODERATE' },
+          { min: 0.66, max: 0.89, label: 'COMPLEX' },
+          { min: 0.9, label: 'VERY_COMPLEX' },
+        ],
+      },
+    },
+  };
+}
+
 export class JevSystemOneProvider {
   private readonly apiKey: string | null;
   private readonly fetchFn: FetchFn;
@@ -86,6 +123,26 @@ export class JevSystemOneProvider {
     return Boolean(this.apiKey);
   }
 
+  // key -> fingerprint of the body it was first used with; the most recent last, bounded
+  private readonly keyBodies = new Map<string, string>();
+  private assertKeyNotReused(key: string, bodyText: string): void {
+    const fingerprint = createHash('sha256').update(bodyText).digest('hex');
+    const known = this.keyBodies.get(key);
+    if (known !== undefined && known !== fingerprint) {
+      throw new ModelProviderError({
+        provider: 'jev',
+        code: 'IDEMPOTENCY_KEY_REUSED',
+        message: 'An Idempotency-Key was about to be sent with a second, different request. Nothing was sent.',
+        requestId: 'jev-shadow',
+        retryable: false,
+        details: { reason: 'LOCAL_GUARD' },
+      });
+    }
+    this.keyBodies.delete(key);
+    this.keyBodies.set(key, fingerprint); // the same body again (a retry) is allowed and keeps the key
+    if (this.keyBodies.size > 512) this.keyBodies.delete(this.keyBodies.keys().next().value as string);
+  }
+
   public async evaluate(input: JevShadowInput): Promise<JevShadowOutput> {
     if (!this.apiKey) {
       throw new ModelProviderError({
@@ -96,6 +153,9 @@ export class JevSystemOneProvider {
         retryable: false,
       });
     }
+    const bodyText = JSON.stringify(buildJevRequestBody(input));
+    // a key names ONE request: sending it with a second, different body is refused here, before anything is sent (JEV answers it 409 idempotency_conflict; it used to look like a 402)
+    if (input.idempotencyKey) this.assertKeyNotReused(input.idempotencyKey, bodyText);
     const started = nowMs();
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), this.timeoutMs);
@@ -108,49 +168,25 @@ export class JevSystemOneProvider {
           ...(input.idempotencyKey ? { 'Idempotency-Key': input.idempotencyKey } : {}),
         },
         signal: controller.signal,
-        body: JSON.stringify({
-          model: JEV_MODEL_ALIAS,
-          state: buildState(input),
-          questions: {
-            complexity: {
-              type: 'choice',
-              instructions: 'Choose only one complexity label. Do not include free-form reasoning.',
-              criteria: {
-                SIMPLE: 'Routine direct request with little or no planning.',
-                STANDARD: 'Normal task that needs some structure but not deep reasoning.',
-                HIGH_REASONING: 'Multi-step planning, synthesis, meeting preparation, research or long-context reasoning.',
-                UNCERTAIN: 'Ambiguous request where the safe response is to retain the current route.',
-              },
-              choices: ['SIMPLE', 'STANDARD', 'HIGH_REASONING', 'UNCERTAIN'],
-            },
-            high_risk: {
-              type: 'noul',
-              instructions: 'Return the probability from 0 to 1 that the request is consequential or high risk. This is advisory only and never approval authority.',
-            },
-            reasoning_level: {
-              type: 'score',
-              instructions: 'Return a 0 to 1 reasoning-complexity score. Do not include free-form reasoning.',
-              criteria: [
-                { max: 0.32, label: 'ROUTINE' },
-                { min: 0.33, max: 0.65, label: 'MODERATE' },
-                { min: 0.66, max: 0.89, label: 'COMPLEX' },
-                { min: 0.9, label: 'VERY_COMPLEX' },
-              ],
-            },
-          },
-        }),
+        body: bodyText,
       });
       if (!response.ok) {
         const errorBody = await response.text().catch(() => '');
+        // decided from the status and the STRUCTURE of the body: 409 = IDEMPOTENCY_CONFLICT, 402 = INSUFFICIENT_CREDITS (only that), the rest keep PROVIDER_HTTP_<status>
+        const failure = classifyJevHttpFailure(response.status, errorBody);
         throw new ModelProviderError({
           provider: 'jev',
-          code: `PROVIDER_HTTP_${response.status}`,
-          message: `JEV request failed with HTTP ${response.status}.`,
+          code: failure.code,
+          message: `JEV request failed with HTTP ${response.status} (${failure.failureClass}).`,
           requestId: 'jev-shadow',
-          retryable: response.status === 408 || response.status === 429 || response.status >= 500,
+          retryable: failure.retryable,
           details: {
             status: response.status,
-            responseBody: errorBody.slice(0, 4000),
+            failureClass: failure.failureClass,
+            bodyCode: failure.body.code,
+            fields: failure.body.fields,
+            // the credential never travels into a stored error
+            responseBody: redactSecrets(errorBody, [this.apiKey]).slice(0, 4000),
             requestFields: ['model', 'state', 'questions'],
           },
         });
