@@ -211,13 +211,28 @@ html, body.desktop-quickwake-body {
   padding: 0.3rem 0.5rem;
 }
 
-.qw-composer-wrap input {
+.qw-composer-wrap input,
+.qw-composer-wrap textarea {
   flex: 1;
+  min-width: 0;
   background: transparent;
   border: none;
   color: #f0f6fc;
   font-size: 0.85rem;
   outline: none;
+}
+
+/* a multi-line box (Shift+Enter is a line break): one line tall at rest, grows with its lines to 160px, then scrolls inside */
+.qw-composer-wrap textarea {
+  font-family: inherit;
+  line-height: 1.4;
+  padding: 2px;
+  margin: 0;
+  resize: none;
+  box-sizing: border-box;
+  min-height: 1.4rem;
+  max-height: 160px;
+  overflow-y: auto;
 }
 
 .qw-voice-btn, .qw-send-btn {

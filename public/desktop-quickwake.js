@@ -148,14 +148,18 @@
 
     if (input && btnSend) {
       // the button and Enter run this one function; the Enter that only confirms an IME composition is not a send (composer-keys.js; the fallback keeps that rule if the script is missing)
+      const keys = window.NAGEX_COMPOSER_KEYS;
+      // a multi-line box: Shift+Enter is the browser's own line break and the box grows with its lines (up to 160px, then it scrolls)
+      const grow = () => { if (keys && keys.autoGrow) keys.autoGrow(input, 160); };
+      input.addEventListener('input', grow);
       const sendFromInput = () => {
         const val = input.value.trim();
         if (val) {
           input.value = '';
+          grow();
           submitPrompt(val);
         }
       };
-      const keys = window.NAGEX_COMPOSER_KEYS;
       const composition = keys ? keys.watchComposition(input) : null;
       btnSend.onclick = sendFromInput;
 

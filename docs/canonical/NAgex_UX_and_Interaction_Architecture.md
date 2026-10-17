@@ -242,9 +242,10 @@ Every visible string on Desktop Main — composer chrome, mode chips, thread sta
 
 ### Composer keys (2026-10-17)
 
-Every message box follows one rule set, defined once in `public/composer-keys.js` and used by Main, the ambient Ask sheet, Canvas Ask and Quick Wake:
+Every message box follows one rule set, defined once in `public/composer-keys.js` and used by Main, the ambient Ask sheet (`Alt+N`), Canvas Ask and Quick Wake. Whether a box can hold a line break depends on what it is:
 
-- **Enter sends; Shift+Enter (and Alt+Enter) is a new line.** Ctrl/Cmd+Enter also sends. An empty box sends nothing, a held key sends once, and a request already in flight is not sent twice (Main says so).
+- **Multi-line boxes - Main, the ambient Ask sheet, Quick Wake** (all `<textarea>`; since 2026-10-17 - the Ask sheet and Quick Wake were one-line `<input>`s, where Shift+Enter "did nothing"): **Enter sends; Shift+Enter (and Alt+Enter) inserts a line break at the caret** (the browser's own, never prevented), repeatedly, also in an empty box. The box grows with its lines up to its limit (Main 220 px, Ask sheet and Quick Wake 160 px) and then scrolls inside itself; a multi-line text is sent whole, line breaks kept. Ctrl/Cmd+Enter also sends. A box holding only a line break is empty: nothing is sent. A held key sends once, and a request already in flight is not sent twice (Main says so).
+- **One-line fields - Canvas Ask and the header live search:** Enter sends (or searches); **Shift+Enter does nothing** - there is no line break to insert. This is today's behaviour, pinned by a test, and is **not a product decision**: whether Canvas Ask should become multi-line is open and belongs to the product owner.
 - **The Enter that only confirms an IME composition (Korean, Japanese, Chinese) never sends.** It is recognised from any of: `isComposing`, `keyCode 229`, being between `compositionstart` and `compositionend`, or `compositionend` having fired a moment ago (Safari order). The next, deliberate Enter sends the confirmed text. The composition flag cannot get stuck (cleared by blur and by a non-composing input event).
 - **The Send button and Enter run the same function** in every box - there is no second copy of the send logic.
 - On a touch-first device (`hover: none` and `pointer: coarse`) the on-screen keyboard's Enter is a new line and the Send button sends (Main).
