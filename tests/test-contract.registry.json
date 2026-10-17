@@ -4865,6 +4865,18 @@
       "assertionIntent": "Where NAgex finds the JEV credential and what that does to the JEV advisors: the key is read under either historical name (NAGEX_JEV_API_KEY, or the original JEVMODEL_API_KEY - the same credential) through one resolver; the description of the configuration carries the NAME of the variable and booleans, never the value; the device, route and verification advisors exist exactly when the switch is on AND a key exists, and building the application sends nothing; the configuration check reads only the JEV names of a .env file and prints no key; the live check does nothing without NAGEX_LIVE_JEV=1 and its one request (exercised with an injected fetch) returns a failed call's body without the key.",
       "notes": "No request to the real JEV service is made. JEV_LIVE stays NOT_RUN until a person runs scripts/jev-live-check.mjs with NAGEX_LIVE_JEV=1 where the key is kept."
     },
+    "jev_idempotency": {
+      "milestone": "JEV-IDEMPOTENCY-20261017",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": ["model-routing","runtime","security"],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": true,
+      "deterministic": true,
+      "assertionIntent": "An Idempotency-Key names ONE request: a different request has a different key, the same request retried keeps its key, the same request in another run has another key, and the provider refuses - before sending anything - to use one key for two different bodies. HTTP 409 is IDEMPOTENCY_CONFLICT (not retried), HTTP 402 is INSUFFICIENT_CREDITS and only that, every other status keeps its class and retry rule; INVALID_FIELD is taken from the structure of the error body and is UNKNOWN when the response names no field (never a word search in its text); the API key and bearer tokens are redacted from anything kept or printed; the real diagnostic script, run against a stubbed network, sends one request with a per-run key and prints no credential; the benchmark source has no fixed key.",
+      "notes": "No request to the real JEV service is made and the 36-request benchmark is not run: the provider gets a fake fetch and the diagnostic script runs with a preloaded global-fetch stub. The benchmark is checked by its source only (sourceImplementationAssertions). JEV_LIVE stays NOT_RUN."
+    },
     "answer_quality_benchmark": {
       "milestone": "ANSWER-VERIFICATION-20261017",
       "classification": "CANONICAL_BEHAVIOR",
