@@ -33,13 +33,14 @@ test('the composer starts empty with the example sentence as placeholder only, n
   await withServer(async (origin) => {
     const html = await (await fetch(`${origin}/`)).text();
 
-    const inputMatch = /<input[^>]*id="ambient-prompt-input"[^>]*>/.exec(html);
-    assert.ok(inputMatch, 'expected to find the ambient composer input in the served page');
+    // A multi-line box (Shift+Enter is a line break): a <textarea>, whose initial content is what sits between its tags.
+    const inputMatch = /<textarea[^>]*id="ambient-prompt-input"[^>]*>([\s\S]*?)<\/textarea>/.exec(html);
+    assert.ok(inputMatch, 'expected to find the ambient composer textarea in the served page');
     const inputTag = inputMatch![0];
 
-    // Initial value must be empty — never the demo sentence.
-    assert.match(inputTag, /value=""/);
-    assert.doesNotMatch(inputTag, /value="Prepare my next client meeting/);
+    // Initial content must be empty — never the demo sentence.
+    assert.equal(inputMatch![1], '');
+    assert.doesNotMatch(inputTag, /Prepare my next client meeting and schedule it\.<\/textarea>/);
 
     // The example sentence appears only as a placeholder, driven by i18n.
     assert.match(inputTag, /placeholder="Prepare my next client meeting and schedule it\."/);
@@ -90,11 +91,15 @@ test('submitting the composer clears it (placeholder returns) and hands the capt
   });
 });
 
-test('Enter submits the composer; Shift+Enter is left alone (no custom newline handling on this single-line input)', async () => {
+test('Enter submits the composer through the shared rule; Shift+Enter is left to the browser as a line break (the box is a multi-line textarea)', async () => {
   await withServer(async (origin) => {
     const appJs = await (await fetch(`${origin}/app.js`)).text();
-    assert.match(appJs, /event\.key === 'Enter' && !event\.shiftKey/);
+    assert.match(appJs, /composerEnterSubmits\(event, ambientComposition\)/);
     assert.match(appJs, /submitAmbientComposerInput\(\)/);
+    // The shared rule never claims a Shift+Enter, so no preventDefault runs and the textarea inserts its own line break
+    // (composer_enter_browser.test.ts proves the line break itself in real Chromium).
+    const keys = await (await fetch(`${origin}/composer-keys.js`)).text();
+    assert.match(keys, /if \(event\.shiftKey \|\| event\.altKey\) return false;/);
   });
 });
 

@@ -2619,7 +2619,13 @@
     });
   }
 
-  // One definition of "this Enter sends" for the single-line message boxes in this file (composer-keys.js); the fallback keeps the IME rule if that script is missing.
+  // Fits a multi-line message box to its lines (composer-keys.js); a no-op when the script is missing.
+  function growComposerBox(element) {
+    const keys = window.NAGEX_COMPOSER_KEYS;
+    if (keys && keys.autoGrow && element) keys.autoGrow(element, 160);
+  }
+
+  // One definition of "this Enter sends" for the message boxes in this file (composer-keys.js); the fallback keeps the IME rule if that script is missing.
   function composerEnterSubmits(event, composition) {
     const keys = window.NAGEX_COMPOSER_KEYS;
     if (keys) return keys.isSubmitEnter(event, composition);
@@ -3690,6 +3696,8 @@
     const ambientInput = document.getElementById('ambient-prompt-input');
     if (ambientInput) {
       const ambientComposition = window.NAGEX_COMPOSER_KEYS ? window.NAGEX_COMPOSER_KEYS.watchComposition(ambientInput) : null;
+      // a multi-line box: Shift+Enter is the browser's own line break (the handler below does not touch it) and the box grows with its lines
+      ambientInput.addEventListener('input', () => growComposerBox(ambientInput));
       ambientInput.addEventListener('keydown', (event) => {
         // Enter submits; Shift+Enter is left to the browser's native
         // behavior (a no-op on this single-line input, so no newline is
@@ -3719,6 +3727,7 @@
       return;
     }
     input.value = '';
+    growComposerBox(input);
     // Focus is restored once runAmbientTask finishes and re-enables the
     // controls (see its `finally` block) — focusing here would be a no-op,
     // since the input is disabled for the duration of the request.
@@ -3862,7 +3871,7 @@
         return;
       }
       const input = document.getElementById('ambient-prompt-input');
-      if (input) input.value = '';
+      if (input) { input.value = ''; growComposerBox(input); }
       if (mode === 'REPORT') {
         // submitReport already opened the new document in Canvas.
         closeAmbientOverlay();
@@ -5768,7 +5777,7 @@
     if (btnAmbientPlan) {
       btnAmbientPlan.onclick = () => {
         const input = document.getElementById('ambient-prompt-input');
-        if (input) input.value = 'Prepare my next client meeting and schedule it.';
+        if (input) { input.value = 'Prepare my next client meeting and schedule it.'; growComposerBox(input); }
         submitAmbientComposerInput();
       };
     }

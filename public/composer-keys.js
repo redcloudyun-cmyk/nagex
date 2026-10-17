@@ -44,7 +44,15 @@
     return !confirmsComposition(event, watcher);
   }
 
-  var api = { watchComposition: watchComposition, confirmsComposition: confirmsComposition, isSubmitEnter: isSubmitEnter, JUST_ENDED_MS: JUST_ENDED_MS };
+  /** Grows a multi-line box to fit its lines, up to maxPx (default 160); past that the text scrolls inside the box (the stylesheet sets overflow-y:auto and box-sizing:border-box). */
+  function autoGrow(element, maxPx) {
+    if (!element || !element.style) return;
+    var limit = typeof maxPx === 'number' && maxPx > 0 ? maxPx : 160;
+    element.style.height = 'auto';
+    element.style.height = Math.min(element.scrollHeight, limit) + 'px';
+  }
+
+  var api = { watchComposition: watchComposition, confirmsComposition: confirmsComposition, isSubmitEnter: isSubmitEnter, autoGrow: autoGrow, JUST_ENDED_MS: JUST_ENDED_MS };
 
   if (typeof module !== 'undefined' && module.exports) {
     module.exports = api;

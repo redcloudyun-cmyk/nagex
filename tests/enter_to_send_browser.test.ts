@@ -121,6 +121,46 @@ describe('Enter sends, Shift+Enter is a new line', () => {
     await ctx.close();
   });
 
+  // "Shift+Enter does nothing" was reported on the real service. Main is a <textarea>; this pins that the line break really appears - at the caret, repeatedly, around Korean text, in an
+  // empty box - and that the box grows and then scrolls inside itself. (The other boxes are covered in composer_enter_browser.test.ts.)
+  it('Shift+Enter inserts a line break AT THE CARET (mid-text, repeated, around Korean text, in an empty box), sends nothing, and the box grows then scrolls', async () => {
+    const ctx = await contextAt(1280, 800, 'enter_shift_caret', 'ko');
+    const page = await ctx.newPage();
+    const calls = await stub(page);
+    await openMain(page);
+    await page.click('#main-surface-input');
+    await page.keyboard.type('abcdef');
+    for (let i = 0; i < 3; i++) await page.keyboard.press('ArrowLeft');
+    await page.keyboard.press('Shift+Enter');
+    assert.equal(await inputValue(page), 'abc\ndef', 'a line break exactly at the caret');
+    await page.keyboard.press('Shift+Enter');
+    assert.equal(await inputValue(page), 'abc\n\ndef', 'consecutive line breaks');
+    // Korean text: committed through the IME, then Shift+Enter, then more text
+    await page.fill('#main-surface-input', '');
+    const cdp = await ctx.newCDPSession(page);
+    await cdp.send('Input.insertText', { text: '안녕하세요' });
+    await page.waitForTimeout(250);
+    await page.keyboard.press('Shift+Enter');
+    await cdp.send('Input.insertText', { text: '두번째 줄' });
+    assert.equal(await inputValue(page), '안녕하세요\n두번째 줄', 'a line break between Korean lines, text intact');
+    // growth, then an inner scroll at the limit
+    const before = await page.evaluate(() => (document.getElementById('main-surface-input') as any).getBoundingClientRect().height);
+    for (let i = 0; i < 14; i++) { await page.keyboard.press('Shift+Enter'); await page.keyboard.type(`row ${i}`); }
+    const grown = await page.evaluate(() => { const el: any = document.getElementById('main-surface-input'); return { height: el.getBoundingClientRect().height, scrollable: el.scrollHeight > el.clientHeight }; });
+    assert.ok(grown.height > before, `the box grew (${before} -> ${grown.height})`);
+    assert.ok(grown.height <= 240, `the box stops growing at its limit (${grown.height})`);
+    assert.ok(grown.scrollable, 'past the limit the text scrolls inside the box');
+    assert.equal(chatCount(calls), 0, 'none of it was sent');
+    // an empty box: Shift+Enter gives a line break, still nothing to send
+    await page.fill('#main-surface-input', '');
+    await page.keyboard.press('Shift+Enter');
+    assert.equal(await inputValue(page), '\n');
+    await page.keyboard.press('Enter');
+    await page.waitForTimeout(500);
+    assert.equal(chatCount(calls), 0, 'a box holding only a line break is empty: nothing is sent');
+    await ctx.close();
+  });
+
   it('an empty or blank box sends nothing and adds no line; Ctrl+Enter still sends', async () => {
     const ctx = await contextAt(1280, 800, 'enter_blank');
     const page = await ctx.newPage();
