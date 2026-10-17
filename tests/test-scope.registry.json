@@ -18,7 +18,9 @@
       "security_s2d_ownership_contract",
       "security_s2e_authabuse_contract",
       "nebius_nemotron_contract",
-      "product_build_routing"
+      "product_build_routing",
+      "adaptive_execution_core",
+      "product_builder_adaptive_mockups"
     ],
     "device": [
       "device_agent_foundation",
@@ -101,7 +103,8 @@
       "jev_decision_port",
       "product_builder_site_tester_browser",
       "product_builder_browser",
-      "product_builder_live"
+      "product_builder_live",
+      "product_builder_adaptive_browser"
     ],
     "google": [
       "google_calendar_connection_state",
@@ -224,7 +227,9 @@
       "product_builder_adapters",
       "product_builder_site_tester_browser",
       "product_build_routing",
-      "model_gateway_request_budget"
+      "model_gateway_request_budget",
+      "adaptive_execution_core",
+      "product_builder_adaptive_mockups"
     ],
     "personal-home": [
       "main_unified_workspace_browser",
@@ -281,7 +286,8 @@
       "structured_output_recovery",
       "jev_decision_port",
       "product_builder_live",
-      "model_gateway_request_budget"
+      "model_gateway_request_budget",
+      "adaptive_execution_core"
     ],
     "mobile": [
       "real_life_scenario_library_behavioral_rules",
@@ -349,7 +355,9 @@
       "jev_decision_port",
       "product_builder_workflow",
       "product_builder_adapters",
-      "product_builder_browser"
+      "product_builder_browser",
+      "product_builder_adaptive_mockups",
+      "product_builder_adaptive_browser"
     ],
     "credential-broker": [
       "google_calendar_connection_state",
@@ -492,7 +500,8 @@
       "browser_task_browser",
       "desktop_request_routing",
       "desktop_task_browser",
-      "product_builder_browser"
+      "product_builder_browser",
+      "product_builder_adaptive_browser"
     ],
     "knowledge": [
       "r24_5c_knowledge_live"
@@ -520,7 +529,10 @@
       "product_builder_adapters",
       "product_builder_site_tester_browser",
       "product_builder_browser",
-      "product_build_routing"
+      "product_build_routing",
+      "adaptive_execution_core",
+      "product_builder_adaptive_mockups",
+      "product_builder_adaptive_browser"
     ]
   },
   "fullOnly": [

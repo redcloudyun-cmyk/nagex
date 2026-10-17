@@ -101,6 +101,8 @@ export interface VideoProviderPollResult {
 
 export interface ImageProviderPort {
   readonly providerId: string;
+  /** the model this adapter is set to use (a fact about the route, used to tell two routes of one provider apart); absent = not known */
+  getModelId?(): string;
   getStatus(): ProviderAvailabilityStatus;
   getCapabilities(): ImageProviderCapabilities;
   generateImage(spec: import('../specs/creation-spec.types.js').ImageCreationSpec): Promise<ProviderExecutionResult<{ imageUrl?: string; imageBuffer?: Buffer; mimeType: string }>>;

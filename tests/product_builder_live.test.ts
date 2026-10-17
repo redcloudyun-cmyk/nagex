@@ -3,7 +3,8 @@
 //
 // LIVE_EXTERNAL and opt-in: it runs only with NAGEX_PRODUCT_BUILDER_LIVE=1 AND a fully configured model provider (<PROVIDER>_API_KEY + NAGEX_<PROVIDER>_MODEL). Otherwise the file is SKIPPED with the reason - it
 // never substitutes a fake answer and never reports a pass it did not earn. The person's approvals are given by the test itself (it plays the person, through the same Approval Authority); that is automation, not a
-// product decision. Nothing is deployed anywhere. The only paid-capable calls are the model calls and one image request sequence that stops at the first failure; all content is synthetic text authored in this file.
+// product decision. Nothing is deployed anywhere. The paid-capable calls are the TEXT model calls (free tier on the development key). REAL IMAGE REQUESTS are a separate, explicit authorization: they are made only with
+// NAGEX_PRODUCT_BUILDER_LIVE_IMAGES=1 (a provider that answers one can be billed); without it the real image adapter is not in the run and a labelled stand-in provider stands in for it. All content is synthetic text authored here.
 // NAGEX_PRODUCT_BUILDER_LIVE_OUT=<dir> writes what happened (summaries, test results, the generated files) for the evidence document.
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -39,10 +40,12 @@ describe('Product Builder - live: a real model plans and writes a customer manag
     const engine = new GatewayStaticSiteEngine(router);
     const approvals = new ActionApprovalStore();
     const store = new ProductProjectStore({ dir });
+    const realImagesAuthorized = process.env.NAGEX_PRODUCT_BUILDER_LIVE_IMAGES === '1';
     const realImages = new ImageProviderMockupAdapter(new GoogleImageAdapter());
-    // an AUTHORIZED alternative stand-in so the journey can go on when the real image provider has no quota (labelled in the evidence)
+    // a labelled stand-in: it is what the journey continues with when the real image adapter is not authorized for this run, or has been blocked
     const standIn = new FakeMockups('stand-in-images-NOT-REAL');
-    const svc = new ProductBuilderService({ store, workspaces: new ProductWorkspaceStore(path.join(dir, 'workspaces')), approvals, planning: planning.configured() ? planning : null, mockups: [realImages, standIn], engine, tester: new PlaywrightSiteTester(), deployers: [], verifier: null, maxRepairAttempts: 2 });
+    log.realImageRequestsAuthorized = realImagesAuthorized;
+    const svc = new ProductBuilderService({ store, workspaces: new ProductWorkspaceStore(path.join(dir, 'workspaces')), approvals, planning: planning.configured() ? planning : null, mockups: realImagesAuthorized ? [realImages, standIn] : [standIn], engine, tester: new PlaywrightSiteTester(), deployers: [], verifier: null, maxRepairAttempts: 2 });
     const me = { tenantId: 'ten_live', ownerId: 'usr_live' };
 
     let p = svc.createProject(me, { request: SITE_REQUEST_EN, locale: 'en', requestId: 'live' });
@@ -51,7 +54,7 @@ describe('Product Builder - live: a real model plans and writes a customer manag
     log.plan = p.plan?.content;
 
     p = await svc.decide(p.projectId, me, 'PLAN', 'APPROVE', 'live');
-    log.afterPlanApproval = { state: p.state, blocker: p.blocker };
+    log.afterPlanApproval = { state: p.state, blocker: p.blocker, recovery: p.recovery ?? null };
     if (p.state === 'BLOCKED') {
       // the real image adapter said no (no key / no quota / refusal): that is the truthful result; continue with the stand-in the person would have to choose
       assert.equal(p.blocker?.blockedAt, 'MOCKUP_GENERATING');

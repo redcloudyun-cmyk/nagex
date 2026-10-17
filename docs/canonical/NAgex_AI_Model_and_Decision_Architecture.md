@@ -212,6 +212,43 @@ The architecture may preserve this extension point before JEV itself becomes a p
 - **Failure.** Disabled, no credential, slow (2.5 s), down, malformed, not-offered, inconsistent - all are "no advice"; a provider that fails twice in a session is not asked again in that session.
 - **Verified vs not.** The System One request/answer shape (`choice` / `noul` questions; `answers.<name>.{choice|probability|score, confidence}`) is the one the repository already uses (`model-gateway/jev-provider.ts`, recorded live benchmark). The four questions asked for this loop (action, risk, retry, completion) are NAgex's own and have **not** been run against the live service - no credential was available; tests use a simulated provider of that shape. Evidence: `docs/evidence/NAGEX_JEV_DECISION_PORT_20261016.md`.
 
+### 10.2 Goal-driven adaptive execution (as built, 2026-10-17)
+
+NAgex is goal-driven, not provider-driven: a failed route is not a failed goal, and a denied permission is not an invitation to find another route. The shared core is `src/adaptive/` (ADR-0017); it is a set of
+pure decisions that the existing state machines call - there is no second agent runtime and no second approval engine.
+
+```text
+GOAL -> DISCOVER routes -> EVALUATE (hard eligibility) -> SELECT (deterministic order, optional advisory reorder)
+     -> AUTHORIZE (approval when the terms change) -> EXECUTE -> VERIFY (at the goal level) -> RECOVER OR COMPLETE
+```
+
+- **Failure taxonomy** (12 classes): `AUTHENTICATION_FAILURE, PERMISSION_DENIED, QUOTA_EXHAUSTED, RATE_LIMITED, BILLING_REQUIRED, PROVIDER_UNAVAILABLE, TIMEOUT, INPUT_UNSUPPORTED, CAPABILITY_UNAVAILABLE,
+  TRANSIENT_EXECUTION_FAILURE, VERIFICATION_FAILED, UNKNOWN_OUTCOME`. Retry and fallback differ by class: quota is not hammered; a rate limit is waited out only for a short documented delay, otherwise another route;
+  an input a route cannot take needs a compatible route; **a denial is never routed around**; **an unknown outcome of a chargeable or consequential request is never duplicated or moved elsewhere until it is reconciled**.
+- **Route candidates** carry verified facts only (authentication, availability, quota as NAgex has seen it, accepted input, cost - unknown stays unknown, who would receive the data, reliability evidence with a minimum
+  sample size). There is no quality field: no output quality is measured, so none is claimed.
+- **Hard eligibility precedes ranking** and cannot be overridden by a recommendation: not configured, credential rejected, unavailable, quota exhausted (with a cool-down), incompatible input, sensitivity above the
+  route's ceiling (S0-S3), price above the authorized ceiling, already tried, failure class forbids moving.
+- **Material terms.** Moving the work to a route where a new company receives the data, the processing location differs, the price is higher **or unknown**, or the route accepts less, needs the person's decision
+  (an approval of tool `adaptive.route.switch`, bound to the exact route and its terms, used once). Only an explicit standing authorization may stand in, never for a location change, an unknown price or a reduced capability.
+- **Bounded**: total attempts, switches and retries per route; running out is `ABORT`, never "try again".
+- **Advisory ranking (JEV or any decision provider)**: after hard eligibility it may reorder the eligible set or recommend asking the person; it cannot add or admit a route, remove a check, approve, pay or reach a credential;
+  an unoffered route, low confidence or malformed answer is no advice; a failing provider is given up on. The JEV request is one `choice` question in the System One shape the repository already uses (§10.1);
+  it carries only enumerated kinds and buckets. **No live JEV call has been made** (no credential). Without an advisor the order is deterministic and the history says so.
+- **Goal-level verification**: an image is accepted only if its bytes are a real, complete image of plausible size (type and dimensions read from the container; a claimed type is not trusted).
+- **History**: every attempt (route, class, decision, who ranked, approval) is kept per goal, owner-scoped and without content.
+
+```text
+ADAPTIVE_SWITCH_ON_MATERIAL_TERMS_WITHOUT_APPROVAL = 0
+DENIAL_ROUTED_AROUND = 0
+UNKNOWN_OUTCOME_DUPLICATED = 0
+ADVISOR_MAKES_INELIGIBLE_ROUTE_ELIGIBLE = 0
+ADVISOR_APPROVES_OR_PAYS = 0
+UNVERIFIED_PROVIDER_OUTPUT_ACCEPTED_AS_GOAL_COMPLETE = 0
+```
+
+First consumer: the Product Builder's mockups. Not yet routed through this layer: the Model Gateway's own provider failover (an operator-level, pre-configured choice), video jobs, deployment and the coding engine.
+
 ## 11. Three-Level Intelligence Model
 
 ```text

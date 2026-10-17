@@ -41,6 +41,9 @@ const STATUS_BY_CODE: Record<string, number> = {
   PRODUCT_PROJECT_NOT_FOUND: 404,
   PRODUCT_GATE_NOT_WAITING: 409,
   PRODUCT_NOT_BLOCKED: 409,
+  PRODUCT_RECONCILIATION_REQUIRED: 409,
+  PRODUCT_ROUTE_NOT_ELIGIBLE: 409,
+  PRODUCT_ROUTE_SWITCH_FORBIDDEN: 403,
   PRODUCT_NOT_READY_FOR_DEPLOY: 409,
   PRODUCT_DEPLOY_NOT_CONFIGURED: 409,
   PRODUCT_TOO_MANY_ACTIVE: 409,
@@ -153,7 +156,7 @@ export const handleProductBuilderRoutes: AsyncRouteRegistrar<ProductBuilderRoute
     }
 
     if (rest === 'resolve' && method === 'POST') {
-      const record = await service.resolveBlocker(projectId, identity, { requestId, wait: false, ...(typeof body?.mockupProviderId === 'string' ? { mockupProviderId: body.mockupProviderId } : {}) });
+      const record = await service.resolveBlocker(projectId, identity, { requestId, wait: false, ...(typeof body?.mockupProviderId === 'string' ? { mockupProviderId: body.mockupProviderId } : {}), ...(body?.reconciliation === 'NOT_STARTED' || body?.reconciliation === 'STARTED' ? { reconciliation: body.reconciliation as 'NOT_STARTED' | 'STARTED' } : {}) });
       return { status: 200, data: { project: service.viewOf(record) } };
     }
 

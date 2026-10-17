@@ -1879,12 +1879,12 @@
   };
   const PB_STAGES = [['plan', 'mainProduct.stage.plan', 'Plan'], ['design', 'mainProduct.stage.design', 'Design'], ['build', 'mainProduct.stage.build', 'Build plan'], ['test', 'mainProduct.stage.test', 'Build and test'], ['preview', 'mainProduct.stage.preview', 'Preview'], ['online', 'mainProduct.stage.online', 'Online']];
   const PB_STAGE_OF = { REQUIREMENTS_DRAFT: 0, PLAN_PENDING_APPROVAL: 0, PLAN_APPROVED: 0, MOCKUP_GENERATING: 1, DESIGN_PENDING_APPROVAL: 1, DESIGN_APPROVED: 1, BUILD_PLAN_PENDING_APPROVAL: 2, BUILD_APPROVED: 2, IMPLEMENTING: 3, TESTING: 3, PREVIEW_READY: 4, DEPLOY_PENDING_APPROVAL: 4, DEPLOYING: 5, DEPLOYED_VERIFIED: 5 };
-  const PB_BLOCKERS = ['IMAGE_QUOTA_EXCEEDED', 'IMAGE_PROVIDER_AUTH_FAILED', 'IMAGE_PROVIDER_UNAVAILABLE', 'NO_IMAGE_PROVIDER', 'IMAGE_CONTENT_REJECTED', 'IMAGE_GENERATION_FAILED', 'NO_MOCKUPS_RETURNED', 'PLANNER_UNAVAILABLE', 'PLANNER_OUTPUT_INVALID', 'PLANNING_UNAVAILABLE',
+  const PB_BLOCKERS = ['IMAGE_VERIFICATION_FAILED', 'ADAPTIVE_BUDGET_EXHAUSTED', 'IMAGE_QUOTA_EXCEEDED', 'IMAGE_PROVIDER_AUTH_FAILED', 'IMAGE_PROVIDER_UNAVAILABLE', 'NO_IMAGE_PROVIDER', 'IMAGE_CONTENT_REJECTED', 'IMAGE_GENERATION_FAILED', 'NO_MOCKUPS_RETURNED', 'PLANNER_UNAVAILABLE', 'PLANNER_OUTPUT_INVALID', 'PLANNING_UNAVAILABLE',
     'NO_CODING_ENGINE', 'CODING_ENGINE_UNAVAILABLE', 'ENGINE_MODEL_UNAVAILABLE', 'ENGINE_OUTPUT_INVALID', 'NO_ISOLATED_TEST_RUNNER', 'DEPLOY_NOT_CONFIGURED', 'DEPLOY_STATE_UNCERTAIN', 'NO_DEPLOY_VERIFIER', 'HOST_AUTH_FAILED', 'HOST_PAYMENT_REQUIRED', 'HOST_RATE_LIMITED',
     'HOST_REQUEST_REJECTED', 'HOST_SERVER_ERROR', 'HOST_RESPONSE_UNREADABLE', 'HOST_DEPLOY_FAILED', 'HOST_DEPLOY_CANCELED', 'DEPLOY_TIMEOUT', 'DEPLOY_NETWORK_ERROR', 'DEPLOY_NOT_READY_IN_TIME', 'HOST_REFUSED'];
   const PB_FAILURES = ['TESTS_FAILED', 'DEPLOY_NOT_VERIFIED', 'NO_INDEX_HTML', 'STEP_FAILED', 'REVISION_FAILED', 'BUILD_GATE_NOT_PASSED', 'DEPLOY_GATE_NOT_PASSED'];
   const PB_ERRORS = ['PRODUCT_REQUEST_REQUIRED', 'PRODUCT_REQUEST_TOO_LONG', 'PRODUCT_FEEDBACK_REQUIRED', 'PRODUCT_MOCKUP_PROVIDER_UNKNOWN', 'PRODUCT_PLAN_INVALID', 'PRODUCT_PROJECT_NOT_FOUND', 'PRODUCT_GATE_NOT_WAITING', 'PRODUCT_NOT_BLOCKED', 'PRODUCT_NOT_READY_FOR_DEPLOY',
-    'PRODUCT_DEPLOY_NOT_CONFIGURED', 'PRODUCT_TOO_MANY_ACTIVE', 'PRODUCT_BUILDER_UNAVAILABLE', 'PRODUCT_PLANNER_UNAVAILABLE', 'PRODUCT_NO_PREVIEW', 'APPROVAL_EXPIRED', 'APPROVAL_NOT_FOUND', 'APPROVAL_NOT_PENDING'];
+    'PRODUCT_DEPLOY_NOT_CONFIGURED', 'PRODUCT_TOO_MANY_ACTIVE', 'PRODUCT_ROUTE_NOT_ELIGIBLE', 'PRODUCT_ROUTE_SWITCH_FORBIDDEN', 'PRODUCT_RECONCILIATION_REQUIRED', 'PRODUCT_BUILDER_UNAVAILABLE', 'PRODUCT_PLANNER_UNAVAILABLE', 'PRODUCT_NO_PREVIEW', 'APPROVAL_EXPIRED', 'APPROVAL_NOT_FOUND', 'APPROVAL_NOT_PENDING'];
 
   function pbText(key, fallback, values) {
     let text = bt(key, fallback);
@@ -2143,6 +2143,76 @@
     return wrap;
   }
 
+  // What the person sees when the work could not simply carry on: the failure by plain class, the routes that are really usable (and what each would change for them), who ordered them, or - when
+  // there is none - exactly what is missing. Choosing a route is the person's own approval; nothing here moves the work by itself.
+  const PB_CHANGE_KINDS = ['NEW_THIRD_PARTY_RECEIVES_DATA', 'PROCESSING_LOCATION_CHANGED', 'COST_INCREASED', 'COST_UNKNOWN', 'INPUT_TRANSFORMATION_NEEDED', 'INPUT_CAPABILITY_REDUCED'];
+  const PB_FAILURE_CLASSES = ['AUTHENTICATION_FAILURE', 'PERMISSION_DENIED', 'QUOTA_EXHAUSTED', 'RATE_LIMITED', 'BILLING_REQUIRED', 'PROVIDER_UNAVAILABLE', 'TIMEOUT', 'INPUT_UNSUPPORTED', 'CAPABILITY_UNAVAILABLE', 'TRANSIENT_EXECUTION_FAILURE', 'VERIFICATION_FAILED', 'UNKNOWN_OUTCOME'];
+  const PB_MISSING_REASONS = ['NOT_CONFIGURED', 'AUTH_REJECTED', 'UNAVAILABLE', 'QUOTA_EXHAUSTED_RECENTLY', 'INPUT_INCOMPATIBLE', 'SENSITIVITY_EXCEEDS_ROUTE'];
+  const PB_ATTEMPT_OUTCOMES = ['SUCCEEDED', 'FAILED', 'RETRYING', 'APPROVED', 'AWAITING_APPROVAL', 'DECLINED', 'SKIPPED'];
+
+  function pbOptionLine(option) {
+    const li = pbEl('li', 'main-pb-option');
+    li.dataset.route = option.providerId;
+    li.appendChild(pbEl('strong', 'main-pb-option-name', option.label + ' (#' + option.rank + ')'));
+    const changes = pbEl('ul', 'main-pb-option-changes');
+    if (option.changes.length === 0) changes.appendChild(pbEl('li', '', bt('mainProduct.change.NONE', 'Same company and terms as before.')));
+    option.changes.forEach((change) => {
+      const known = PB_CHANGE_KINDS.indexOf(change.kind) >= 0;
+      changes.appendChild(pbEl('li', '', known ? bt('mainProduct.change.' + change.kind, change.detail) : change.detail));
+    });
+    li.appendChild(changes);
+    return li;
+  }
+
+  function pbRouteHistory(view) {
+    const wrap = document.createElement('details');
+    wrap.className = 'main-pb-routes';
+    const summary = document.createElement('summary');
+    summary.textContent = pbText('mainProduct.history.title', 'What was tried ({n})', { n: view.routeHistory.length });
+    wrap.appendChild(summary);
+    const list = pbEl('ol', 'main-pb-route-list');
+    view.routeHistory.forEach((attempt) => {
+      const outcome = PB_ATTEMPT_OUTCOMES.indexOf(attempt.outcome) >= 0 ? bt('mainProduct.history.outcome.' + attempt.outcome, attempt.outcome) : attempt.outcome;
+      const why = attempt.failureClass && PB_FAILURE_CLASSES.indexOf(attempt.failureClass) >= 0 ? ' - ' + bt('mainProduct.fc.' + attempt.failureClass, attempt.failureClass) : '';
+      list.appendChild(pbEl('li', 'main-pb-route-attempt', attempt.provider + ': ' + outcome + why));
+    });
+    wrap.appendChild(list);
+    return wrap;
+  }
+
+  function pbRecoverySection(turn, view, recovery) {
+    const wrap = pbEl('div', 'main-pb-recovery');
+    wrap.dataset.decision = recovery.decision;
+    wrap.appendChild(pbEl('p', 'main-pb-recovery-class', PB_FAILURE_CLASSES.indexOf(recovery.failureClass) >= 0 ? bt('mainProduct.fc.' + recovery.failureClass, recovery.failureClass) : recovery.failureClass));
+    if (recovery.decision === 'ABORT' && recovery.abortReason === 'PERMISSION_DENIED') {
+      wrap.appendChild(pbEl('p', 'main-pb-recovery-note', bt('mainProduct.options.denied', 'NAgex will not try another service to get around that refusal. Change the plan or its wording instead.')));
+    } else if (recovery.decision === 'RECONCILE_FIRST') {
+      wrap.appendChild(pbEl('p', 'main-pb-recovery-note', bt('mainProduct.options.reconcileLead', 'NAgex does not know whether the request was carried out, so it will not repeat it or send it elsewhere yet. Check your image service, then say what you found.')));
+    } else if (recovery.options.length > 0) {
+      wrap.appendChild(pbEl('p', 'main-pb-recovery-lead', recovery.requiresApproval ? bt('mainProduct.options.leadApprove', 'Another service can make the pictures. It changes something for you, so it only happens if you approve it:') : bt('mainProduct.options.lead', 'Another service can make the pictures:')));
+      const list = pbEl('ul', 'main-pb-options');
+      recovery.options.forEach((option) => list.appendChild(pbOptionLine(option)));
+      wrap.appendChild(list);
+      const rankedBy = recovery.rankedBy;
+      if (rankedBy) wrap.appendChild(pbEl('p', 'main-pb-recovery-ranked', bt('mainProduct.options.rankedBy.' + rankedBy, rankedBy)));
+      if (recovery.decision === 'ASK_PERSON') wrap.appendChild(pbEl('p', 'main-pb-recovery-note', bt('mainProduct.options.advisorAsks', 'The advisor suggests that you decide this yourself.')));
+    } else if (recovery.decision === 'ABORT') {
+      wrap.appendChild(pbEl('p', 'main-pb-recovery-lead', bt('mainProduct.options.noneTitle', 'No other image service can be used right now.')));
+      if (recovery.missing && recovery.missing.length > 0) {
+        const list = pbEl('ul', 'main-pb-missing');
+        recovery.missing.forEach((m) => {
+          // 'not set up' already says it is unavailable: one reason per line is enough
+          const kept = m.reasons.filter((r) => PB_MISSING_REASONS.indexOf(r) >= 0 && !(r === 'UNAVAILABLE' && m.reasons.indexOf('NOT_CONFIGURED') >= 0));
+          list.appendChild(pbEl('li', '', (m.label || m.provider) + ': ' + kept.map((r) => bt('mainProduct.options.missingReason.' + r, r)).join(', ')));
+        });
+        wrap.appendChild(list);
+      }
+      wrap.appendChild(pbEl('p', 'main-pb-recovery-note', bt('mainProduct.options.resumable', 'Nothing is lost. When one of these is set up, or the quota is back, continue from here.')));
+    }
+    if (view.routeHistory && view.routeHistory.length > 0) wrap.appendChild(pbRouteHistory(view));
+    return wrap;
+  }
+
   function renderProduct(turn, view) {
     const block = pbBlockFor(turn);
     turn.product = view;
@@ -2180,10 +2250,21 @@
 
     if (view.state === 'BLOCKED' && view.blocker) {
       body.appendChild(pbBlockedSection(turn, view));
+      const recovery = view.blocker.blockedAt === 'MOCKUP_GENERATING' ? view.recovery : null;
+      if (recovery) body.appendChild(pbRecoverySection(turn, view, recovery));
       if (view.blocker.code !== 'DEPLOY_STATE_UNCERTAIN') {
-        const alternatives = (view.mockupProviders || []).filter((p) => p.available && p.providerId !== view.mockupProviderInUse && view.mockups == null && view.blocker.blockedAt === 'MOCKUP_GENERATING');
-        alternatives.forEach((p) => addVideoButton(actions, pbText('mainProduct.useProvider', 'Use {name} for the pictures', { name: p.providerId }), 'main-pb-use-provider', () => pbResolve(turn, { mockupProviderId: p.providerId })));
-        addVideoButton(actions, bt('mainProduct.tryAgain', "I've sorted it out - try again"), 'main-pb-resolve', () => pbResolve(turn, {}));
+        if (recovery && recovery.decision === 'RECONCILE_FIRST') {
+          addVideoButton(actions, bt('mainProduct.options.reconcileNotStarted', 'It was NOT started - nothing was made or charged'), 'main-pb-reconcile main-pb-reconcile-not-started', () => pbResolve(turn, { reconciliation: 'NOT_STARTED' }));
+          addVideoButton(actions, bt('mainProduct.options.reconcileStarted', 'It WAS started (I may have been charged)'), 'main-pb-reconcile main-pb-reconcile-started', () => pbResolve(turn, { reconciliation: 'STARTED' }));
+        } else if (recovery) {
+          // the person's click is the approval: it is bound to exactly this route and what changes
+          recovery.options.forEach((option) => addVideoButton(actions, pbText('mainProduct.options.approveUse', 'Approve and use {name}', { name: option.label }), 'main-btask-approve main-pb-use-route', () => pbResolve(turn, { mockupProviderId: option.providerId })));
+          if (!(recovery.decision === 'ABORT' && recovery.abortReason === 'PERMISSION_DENIED')) addVideoButton(actions, bt('mainProduct.tryAgain', "I've sorted it out - try again"), 'main-pb-resolve', () => pbResolve(turn, {}));
+        } else {
+          const alternatives = (view.mockupProviders || []).filter((p) => p.available && p.providerId !== view.mockupProviderInUse && view.mockups == null && view.blocker.blockedAt === 'MOCKUP_GENERATING');
+          alternatives.forEach((p) => addVideoButton(actions, pbText('mainProduct.useProvider', 'Use {name} for the pictures', { name: p.providerId }), 'main-pb-use-provider', () => pbResolve(turn, { mockupProviderId: p.providerId })));
+          addVideoButton(actions, bt('mainProduct.tryAgain', "I've sorted it out - try again"), 'main-pb-resolve', () => pbResolve(turn, {}));
+        }
       }
       addVideoButton(actions, bt('mainProduct.cancel', 'Cancel this project'), 'main-btask-decline main-pb-cancel', () => pbCancel(turn));
     } else if (view.state === 'FAILED' && view.failure) {
@@ -2201,6 +2282,7 @@
       body.appendChild(pbDecisionBox(turn, view, 'PLAN', { approve: bt('mainProduct.approvePlan', 'Approve the plan') }));
     } else if (view.state === 'DESIGN_PENDING_APPROVAL') {
       body.appendChild(pbMockupsSection(view));
+      if ((view.routeHistory || []).some((a) => a.outcome !== 'SUCCEEDED')) body.appendChild(pbRouteHistory(view));
       body.appendChild(pbEl('p', 'main-pb-consequence', bt('mainProduct.designConsequence', 'If you approve: NAgex writes the build plan. No code is written before you approve that too.')));
       body.appendChild(pbDecisionBox(turn, view, 'DESIGN', { approve: bt('mainProduct.approveDesign', 'Approve the design') }));
     } else if (view.state === 'BUILD_PLAN_PENDING_APPROVAL') {

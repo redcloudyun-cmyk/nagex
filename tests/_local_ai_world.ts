@@ -4,7 +4,7 @@
 import http from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { PRODUCT_BUILD_STEPS, PRODUCT_CHECKS, PRODUCT_DESIGN, productPlan, productSiteAnswer } from './_product_site_fixture.js';
-import { TINY_PNG } from './_product_builder_fakes.js';
+import { STAND_IN_PNG, TINY_PNG } from './_product_builder_fakes.js';
 
 export interface LocalModelRequest { kind: 'browser-planner' | 'product-plan' | 'product-design' | 'product-build-plan' | 'product-engine' | 'followups' | 'document' | 'presentation' | 'plan-advice' | 'plan-action' | 'research' | 'research-plan' | 'research-extract' | 'research-report' | 'chat' | 'other'; system: string; user: string; korean: boolean }
 
@@ -25,8 +25,8 @@ export interface LocalAiWorld {
   // returning null makes the endpoint answer HTTP 503 (a model outage)
   setBrowserPlanner: (planner: ((system: string, user: string) => string | null) | null) => void;
   // The AI Product Builder's stand-in model and image endpoint: what the engine answers (a function of the repair prompt, so a broken first attempt can be followed by a good one), and whether the image endpoint has quota.
-  setProductBuilder: (options: { engine?: ((user: string, attempt: number) => string) | null; images?: 'ok' | 'quota' }) => void;
-  productBuilderCalls: () => { engine: number; images: number };
+  setProductBuilder: (options: { engine?: ((user: string, attempt: number) => string) | null; images?: 'ok' | 'quota'; nim?: 'ok' | 'quota' | 'not-an-image' | 'down' }) => void;
+  productBuilderCalls: () => { engine: number; images: number; nim: number };
   // OPT-IN: slides are not a Nemotron task, so they go to another provider. The Gemini endpoint is a fixed public URL; this redirects ONLY that host to the local model for the
   // IN-PROCESS production server (global fetch, restored on close) and returns the fake key env to start the harness with. Nothing leaves the machine.
   installGeminiBridge: () => Record<string, string>;
@@ -48,11 +48,22 @@ export async function startLocalAiWorld(): Promise<LocalAiWorld> {
   let actionPlan: 'mail' | 'calendar' = 'mail';
   let productEngine: ((user: string, attempt: number) => string) | null = null;
   let productImages: 'ok' | 'quota' = 'ok';
+  let productNim: 'ok' | 'quota' | 'not-an-image' | 'down' = 'ok';
+  let productNimCalls = 0;
   let productEngineCalls = 0;
   let productImageCalls = 0;
 
   const model = http.createServer(async (req, res) => {
     const body = JSON.parse((await readBody(req)) || '{}');
+    // a NVIDIA NIM-shaped image endpoint (the wire the repository's NvidiaNimImageAdapter speaks: POST {prompt, aspect_ratio ...} -> {artifacts:[{base64}]})
+    if ((req.url ?? '').startsWith('/nim/')) {
+      productNimCalls += 1;
+      if (productNim === 'quota') { res.writeHead(429, { 'content-type': 'application/json' }); res.end(JSON.stringify({ detail: 'quota exceeded' })); return; }
+      if (productNim === 'down') { res.writeHead(503, { 'content-type': 'application/json' }); res.end(JSON.stringify({ detail: 'unavailable' })); return; }
+      res.writeHead(200, { 'content-type': 'application/json' });
+      res.end(JSON.stringify({ artifacts: [{ base64: productNim === 'not-an-image' ? Buffer.from('<html><body>Please sign in to continue to the service.</body></html>'.repeat(4)).toString('base64') : STAND_IN_PNG.toString('base64') }] }));
+      return;
+    }
     const gemini = /:generateContent/.test(req.url ?? '');
     const messages: Array<{ role: string; content: string }> = gemini
       ? [
@@ -252,8 +263,8 @@ export async function startLocalAiWorld(): Promise<LocalAiWorld> {
     modelRequests,
     searchQueries,
     failDocuments: (mode) => { documentMode = mode; },
-    setProductBuilder: (options) => { if (options.engine !== undefined) productEngine = options.engine; if (options.images) productImages = options.images; },
-    productBuilderCalls: () => ({ engine: productEngineCalls, images: productImageCalls }),
+    setProductBuilder: (options) => { if (options.engine !== undefined) productEngine = options.engine; if (options.images) productImages = options.images; if (options.nim) productNim = options.nim; },
+    productBuilderCalls: () => ({ engine: productEngineCalls, images: productImageCalls, nim: productNimCalls }),
     failSearch: (on) => { searchDown = on; },
     useLocalPages: (on) => { localPages = on; },
     pageUrl: (name) => `http://127.0.0.1:${searchPort}/pages/${name}`,

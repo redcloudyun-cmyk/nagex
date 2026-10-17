@@ -16,11 +16,17 @@ import type { ActionApprovalStore } from '../governance/action-approval.store.js
 import type { AuditLogger } from '../governance/audit.logger.js';
 import { generateResourceId } from '../common/utils.js';
 import { ProductProjectStore } from './product-builder.store.js';
+import { RecoveryPlanner, type AdaptiveBudget } from '../adaptive/recovery-planner.js';
+import { RouteHistoryStore, type RouteAttempt } from '../adaptive/route-history.store.js';
+import type { RouteOutcomeLedger } from '../adaptive/route-outcome-ledger.js';
+import { selectRoutes } from '../adaptive/route-selection.js';
+import { termsOf } from '../adaptive/route-terms.js';
+import { MOCKUP_NEEDS, routeOf, runMockupGoal } from './product-builder.adaptive.js';
 import { ProductWorkspaceStore, WORKSPACE_LIMITS, contentTypeFor, type GeneratedFile } from './product-workspace.js';
 import type { CodingEnginePort, DeployPort, DeployVerifierPort, MockupPort, PlanningPort, SiteTesterPort } from './product-builder.ports.js';
 import {
   GATE_ORDER, GATE_STATE, GATE_TOOL_ID, TERMINAL_STATES, artifactHash, isAllowedTransition,
-  type BlockerNeed, type BuildPlan, type DesignSpec, type GateApproval, type MockupItem, type ProductPlan, type ProductProjectRecord, type ProjectGate, type ProjectState, type VersionedArtifact,
+  type BlockerNeed, type BuildPlan, type DesignSpec, type GateApproval, type MockupItem, type ProductPlan, type ProductProjectRecord, type ProjectGate, type ProjectState, type RecoveryProposal, type VersionedArtifact,
 } from './product-builder.types.js';
 
 export interface Identity { tenantId: string; ownerId: string }
@@ -41,7 +47,21 @@ export interface ProductBuilderDeps {
   maxRepairAttempts?: number;
   /** the viewport widths the isolated test run looks at */
   testWidths?: number[];
+  /**
+   * Goal-driven adaptive execution (src/adaptive). A provider failing is not the project failing: the planner classifies the failure, looks for another authorized route, and stops for the person
+   * when the terms change. Everything is optional: without it the project still gets a planner (deterministic, no advisor), an in-directory route history and no outcome ledger.
+   */
+  adaptive?: {
+    planner?: RecoveryPlanner;
+    history?: RouteHistoryStore;
+    ledger?: RouteOutcomeLedger | null;
+    budget?: AdaptiveBudget;
+    sleep?: (ms: number) => Promise<void>;
+  };
 }
+
+/** the Approval Authority tool id of "move this work to another route": the approval binds the exact route, its terms and the project */
+export const ROUTE_SWITCH_TOOL_ID = 'adaptive.route.switch';
 
 const MAX_REQUEST_CHARS = 4000;
 const MAX_FEEDBACK_CHARS = 2000;
@@ -58,9 +78,17 @@ export class ProductBuilderService {
   private readonly mockupCount: number;
   private readonly maxRepairAttempts: number;
   private readonly testWidths: number[];
+  private readonly planner: RecoveryPlanner;
+  private readonly routeHistory: RouteHistoryStore;
+  private readonly ledger: RouteOutcomeLedger | null;
+  private readonly sleep: (ms: number) => Promise<void>;
 
   constructor(private readonly deps: ProductBuilderDeps) {
     this.now = deps.now ?? (() => new Date());
+    this.planner = deps.adaptive?.planner ?? new RecoveryPlanner();
+    this.routeHistory = deps.adaptive?.history ?? new RouteHistoryStore({ dir: path.join(deps.store.baseDir, 'route-history') });
+    this.ledger = deps.adaptive?.ledger ?? null;
+    this.sleep = deps.adaptive?.sleep ?? ((ms) => new Promise((resolve) => setTimeout(resolve, ms)));
     this.mockupCount = deps.mockupCount ?? 3;
     this.maxRepairAttempts = deps.maxRepairAttempts ?? 2;
     this.testWidths = deps.testWidths ?? [1280, 768, 390];
@@ -274,12 +302,32 @@ export class ProductBuilderService {
   }
 
   /** The person has resolved a blocker (a credential, a quota, a choice of provider...): the blocked step runs again. */
-  public async resolveBlocker(projectId: string, identity: Identity, input: { mockupProviderId?: string; requestId: string; wait?: boolean }): Promise<ProductProjectRecord> {
+  public async resolveBlocker(projectId: string, identity: Identity, input: { mockupProviderId?: string; requestId: string; wait?: boolean; reconciliation?: 'NOT_STARTED' | 'STARTED' }): Promise<ProductProjectRecord> {
     const record = this.requireOwned(projectId, identity);
     if (record.state !== 'BLOCKED' || !record.blocker) fail('PRODUCT_NOT_BLOCKED', 'CONFLICT', 'This project is not blocked.', input.requestId);
+    // a request whose outcome is not known (it was sent and nothing came back) may have been carried out - and charged. Nothing is repeated, and nothing is started elsewhere, until the person says what they found.
+    let reconciled = false;
+    if (record.blocker.blockedAt === 'MOCKUP_GENERATING' && record.recovery?.failureClass === 'UNKNOWN_OUTCOME') {
+      if (!input.reconciliation) fail('PRODUCT_RECONCILIATION_REQUIRED', 'CONFLICT', 'It is not known whether the earlier request was carried out. Check the image service, then tell NAgex what you found.', input.requestId);
+      const earlier = this.routeHistory.get(record.recovery.goalId, record.tenantId, record.ownerId);
+      if (earlier) { earlier.reconciliation = { outcome: input.reconciliation === 'STARTED' ? 'CONFIRMED_STARTED' : 'CONFIRMED_NOT_STARTED', at: this.stamp() }; this.routeHistory.save(earlier, this.stamp()); }
+      this.audit('product_builder.outcome_reconciled', record, input.requestId, input.reconciliation);
+      reconciled = true;
+    }
     if (input.mockupProviderId) {
-      if (!this.deps.mockups.some((m) => m.providerId === input.mockupProviderId)) fail('PRODUCT_MOCKUP_PROVIDER_UNKNOWN', 'VALIDATION', 'That image provider is not one NAgex can use.', input.requestId);
-      record.mockupProviderId = input.mockupProviderId;
+      const chosen = this.deps.mockups.find((m) => m.providerId === input.mockupProviderId);
+      if (!chosen) fail('PRODUCT_MOCKUP_PROVIDER_UNKNOWN', 'VALIDATION', 'That image provider is not one NAgex can use.', input.requestId);
+      this.approveRouteSwitch(record, chosen, input.requestId, reconciled);
+    }
+    if (record.blocker.blockedAt === 'MOCKUP_GENERATING') {
+      // the person resolved it (chose another route, or says the cause is fixed): a new round of attempts with a fresh budget; the earlier rounds stay in the history
+      const failedProvider = record.recovery?.failedProvider;
+      if (failedProvider && !input.mockupProviderId) {
+        const failedPort = this.deps.mockups.find((m) => m.providerId === failedProvider);
+        if (failedPort) this.ledger?.clearQuota(routeOf(failedPort).routeId);
+      }
+      record.mockupRound = (record.mockupRound ?? 0) + 1;
+      record.recovery = null;
     }
     const back = record.blocker.blockedAt;
     record.blocker = null;
@@ -347,9 +395,70 @@ export class ProductBuilderService {
     this.deps.store.save(record);
   }
 
+  /**
+   * The person chose ANOTHER route for the pictures. Three things are true before the work moves: the route is ELIGIBLE (decided again, now, deterministically - a recommendation or a click cannot make an
+   * unconfigured, incompatible or too-sensitive route eligible); the failure that stopped the work did not forbid moving (a refusal is not routed around; an unknown outcome is reconciled first); and the
+   * choice is recorded as an approval through the SAME Approval Authority, bound to exactly this route and its terms (who receives the data, what it costs, what changed) and used once.
+   */
+  private approveRouteSwitch(record: ProductProjectRecord, chosen: MockupPort, requestId: string, reconciled = false): void {
+    const recovery = record.recovery ?? null;
+    const fromProvider = recovery?.failedProvider ?? null;
+    // the SAME route again is "I fixed the cause": nothing about the terms changes, so there is nothing to approve
+    if (fromProvider === chosen.providerId) { record.mockupProviderId = chosen.providerId; return; }
+    if (recovery?.fallback === 'FORBIDDEN') fail('PRODUCT_ROUTE_SWITCH_FORBIDDEN', 'POLICY', 'The image service declined this request. Trying another service would only be a way around that refusal, so NAgex does not: change the plan or its wording instead.', requestId);
+    if (recovery?.fallback === 'AFTER_RECONCILIATION' && !reconciled) fail('PRODUCT_RECONCILIATION_REQUIRED', 'CONFLICT', 'It is not known whether the earlier request was carried out. Check the service, then tell NAgex what you found before another service is used.', requestId);
+    const toRoute = routeOf(chosen);
+    const failedPort = fromProvider ? this.deps.mockups.find((m) => m.providerId === fromProvider) : null;
+    const failedRoute = failedPort ? routeOf(failedPort) : null;
+    const selection = selectRoutes({ needs: MOCKUP_NEEDS, failure: null, failedRoute, attemptedRouteIds: [], candidates: this.deps.mockups.map(routeOf), now: () => this.now().getTime() });
+    const eligible = selection.eligible.find((e) => e.candidate.routeId === toRoute.routeId);
+    if (!eligible) {
+      const why = selection.rejected.find((r) => r.routeId === toRoute.routeId)?.reasons ?? ['NOT_AVAILABLE'];
+      fail('PRODUCT_ROUTE_NOT_ELIGIBLE', 'POLICY', `That image service cannot be used for this (${why.join(', ').toLowerCase().replace(/_/g, ' ')}).`, requestId);
+    }
+    const payload: Record<string, unknown> = {
+      projectId: record.projectId, goalId: recovery?.goalId ?? null, capability: 'IMAGE_GENERATION',
+      fromRouteId: failedRoute?.routeId ?? null, toRouteId: toRoute.routeId, terms: termsOf(toRoute), changes: eligible.changes.map((c) => c.kind),
+    };
+    const approval = this.deps.approvals.request({ toolId: ROUTE_SWITCH_TOOL_ID, tenantId: record.tenantId, principalId: record.ownerId, payload });
+    this.deps.approvals.approve(approval.approvalId, record.tenantId, record.ownerId, requestId);
+    this.deps.approvals.consume(approval.approvalId, record.tenantId, record.ownerId, ROUTE_SWITCH_TOOL_ID, payload, 'product-builder', `routeswitch_${approval.approvalId}`);
+    record.mockupProviderId = chosen.providerId;
+    // the decision belongs to the history of the round it starts
+    const nextGoal = `${record.projectId}.mockups.${(record.mockups?.version ?? 0) + 1}.r${(record.mockupRound ?? 0) + 1}`;
+    const history = this.routeHistory.ensure(nextGoal, record.tenantId, record.ownerId, 'IMAGE_GENERATION', this.stamp());
+    this.routeHistory.append(history, {
+      at: this.stamp(), routeId: toRoute.routeId, provider: chosen.providerId, model: toRoute.model, outcome: 'APPROVED', failureClass: null, code: null,
+      decision: { action: 'SWITCH_ROUTE', rankedBy: recovery?.rankedBy ?? null, advisor: recovery?.advisor ? `${recovery.advisor.provider}:${recovery.advisor.effect}` : null, reason: 'the person approved this route' },
+      materialChanges: eligible.changes.map((c) => c.kind), approvalId: approval.approvalId, latencyMs: null,
+    });
+    this.audit('product_builder.route_switch_approved', record, requestId, `${failedRoute?.routeId ?? 'none'}->${toRoute.routeId}`);
+  }
+
+  /** every attempt made for the pictures of this project, oldest first, across the rounds the person started (what the person sees as "what was tried") */
+  private routeHistoryOf(record: ProductProjectRecord): RouteAttempt[] {
+    const out: RouteAttempt[] = [];
+    const versions = new Set<number>([record.mockups?.version ?? 0, (record.mockups?.version ?? 0) + 1]);
+    for (const version of versions) {
+      for (let round = 0; round <= (record.mockupRound ?? 0) + 1; round += 1) {
+        const history = this.routeHistory.get(`${record.projectId}.mockups.${version}.r${round}`, record.tenantId, record.ownerId);
+        if (history) out.push(...history.attempts);
+      }
+    }
+    return out.sort((a, b) => a.at.localeCompare(b.at) || a.n - b.n).slice(-30);
+  }
+
+  /** the route the pictures are made by: the person's own choice, else the first one that is set up and whose quota was not seen exhausted a moment ago (NAgex does not start by calling the account that just said no) */
   private mockupProvider(record: ProductProjectRecord): MockupPort | null {
     const chosen = record.mockupProviderId ? this.deps.mockups.find((m) => m.providerId === record.mockupProviderId) : null;
-    return chosen ?? this.deps.mockups.find((m) => m.available()) ?? this.deps.mockups[0] ?? null;
+    return chosen ?? this.deps.mockups.find((m) => m.available() && routeOf(m).quota !== 'EXHAUSTED') ?? this.deps.mockups.find((m) => m.available()) ?? this.deps.mockups[0] ?? null;
+  }
+
+  /** the route the person approved at the plan gate (named on the approval) - unless they chose another since; it is the one tried first, so what runs is what was approved */
+  private approvedMockupProvider(record: ProductProjectRecord): MockupPort | null {
+    if (record.mockupProviderId) return this.mockupProvider(record);
+    const named = (record.gateExtras?.PLAN as { mockups?: { providerId?: string | null } } | undefined)?.mockups?.providerId;
+    return (named ? this.deps.mockups.find((m) => m.providerId === named) : null) ?? this.mockupProvider(record);
   }
 
   private async makeMockupsAndDesign(record: ProductProjectRecord): Promise<void> {
@@ -364,18 +473,32 @@ export class ProductBuilderService {
       items = record.mockups!.items;
       version = record.mockups!.version;
     } else {
-      const provider = this.mockupProvider(record);
-      if (!provider) return this.block(record, 'NO_IMAGE_PROVIDER', 'CONFIGURATION', 'No image provider is set up, so visual mockups cannot be made. NAgex does not draw placeholder pictures instead.', 'MOCKUP_GENERATING');
-      if (!provider.available()) return this.block(record, 'IMAGE_PROVIDER_UNAVAILABLE', 'CREDENTIAL', `The image provider (${provider.providerId}) is not set up, so visual mockups cannot be made.${this.otherProvidersNote(provider)}`, 'MOCKUP_GENERATING');
-      const outcome = await provider.generate({ plan: record.plan.content, count: this.mockupCount, feedback, requestId: 'product-builder' });
-      if (!outcome.ok) return this.block(record, outcome.code, outcome.need, `${outcome.message}${this.otherProvidersNote(provider)}`, 'MOCKUP_GENERATING');
-      if (outcome.images.length === 0) return this.block(record, 'NO_MOCKUPS_RETURNED', 'PERSON', 'The image provider returned no pictures.', 'MOCKUP_GENERATING');
+      const first = this.approvedMockupProvider(record);
+      if (!first) return this.block(record, 'NO_IMAGE_PROVIDER', 'CONFIGURATION', 'No image provider is set up, so visual mockups cannot be made. NAgex does not draw placeholder pictures instead.', 'MOCKUP_GENERATING');
       version = (record.mockups?.version ?? 0) + 1;
-      items = outcome.images.map((image, index) => {
+      // The goal is "pictures of this plan", not "a picture from this provider": the adaptive loop tries the route, and when it fails classifies the failure, looks for another AUTHORIZED route and
+      // stops for the person only when the terms change (another company, a price nobody knows). Every attempt is recorded.
+      const round = record.mockupRound ?? 0;
+      const goalId = `${record.projectId}.mockups.${version}.r${round}`;
+      const result = await runMockupGoal({
+        goalId, tenantId: record.tenantId, ownerId: record.ownerId, ports: this.deps.mockups, first, plan: record.plan.content, count: this.mockupCount, feedback,
+        planner: this.planner, history: this.routeHistory, ledger: this.ledger, budget: this.deps.adaptive?.budget, sleep: this.sleep, now: () => this.now().getTime(),
+        audit: (action, detail) => this.audit(`product_builder.${action}`, record, 'product-builder', detail),
+      });
+      if (result.kind === 'STOPPED') {
+        record.recovery = result.recovery;
+        // the routes that could be used, and what each would change, are on the record (and on the card); the message says only what happened
+        return this.block(record, result.code, result.need, result.message, 'MOCKUP_GENERATING');
+      }
+      const provider = result.port;
+      record.recovery = null;
+      // what worked is what later regenerations use (the person's design changes must not start by calling the route that just failed)
+      if (provider.providerId !== first.providerId) record.mockupProviderId = provider.providerId;
+      items = result.images.map((image, index) => {
         const mockupId = `mk_${version}_${index + 1}`;
-        const fileName = `${mockupId}.${image.mimeType.includes('png') ? 'png' : image.mimeType.includes('jpeg') ? 'jpg' : 'img'}`;
+        const fileName = `${mockupId}.${image.mimeType.includes('png') ? 'png' : image.mimeType.includes('jpeg') ? 'jpg' : image.mimeType.includes('webp') ? 'webp' : 'img'}`;
         this.deps.store.writeMockup(record.projectId, fileName, image.data);
-        return { mockupId, caption: image.caption.slice(0, 200), providerId: provider.providerId, mimeType: image.mimeType, fileName, bytes: image.data.length, sha256: artifactHash(image.data.toString('base64')) };
+        return { mockupId, caption: image.caption.slice(0, 200), providerId: provider.providerId, mimeType: image.mimeType, fileName, bytes: image.data.length, sha256: image.sha256 ?? artifactHash(image.data.toString('base64')), ...(image.width ? { width: image.width } : {}), ...(image.height ? { height: image.height } : {}) };
       });
       record.mockups = { version, items, createdAt: this.stamp() };
       record.feedbackForMockups = null;
@@ -619,6 +742,8 @@ export class ProductBuilderService {
       deployers: this.deps.deployers.map((d) => ({ adapterId: d.adapterId, provider: d.provider, configured: d.configured() })),
       mockupProviders: this.deps.mockups.map((m) => ({ providerId: m.providerId, available: m.available() })),
       mockupProviderInUse: this.mockupProvider(record)?.providerId ?? null,
+      recovery: record.recovery ?? null,
+      routeHistory: this.routeHistoryOf(record).map((a) => ({ n: a.n, at: a.at, provider: a.provider, model: a.model, outcome: a.outcome, failureClass: a.failureClass, code: a.code, decision: a.decision, materialChanges: a.materialChanges, approvalId: a.approvalId })),
     };
   }
 
@@ -691,11 +816,6 @@ export class ProductBuilderService {
     this.audit('product_builder.failed', record, 'product-builder', code);
   }
 
-  private otherProvidersNote(used: MockupPort): string {
-    const others = this.deps.mockups.filter((m) => m.providerId !== used.providerId && m.available()).map((m) => m.providerId);
-    return others.length > 0 ? ` Another image provider is available (${others.join(', ')}): choose it to continue.` : '';
-  }
-
   private readWorkspaceFiles(record: ProductProjectRecord): GeneratedFile[] | null {
     if (!record.workspace) return null;
     const out: GeneratedFile[] = [];
@@ -756,6 +876,10 @@ export interface ProjectView {
   mockupProviders: Array<{ providerId: string; available: boolean }>;
   /** the image provider this project's pictures are (or will be) made by: the person's own choice, else the first one that is set up */
   mockupProviderInUse: string | null;
+  /** why the work stopped at the pictures and what the person can decide (null when nothing is waiting on a route decision) */
+  recovery: RecoveryProposal | null;
+  /** what was tried for the pictures, in order: which route, what happened (by normalized class), what the planner decided, which approval covered a switch */
+  routeHistory: Array<Pick<RouteAttempt, 'n' | 'at' | 'provider' | 'model' | 'outcome' | 'failureClass' | 'code' | 'decision' | 'materialChanges' | 'approvalId'>>;
 }
 
 // re-exported for tests and routes

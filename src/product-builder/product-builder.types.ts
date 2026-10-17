@@ -7,6 +7,7 @@
 // the deployment target after approval creates a new version and needs a new approval (through the same Approval Authority every other consequential action uses - there is no second approval engine).
 // The state is persistent and resumable. A step that cannot be done for lack of a credential, a quota, an authorization or a sandbox ends in BLOCKED with the exact reason - never in a pretend result.
 import crypto from 'node:crypto';
+import type { FailureClass, FallbackRule, RetryRule } from '../adaptive/failure-taxonomy.js';
 
 export type ProjectState =
   | 'REQUIREMENTS_DRAFT'
@@ -101,6 +102,43 @@ export interface MockupItem {
   fileName: string;
   bytes: number;
   sha256: string;
+  /** read from the image itself when it was verified */
+  width?: number;
+  height?: number;
+}
+
+/** One route the work could move to, as the person is shown it: who they are, what changes, what it costs (or that nobody knows). */
+export interface RouteOptionView {
+  routeId: string;
+  providerId: string;
+  label: string;
+  vendorId: string;
+  processing: string;
+  rank: number;
+  changes: Array<{ kind: string; detail: string }>;
+  costKnown: boolean;
+  usd: number | null;
+}
+
+/**
+ * What the adaptive planner decided when a route failed and the work could not simply carry on: the failure by normalized class, the routes that are eligible (in order, and who ordered them), what is
+ * missing when none is, and whether the person's decision is needed. It is advice to the person and a record for the audit trail; it grants nothing.
+ */
+export interface RecoveryProposal {
+  goalId: string;
+  at: string;
+  failureClass: FailureClass;
+  retry: RetryRule;
+  fallback: FallbackRule;
+  decision: 'SWITCH_ROUTE' | 'ASK_PERSON' | 'ABORT' | 'RECONCILE_FIRST';
+  requiresApproval: boolean;
+  rankedBy: 'DETERMINISTIC' | 'ADVISOR' | 'DETERMINISTIC_FALLBACK' | null;
+  advisor: { provider: string; effect: string; confidence: number } | null;
+  options: RouteOptionView[];
+  missing: Array<{ provider: string; label: string; reasons: string[] }>;
+  abortReason: string | null;
+  failedRouteId: string;
+  failedProvider: string;
 }
 
 export interface DesignSpec {
@@ -218,6 +256,10 @@ export interface ProductProjectRecord {
   /** the image provider the person chose after a block (otherwise the first one that is available) */
   mockupProviderId?: string | null;
   feedbackForMockups?: string | null;
+  /** why the pictures could not simply be made, and what the person can decide (set while BLOCKED at the mockup step) */
+  recovery?: RecoveryProposal | null;
+  /** every time the person resolves a blocker at the mockup step a new round of attempts begins (a fresh attempt budget); earlier rounds stay in the history */
+  mockupRound?: number;
   /** extra fields bound into each gate's approval payload, kept so the approval is checked against exactly what it was requested for */
   gateExtras?: Partial<Record<ProjectGate, Record<string, unknown>>>;
   repairAttempts?: number;

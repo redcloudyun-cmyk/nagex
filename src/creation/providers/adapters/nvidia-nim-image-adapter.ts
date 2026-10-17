@@ -26,6 +26,10 @@ export class NvidiaNimImageAdapter implements ImageProviderPort {
     this.endpointUrl = options?.endpointUrl || process.env.NAGEX_NIM_IMAGE_ENDPOINT || 'https://ai.api.nvidia.com/v1/genai/black-forest-labs/flux-1-dev';
   }
 
+  public getModelId(): string {
+    return this.modelId;
+  }
+
   public getStatus(): ProviderAvailabilityStatus {
     return this.apiKey.trim() || process.env.NAGEX_NIM_IMAGE_ENDPOINT ? 'AVAILABLE' : 'UNCONFIGURED';
   }
@@ -113,6 +117,8 @@ export class NvidiaNimImageAdapter implements ImageProviderPort {
           createdAt,
           completedAt: new Date().toISOString(),
           latencyMs: Date.now() - startTime,
+          // the provider's own HTTP status, so a failure can be classified (quota, rate limit, billing ...) instead of guessed from words
+          ...(typeof error?.status === 'number' ? { customData: { httpStatus: error.status } } : {}),
         },
       };
     }
