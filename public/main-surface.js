@@ -1785,17 +1785,32 @@
   // ── Desktop task: a PC of the person's does it, on their screen, after they approve ───────────────────────────────────────────────────────────
   // The card shows exactly what will happen (the device, the text, the file and where it goes, that it happens on screen), waits for the person, and then shows only what the PC REPORTED: waiting for the PC,
   // working, and - only when the PC has read the saved file back and it matches - "done". Nothing here is progress NAgex made up; a plan nobody picked up before it expired is said to have expired.
-  const DTASK_ERRORS = ['DESKTOP_REQUEST_UNCLEAR_TEXT', 'DESKTOP_REQUEST_UNCLEAR_FILE_NAME', 'DESKTOP_REQUEST_UNCLEAR_FOLDER', 'DESKTOP_REQUEST_UNCLEAR_APP', 'DESKTOP_DEVICE_UNAVAILABLE', 'DESKTOP_CAPABILITY_UNAVAILABLE',
+  const DTASK_ERRORS = ['DESKTOP_REQUEST_UNCLEAR_EXPRESSION', 'DESKTOP_CALC_OPERAND_INVALID', 'DESKTOP_CALC_OPERATOR_INVALID', 'DESKTOP_CALC_NEGATIVE_RESULT', 'DESKTOP_REQUEST_UNCLEAR_TEXT', 'DESKTOP_REQUEST_UNCLEAR_FILE_NAME', 'DESKTOP_REQUEST_UNCLEAR_FOLDER', 'DESKTOP_REQUEST_UNCLEAR_APP', 'DESKTOP_DEVICE_UNAVAILABLE', 'DESKTOP_CAPABILITY_UNAVAILABLE',
     'DESKTOP_FILE_NAME_INVALID', 'DESKTOP_TEXT_NOT_SINGLE_LINE', 'DESKTOP_TEXT_TOO_LONG', 'APPROVAL_EXPIRED', 'APPROVAL_NOT_FOUND', 'APPROVAL_NOT_GRANTED', 'APPROVAL_ALREADY_CONSUMED', 'DEVICE_COMMAND_ALREADY_PENDING', 'DEVICE_NOT_ACTIVE'];
-  const DTASK_FAILURES = ['TARGET_FILE_EXISTS', 'PATH_NOT_ALLOWED', 'CONTROLLER_UNAVAILABLE', 'APP_WINDOW_NOT_FOUND', 'UNEXPECTED_WINDOW', 'SAVE_AS_NOT_FOUND', 'FILE_VERIFICATION_MISMATCH', 'COMMAND_EXPIRED', 'AGENT_BUSY', 'COMMAND_REPLAY'];
-  const DTASK_STEPS = ['APP_WINDOW_FOUND_BY_HANDLE', 'TEXT_ENTERED_AND_READ_BACK', 'SAVE_PRESSED_DIALOG_CLOSED', 'FILE_READ_BACK_MATCHES_APPROVED_TEXT', 'WINDOW_CLOSED'];
+  const DTASK_FAILURES = ['OPERAND_NOT_VERIFIED', 'CALC_CONTROL_NOT_FOUND', 'CALC_RESULT_MISMATCH', 'TARGET_FILE_EXISTS', 'PATH_NOT_ALLOWED', 'CONTROLLER_UNAVAILABLE', 'APP_WINDOW_NOT_FOUND', 'UNEXPECTED_WINDOW', 'SAVE_AS_NOT_FOUND', 'FILE_VERIFICATION_MISMATCH', 'COMMAND_EXPIRED', 'AGENT_BUSY', 'COMMAND_REPLAY'];
+  const DTASK_STEPS = ['APP_WINDOW_FOUND_BY_HANDLE', 'TEXT_ENTERED_AND_READ_BACK', 'SAVE_PRESSED_DIALOG_CLOSED', 'FILE_READ_BACK_MATCHES_APPROVED_TEXT', 'WINDOW_CLOSED',
+    'DISPLAY_IS_ZERO', 'LEFT_OPERAND_ENTERED_AND_READ_BACK', 'OPERATOR_PRESSED', 'RIGHT_OPERAND_ENTERED_AND_READ_BACK', 'EQUALS_PRESSED', 'RESULT_READ_FROM_DISPLAY_MATCHES_EXPECTED'];
   const DTASK_STEP_TEXT = {
     APP_WINDOW_FOUND_BY_HANDLE: ['mainDesktop.step.opened', 'Opened a new Notepad window'],
     TEXT_ENTERED_AND_READ_BACK: ['mainDesktop.step.typed', 'Wrote the text and checked it'],
     SAVE_PRESSED_DIALOG_CLOSED: ['mainDesktop.step.saved', 'Saved the file'],
     FILE_READ_BACK_MATCHES_APPROVED_TEXT: ['mainDesktop.step.verified', 'Read the file back: it matches'],
     WINDOW_CLOSED: ['mainDesktop.step.closed', 'Closed Notepad'],
+    DISPLAY_IS_ZERO: ['mainDesktop.step.calcZero', 'Cleared the Calculator'],
+    LEFT_OPERAND_ENTERED_AND_READ_BACK: ['mainDesktop.step.calcLeft', 'Entered the first number and checked the display'],
+    OPERATOR_PRESSED: ['mainDesktop.step.calcOperator', 'Pressed the operator'],
+    RIGHT_OPERAND_ENTERED_AND_READ_BACK: ['mainDesktop.step.calcRight', 'Entered the second number and checked the display'],
+    EQUALS_PRESSED: ['mainDesktop.step.calcEquals', 'Pressed equals'],
+    RESULT_READ_FROM_DISPLAY_MATCHES_EXPECTED: ['mainDesktop.step.calcVerified', 'Read the result from the display: it matches'],
   };
+  // the two steps that every desktop action shares are worded by the application that was used
+  const DTASK_STEP_TEXT_CALC = {
+    APP_WINDOW_FOUND_BY_HANDLE: ['mainDesktop.step.calcOpened', 'Opened a new Calculator window'],
+    WINDOW_CLOSED: ['mainDesktop.step.calcClosed', 'Closed Calculator'],
+  };
+  const DTASK_OPERATOR_SYMBOL = { '+': '+', '-': '-', '*': '\u00d7' };
+  // "17 \u00d7 24" - the calculation as the approval card shows it
+  function dtaskExpression(summary) { return String(summary.left) + ' ' + (DTASK_OPERATOR_SYMBOL[summary.op] || summary.op) + ' ' + String(summary.right); }
 
   function dtaskText(key, fallback, values) {
     let text = bt(key, fallback);
@@ -1832,12 +1847,13 @@
     const summary = ask.summary || {};
     const stage = view.status && view.status.stage;
     const result = view.status && view.status.resultCode;
+    const isCalc = summary.operation === 'CALCULATE';
     const expired = Boolean(view.dispatch && Date.now() > Date.parse(view.dispatch.expiresAt) && (stage === 'QUEUED' || stage === 'DELIVERED' || !stage));
     let dataState = 'APPROVAL';
     let stateText = bt('mainDesktop.state.waitingApproval', 'Waiting for your approval - nothing has happened yet');
     if (view.approvalState === 'DECLINED') { dataState = 'DECLINED'; stateText = bt('mainDesktop.state.declined', 'Not started - nothing was changed on your PC'); }
     else if (view.phase === 'WORKING' || view.phase === 'DONE') {
-      if (stage === 'COMPLETED' && result === 'DESKTOP_SAVED_VERIFIED') { dataState = 'COMPLETED'; stateText = bt('mainDesktop.state.completed', 'Done - saved and checked on your PC'); }
+      if (stage === 'COMPLETED' && (result === 'DESKTOP_SAVED_VERIFIED' || result === 'DESKTOP_CALCULATED_VERIFIED')) { dataState = 'COMPLETED'; stateText = isCalc ? bt('mainDesktop.state.completedCalc', 'Done - calculated and checked on your PC') : bt('mainDesktop.state.completed', 'Done - saved and checked on your PC'); }
       else if (stage === 'FAILED') { dataState = 'FAILED'; stateText = bt('mainDesktop.state.failed', 'Could not finish'); }
       else if (expired) { dataState = 'EXPIRED'; stateText = bt('mainDesktop.state.expired', 'Not started - it expired before your PC picked it up'); }
       else if (stage === 'EXECUTING' || stage === 'CLAIMED') { dataState = 'RUNNING'; stateText = bt('mainDesktop.state.running', 'Working on your PC'); }
@@ -1862,13 +1878,17 @@
     approval.textContent = '';
     // before the decision it says what WILL happen; afterwards it only labels what was asked (never a future tense for something that is done)
     const deciding = view.phase === 'APPROVAL' && view.approvalState !== 'DECLINED';
-    const lines = [
+    const lines = isCalc ? [
+      [dtaskText('mainDesktop.calc.head', 'Open Calculator on {device} and calculate {expr}', { device: summary.deviceName || '', expr: dtaskExpression(summary) }), 'main-btask-approval-text'],
+      [deciding ? dtaskText('mainDesktop.calc.willCalc', 'It will calculate: {expr}', { expr: dtaskExpression(summary) }) : dtaskText('mainDesktop.calc.calcLabel', 'Calculation: {expr}', { expr: dtaskExpression(summary) }), 'main-dtask-text'],
+      [deciding ? dtaskText('mainDesktop.calc.expect', 'NAgex will check that the Calculator shows {expected}.', { expected: summary.expected }) : dtaskText('mainDesktop.calc.expectDone', 'NAgex checked that the Calculator showed {expected}.', { expected: summary.expected }), 'main-dtask-file'],
+    ] : [
       [dtaskText('mainDesktop.card.head', 'Open Notepad on {device} and save a new file', { device: summary.deviceName || '' }), 'main-btask-approval-text'],
       [(deciding ? bt('mainDesktop.card.writes', 'It will write:') : bt('mainDesktop.card.textLabel', 'Text:')) + ' “' + String(summary.text || '') + '”', 'main-dtask-text'],
       [deciding ? dtaskText('mainDesktop.card.saveAs', 'It will save it as Documents › {file}', { file: summary.fileName || '' }) : dtaskText('mainDesktop.card.fileLabel', 'File: Documents › {file}', { file: summary.fileName || '' }), 'main-dtask-file'],
     ];
     if (view.phase === 'APPROVAL' && view.approvalState !== 'DECLINED') {
-      lines.push([bt('mainDesktop.card.safety', 'This opens Notepad on your screen for a few seconds and creates a new file. It never replaces a file that already exists and never touches another Notepad window you have open.'), 'main-dtask-safety']);
+      lines.push([isCalc ? bt('mainDesktop.calc.safety', 'This opens Calculator on your screen for a few seconds and presses its keys. It never touches another Calculator window you have open.') : bt('mainDesktop.card.safety', 'This opens Notepad on your screen for a few seconds and creates a new file. It never replaces a file that already exists and never touches another Notepad window you have open.'), 'main-dtask-safety']);
       if (summary.deviceConnected === false) lines.push([dtaskText('mainDesktop.card.offline', "{device} isn't connected to NAgex right now. If you approve, it runs when NAgex Desktop is open on that PC within 10 minutes; otherwise it expires.", { device: summary.deviceName || '' }), 'main-dtask-offline']);
     }
     lines.forEach((entry) => { const p = document.createElement('p'); p.className = entry[1]; p.textContent = entry[0]; approval.appendChild(p); });
@@ -1881,7 +1901,7 @@
     if (dataState === 'COMPLETED') {
       resultBox.hidden = false;
       const p = document.createElement('p');
-      p.textContent = dtaskText('mainDesktop.result.verified', 'Saved Documents \u203a {file} and read it back: {size} bytes, and the text matches what you approved.', { file: summary.fileName || '', size: evidence.fileSizeBytes != null ? evidence.fileSizeBytes : '?' });
+      p.textContent = isCalc ? dtaskText('mainDesktop.calc.result', 'Calculated {expr} in Calculator and read the result from its display: {result}. It matches NAgex\'s own check.', { expr: dtaskExpression(summary), result: evidence.observedResult != null ? evidence.observedResult : '?' }) : dtaskText('mainDesktop.result.verified', 'Saved Documents \u203a {file} and read it back: {size} bytes, and the text matches what you approved.', { file: summary.fileName || '', size: evidence.fileSizeBytes != null ? evidence.fileSizeBytes : '?' });
       resultBox.appendChild(p);
     } else if (dataState === 'FAILED') {
       resultBox.hidden = false;
@@ -1903,7 +1923,7 @@
       stepsBox.querySelector('summary').textContent = dtaskText('mainDesktop.stepsTitle', 'What your PC did ({n})', { n: reported.length });
       const list = stepsBox.querySelector('ol');
       list.textContent = '';
-      reported.forEach((s) => { const li = document.createElement('li'); li.textContent = bt(DTASK_STEP_TEXT[s][0], DTASK_STEP_TEXT[s][1]); list.appendChild(li); });
+      reported.forEach((s) => { const li = document.createElement('li'); const text = (isCalc && DTASK_STEP_TEXT_CALC[s]) || DTASK_STEP_TEXT[s]; li.textContent = bt(text[0], text[1]); list.appendChild(li); });
     }
 
     // buttons: only while the person has something to decide
@@ -1925,7 +1945,8 @@
     const decided = await api('/api/v1/approvals/' + id + (approved ? '/approve' : '/reject'), { method: 'POST', body: JSON.stringify({}) });
     if (!decided || decided.error) { view.deciding = false; button.disabled = false; renderDesktopTask(turn, { ...view, note: dtaskErrorText(decided) }); return; }
     if (!approved) { renderDesktopTask(turn, { ...view, phase: 'DONE', approvalState: 'DECLINED', deciding: false }); return; }
-    const dispatched = await api('/api/v1/device-agent/desktop-plans/dispatch', { method: 'POST', body: JSON.stringify({ approvalId: view.ask.approvalId }), timeoutMs: 30000 });
+    const dispatchBase = view.ask.summary && view.ask.summary.operation === 'CALCULATE' ? '/api/v1/device-agent/desktop-calculations' : '/api/v1/device-agent/desktop-plans';
+    const dispatched = await api(dispatchBase + '/dispatch', { method: 'POST', body: JSON.stringify({ approvalId: view.ask.approvalId }), timeoutMs: 30000 });
     if (!dispatched || dispatched.error || !dispatched.commandId) { view.deciding = false; renderDesktopTask(turn, { ...view, phase: 'APPROVAL', approvalState: 'APPROVED', note: dtaskErrorText(dispatched) }); return; }
     renderDesktopTask(turn, { ...view, phase: 'WORKING', approvalState: 'APPROVED', dispatch: dispatched, status: null, deciding: false, note: '' });
     watchDesktopTask(turn);
@@ -1954,7 +1975,8 @@
   }
 
   async function runDesktopTask(prompt, metadata, decision) {
-    const asked = await api('/api/v1/device-agent/desktop-plans', { method: 'POST', body: JSON.stringify({ prompt }), timeoutMs: 30000 });
+    const askBase = decision && (decision.reasonCodes || []).indexOf('DESKTOP_CALCULATE') >= 0 ? '/api/v1/device-agent/desktop-calculations' : '/api/v1/device-agent/desktop-plans';
+    const asked = await api(askBase, { method: 'POST', body: JSON.stringify({ prompt }), timeoutMs: 30000 });
     if (!asked || asked.error || !asked.approvalId) {
       showThread(prompt, 'Unavailable', bt('mainDesktop.unavailableTitle', 'NAgex could not set this up on your PC'), dtaskErrorText(asked), [
         { state: 'done', label: 'Request captured', detail: '' },

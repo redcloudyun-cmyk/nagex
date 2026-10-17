@@ -2,7 +2,7 @@
 // Kept separate from the Electron shell so the very same wiring runs in the desktop app and in a plain Node process (tests, diagnostics).
 import path from 'node:path';
 import type { DevicePendingCommand } from './device-agent-protocol.js';
-import { DesktopCommandReplayGuard, DesktopPlanExecutor, type DesktopAutomationPort, type RootResolver } from './desktop-plan-executor.js';
+import { DesktopCommandReplayGuard, DesktopPlanExecutor, desktopCapabilities, type DesktopAutomationPort, type RootResolver } from './desktop-plan-executor.js';
 import type { LocalDeviceCredentialStore } from './local-device-credential.store.js';
 import { WindowsIsolatedDesktopController } from './windows-isolated-desktop-controller.js';
 
@@ -29,7 +29,7 @@ export interface DesktopPlanWiring {
 
 export function createDesktopPlanWiring(options: DesktopPlanWiringOptions): DesktopPlanWiring {
   const controller = options.controller ?? new WindowsIsolatedDesktopController();
-  const capabilityInventory = controller.isAvailable() ? ['desktop:UIA_INTERACTIVE:NOTEPAD'] : [];
+  const capabilityInventory = desktopCapabilities(controller);
   const credential = options.credentialStore.load();
   if (!credential) return { executor: null, capabilityInventory, onPendingCommand: undefined };
 

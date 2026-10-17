@@ -46,10 +46,11 @@ import type { KakaoAccessibilityApprovalService } from '../../mobile/kakaotalk-a
 import { ANDROID_ACCESSIBILITY_ROUTE, KAKAOTALK_PROVIDER, SELECT_KAKAO_DIRECT_CONVERSATION_ACTION, SEND_KAKAO_DIRECT_MESSAGE_ACTION } from '../../mobile/kakaotalk-accessibility-approval.service.js';
 import { buildKakaoAccessibilityMessageHash } from '../../mobile/kakao-accessibility-draft.types.js';
 import type { ActionApprovalStore } from '../../governance/action-approval.store.js';
-import { interpretDesktopWriteRequest } from '../../device-agent/desktop-request-interpreter.js';
+import { interpretDesktopCalculateRequest, interpretDesktopWriteRequest } from '../../device-agent/desktop-request-interpreter.js';
 import {
-  DESKTOP_APP_CAPABILITY, DESKTOP_PLAN_MAX_TTL_MS, DESKTOP_WRITE_SAVE_TOOL_ID, desktopWriteAndSaveApprovalPayload, validateDesktopWriteAndSave,
-  type DesktopPlanAppId, type DesktopPlanRootAlias,
+  DESKTOP_APP_CAPABILITY, DESKTOP_CALCULATE_TOOL_ID, DESKTOP_CALCULATOR_CAPABILITY, DESKTOP_PLAN_MAX_TTL_MS, DESKTOP_WRITE_SAVE_TOOL_ID, desktopCalculateApprovalPayload, desktopCalculateExpected, desktopWriteAndSaveApprovalPayload,
+  validateDesktopCalculate, validateDesktopWriteAndSave,
+  type DesktopCalcAppId, type DesktopCalcOperator, type DesktopCalculateRequest, type DesktopPlanAppId, type DesktopPlanRootAlias,
 } from '../../device-agent/desktop-plan.types.js';
 import type { SessionStore } from '../../sessions/session.store.js';
 import { getSessionIdFromHeaders } from './auth.routes.js';
@@ -286,6 +287,87 @@ export const handleDeviceAgentRoutes: AsyncRouteRegistrar<DeviceAgentRouteDeps> 
       text: String(approved.text ?? ''),
       rootAlias: String(approved.rootAlias ?? '') as DesktopPlanRootAlias,
       fileName: String(approved.fileName ?? ''),
+      expiresAt,
+    });
+    deps.deviceCommandStatusStore?.markQueued({ commandId: result.command.commandId, tenantId: session.tenantId, ownerId: session.principalId, deviceId: result.command.deviceId, executionId: String(result.command.data.executionId ?? '') || null });
+    return { status: result.status === 'QUEUED' ? 202 : 200, data: { status: result.status, commandId: result.command.commandId, planId, deviceId: result.command.deviceId, queuedAt: result.command.queuedAt, expiresAt } };
+  }
+
+  // ---- Desktop calculations: the second canonical action (calculate in the Calculator of one of the person's PCs). Same contract as the plans above: ask -> approve -> dispatch -> the device reports. -----------
+  // The expected result is computed HERE from the operands and is part of what is approved; the device compares the Calculator's display with it.
+  if (pathname === '/api/v1/device-agent/desktop-calculations' && method === 'POST') {
+    const requestId = getHeaderValue(headers, 'x-request-id') || `req_${crypto.randomUUID()}`;
+    const session = desktopSession(requestId);
+    if (!deps.actionApprovals) throw new NagexError({ code: 'DEVICE_COMMAND_SERVICE_UNAVAILABLE', category: 'INTERNAL', message: 'Approvals are not configured.', request_id: requestId });
+    const request: Partial<DesktopCalculateRequest> = {
+      deviceId: typeof body?.deviceId === 'string' ? body.deviceId : '',
+      appId: 'CALCULATOR' as DesktopCalcAppId,
+      left: typeof body?.left === 'number' ? body.left : Number.NaN,
+      op: (typeof body?.op === 'string' ? body.op : '') as DesktopCalcOperator,
+      right: typeof body?.right === 'number' ? body.right : Number.NaN,
+    };
+    // The person's own words: read into the same fields (never an authority - the approval card shows what was understood, and nothing runs until it is approved).
+    const prompt = typeof body?.prompt === 'string' ? body.prompt : '';
+    if (prompt && Number.isNaN(request.left as number)) {
+      const read = interpretDesktopCalculateRequest(prompt);
+      if (!read.ok) throw new NagexError({ code: `DESKTOP_REQUEST_UNCLEAR_${read.missing}`, category: 'VALIDATION', message: 'The request does not say everything NAgex needs.', request_id: requestId });
+      request.left = read.left; request.op = read.op; request.right = read.right;
+    }
+    // no device named: the person's most recently seen PC that can do this
+    if (!request.deviceId) {
+      const capable = deviceIdentityStore.listOwned(session.tenantId, session.principalId)
+        .filter((candidate) => candidate.status === 'ACTIVE' && candidate.capabilityInventory.includes(DESKTOP_CALCULATOR_CAPABILITY))
+        .sort((a, b) => String(b.lastSeenAt ?? '').localeCompare(String(a.lastSeenAt ?? '')));
+      if (capable.length === 0) throw new NagexError({ code: 'DESKTOP_DEVICE_UNAVAILABLE', category: 'NOT_FOUND', message: 'No PC of yours is connected that can do this.', request_id: requestId });
+      request.deviceId = capable[0].deviceId;
+    }
+    const valid = validateDesktopCalculate(request);
+    if (!valid.ok) throw new NagexError({ code: valid.code, category: 'VALIDATION', message: valid.message, request_id: requestId });
+    const device = deviceIdentityStore.getOwned(request.deviceId, session.tenantId, session.principalId);
+    if (!device || device.status !== 'ACTIVE') throw new NagexError({ code: 'DEVICE_NOT_FOUND', category: 'NOT_FOUND', message: 'Device was not found for this tenant/user.', request_id: requestId });
+    if (!device.capabilityInventory.includes(DESKTOP_CALCULATOR_CAPABILITY)) {
+      throw new NagexError({ code: 'DESKTOP_CAPABILITY_UNAVAILABLE', category: 'POLICY', message: 'This device has not reported that it can control this application.', request_id: requestId });
+    }
+    const calculation = request as DesktopCalculateRequest;
+    const approval = deps.actionApprovals.request({ toolId: DESKTOP_CALCULATE_TOOL_ID, tenantId: session.tenantId, principalId: session.principalId, payload: desktopCalculateApprovalPayload(calculation) });
+    return {
+      status: 201,
+      data: {
+        approvalId: approval.approvalId,
+        status: approval.status,
+        expiresAt: approval.expiresAt,
+        // everything the person is asked to approve, in the clear
+        summary: {
+          deviceName: device.nickname || device.systemDeviceName || device.deviceId, appId: 'CALCULATOR', operation: 'CALCULATE', left: calculation.left, op: calculation.op, right: calculation.right,
+          expected: desktopCalculateExpected(calculation.left, calculation.op, calculation.right), onYourScreen: true,
+          deviceConnected: deps.deviceConnectionStatusStore?.getStatus(device.deviceId, session.tenantId, session.principalId)?.connectionState === 'CONNECTED',
+        },
+      },
+    };
+  }
+
+  if (pathname === '/api/v1/device-agent/desktop-calculations/dispatch' && method === 'POST') {
+    const requestId = getHeaderValue(headers, 'x-request-id') || `req_${crypto.randomUUID()}`;
+    const session = desktopSession(requestId);
+    if (!deps.actionApprovals || !deviceCommandService) throw new NagexError({ code: 'DEVICE_COMMAND_SERVICE_UNAVAILABLE', category: 'INTERNAL', message: 'Device command service is not configured.', request_id: requestId });
+    const approvalId = typeof body?.approvalId === 'string' ? body.approvalId : '';
+    if (!approvalId) throw new NagexError({ code: 'DESKTOP_PLAN_APPROVAL_REQUIRED', category: 'VALIDATION', message: 'approvalId is required.', request_id: requestId });
+    // owner-scoped, tool-bound, approved, unexpired, unused - or a precise error. The plan is rebuilt from what was APPROVED, never from fields the caller sends now.
+    const approval = deps.actionApprovals.assertExecutable(approvalId, session.tenantId, session.principalId, DESKTOP_CALCULATE_TOOL_ID, requestId);
+    const approved = approval.canonicalPayload as Record<string, unknown>;
+    const planId = `dplan_${approvalId}`;
+    const expiresAt = new Date(Date.now() + Math.min(10 * 60 * 1000, DESKTOP_PLAN_MAX_TTL_MS)).toISOString();
+    const result = deviceCommandService.enqueueDesktopCalculate({
+      tenantId: session.tenantId,
+      principalId: session.principalId,
+      requestId,
+      deviceId: String(approved.deviceId ?? ''),
+      approvalRef: approvalId,
+      planId,
+      appId: 'CALCULATOR',
+      left: Number(approved.left),
+      op: String(approved.op ?? '') as DesktopCalcOperator,
+      right: Number(approved.right),
       expiresAt,
     });
     deps.deviceCommandStatusStore?.markQueued({ commandId: result.command.commandId, tenantId: session.tenantId, ownerId: session.principalId, deviceId: result.command.deviceId, executionId: String(result.command.data.executionId ?? '') || null });

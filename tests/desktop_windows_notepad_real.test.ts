@@ -105,7 +105,7 @@ describe('REAL WINDOWS: enroll this PC and have NAgex write and save a document 
 
   it('ENROLLMENT: this PC becomes a device of the signed-in person (key pair generated here), and its real Local Device Agent connects with that credential', async () => {
     const wiring = createDesktopPlanWiring({ credentialStore: store, dataDir, resolveRoot: () => (useRealDocuments ? documentsRoot : dedicated), report: async () => false });
-    assert.deepEqual(wiring.capabilityInventory, ['desktop:UIA_INTERACTIVE:NOTEPAD'], 'this PC truthfully reports what it can drive');
+    assert.deepEqual(wiring.capabilityInventory, ['desktop:UIA_INTERACTIVE:NOTEPAD', 'desktop:UIA_INTERACTIVE:CALCULATOR'], 'this PC truthfully reports what it can drive');
     const enrolled = await enrollThisDevice({ serverBaseUrl: h.origin, sessionId: owner.sessionId, credentialStore: store, agentVersion: 'real-e2e', capabilityInventory: wiring.capabilityInventory });
     assert.equal(enrolled.enrolled, true);
     if (!enrolled.enrolled) return;

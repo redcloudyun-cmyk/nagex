@@ -74,7 +74,7 @@ namespace NagexDesktopController
     {
         public string cmd; // INIT | OPEN_APP | OBSERVE | MUTATE | DIALOG | CLOSE_APP | CLOSE_DISCARD | CANCEL | SHUTDOWN
         public string mode; // INIT / OPEN_APP: ISOLATED (default) | INTERACTIVE
-        public string expectClass, expectImage; // OPEN_APP INTERACTIVE
+        public string expectClass, expectImage, expectAnchorId; // OPEN_APP INTERACTIVE (expectAnchorId: an automation id the new window must contain)
         public string dialogAction; // DIALOG: SET_FILENAME | PRESS
         public SelectorDto selector; // OBSERVE / MUTATE
         public string requestId;
@@ -136,7 +136,7 @@ namespace NagexDesktopController
                             HandleInit(cmd, workerExe);
                             break;
                         case "OPEN_APP":
-                            ForwardToWorker(new { protocolVersion = ProtocolVersion, token = _workerToken, nonce = Guid.NewGuid().ToString("N"), requestId = cmd.requestId, action = "OPEN_APP", appExePath = cmd.appExePath, appArgs = cmd.appArgs, mode = cmd.mode, expectClass = cmd.expectClass, expectImage = cmd.expectImage });
+                            ForwardToWorker(new { protocolVersion = ProtocolVersion, token = _workerToken, nonce = Guid.NewGuid().ToString("N"), requestId = cmd.requestId, action = "OPEN_APP", appExePath = cmd.appExePath, appArgs = cmd.appArgs, mode = cmd.mode, expectClass = cmd.expectClass, expectImage = cmd.expectImage, expectAnchorId = cmd.expectAnchorId });
                             break;
                         case "OBSERVE":
                             ForwardToWorker(new { protocolVersion = ProtocolVersion, token = _workerToken, nonce = Guid.NewGuid().ToString("N"), requestId = cmd.requestId, action = "OBSERVE", target = cmd.target, selector = cmd.selector });

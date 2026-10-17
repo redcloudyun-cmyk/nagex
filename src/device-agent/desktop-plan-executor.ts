@@ -12,7 +12,10 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import type { DevicePendingCommand } from './device-agent-protocol.js';
-import { desktopTextSha256, parseDesktopWriteAndSavePlan, type DesktopPlanAppId, type DesktopPlanRootAlias, type DesktopWriteAndSavePlanV1 } from './desktop-plan.types.js';
+import {
+  DESKTOP_APP_CAPABILITY, DESKTOP_CALCULATE_OPERATION, DESKTOP_CALCULATOR_CAPABILITY, desktopTextSha256, parseDesktopCalculatePlan, parseDesktopWriteAndSavePlan,
+  type DesktopCalcOperator, type DesktopCalculatePlanV1, type DesktopPlanAppId, type DesktopPlanRootAlias, type DesktopWriteAndSavePlanV1,
+} from './desktop-plan.types.js';
 import type { DesktopElementSelector, DesktopMode, DesktopOpenAppOptions, DesktopWorkerResult } from './windows-isolated-desktop-controller.js';
 
 /** the part of the native controller this executor may use - nothing else (no shell, no free-form input) */
@@ -43,7 +46,8 @@ export type DesktopPlanFailure =
   | 'COMMAND_VERSION_UNSUPPORTED' | 'COMMAND_SHAPE_INVALID' | 'COMMAND_TEXT_HASH_MISMATCH' | 'IDENTITY_MISMATCH' | 'COMMAND_EXPIRED' | 'COMMAND_REPLAY' | 'AGENT_BUSY'
   | 'APP_NOT_ALLOWED' | 'CONTROLLER_UNAVAILABLE' | 'PATH_NOT_ALLOWED' | 'TARGET_FILE_EXISTS' | 'CONTROLLER_START_FAILED' | 'APP_START_FAILED' | 'UNEXPECTED_WINDOW'
   | 'APP_WINDOW_NOT_FOUND' | 'DOCUMENT_NOT_EMPTY' | 'TEXT_ENTRY_NOT_VERIFIED' | 'MENU_NOT_FOUND' | 'SAVE_AS_NOT_FOUND' | 'FILE_DIALOG_NOT_FOUND' | 'FILENAME_ENTRY_FAILED'
-  | 'CONFIRM_PROMPT_OPEN' | 'SAVE_NOT_COMPLETED' | 'FILE_VERIFICATION_MISMATCH' | 'EXECUTOR_ERROR';
+  | 'CONFIRM_PROMPT_OPEN' | 'SAVE_NOT_COMPLETED' | 'FILE_VERIFICATION_MISMATCH' | 'EXECUTOR_ERROR'
+  | 'COMMAND_EXPECTED_MISMATCH' | 'DESKTOP_CALC_OPERAND_INVALID' | 'DESKTOP_CALC_OPERATOR_INVALID' | 'DESKTOP_CALC_NEGATIVE_RESULT' | 'OPERAND_NOT_VERIFIED' | 'CALC_CONTROL_NOT_FOUND' | 'CALC_RESULT_MISMATCH';
 
 // ---- the device's own application rules -------------------------------------------------------------------------------------------------------------------------------------------------------------
 
@@ -70,6 +74,31 @@ const PROFILES: Readonly<Record<DesktopPlanAppId, DesktopAppProfile>> = Object.f
     saveAsNames: ['다른 이름으로 저장', 'Save as'],
   },
 });
+
+// Calculator (the packaged Windows Calculator). Its window is a generic frame (class ApplicationFrameWindow, owned by ApplicationFrameHost.exe) that every packaged application shares, so the new window
+// is adopted only if it also holds the display control (anchor). Its keys are found by their stable automation ids (num7Button, multiplyButton, equalButton ...), not by their localized captions or by position.
+const CALCULATOR_PROFILE = Object.freeze({
+  executable: (): string => path.join(process.env.SystemRoot || 'C:\\Windows', 'System32', 'calc.exe'),
+  expectClass: 'ApplicationFrameWindow',
+  expectImage: 'ApplicationFrameHost',
+  anchorId: 'CalculatorResults',
+  clearKey: 'clearButton',
+  equalsKey: 'equalButton',
+  operatorKey: { '+': 'plusButton', '-': 'minusButton', '*': 'multiplyButton' } as Record<DesktopCalcOperator, string>,
+});
+
+/** The application capabilities a device reports: only those whose executor is really present. */
+export function desktopCapabilities(controller: Pick<DesktopAutomationPort, 'isAvailable'>): string[] {
+  return controller.isAvailable() ? [DESKTOP_APP_CAPABILITY.NOTEPAD, DESKTOP_CALCULATOR_CAPABILITY] : [];
+}
+
+/** The number a Calculator display shows: its accessible text reads like "Display is 1,234" (or the same in the display language); the last whole number in it, thousands separators removed. */
+export function parseCalculatorDisplay(text: string): number | null {
+  const groups = String(text ?? '').match(/\d[\d,]*/g);
+  if (!groups || groups.length === 0) return null;
+  const last = groups[groups.length - 1].replace(/,/g, '');
+  return /^\d+$/.test(last) ? Number(last) : null;
+}
 
 // ---- the device's own folder rules ------------------------------------------------------------------------------------------------------------------------------------------------------------
 
@@ -182,7 +211,7 @@ export class DesktopPlanExecutor {
 
   /** What this device can drive, for its capability inventory: only what is really present. */
   public capabilities(): string[] {
-    return this.options.controller.isAvailable() ? ['desktop:UIA_INTERACTIVE:NOTEPAD'] : [];
+    return desktopCapabilities(this.options.controller);
   }
 
   /** Never throws. Resolves when the command has been carried out (or refused) and its final report has been handed over. */
@@ -202,6 +231,8 @@ export class DesktopPlanExecutor {
     const { identity } = this.options;
 
     if (command.commandType !== 'DESKTOP_EXECUTE_PLAN') return fail('COMMAND_SHAPE_INVALID', ['NOT_A_DESKTOP_PLAN']);
+    // the second canonical action runs through the same guards; only its recipe differs
+    if ((command.data as Record<string, unknown> | undefined)?.operation === DESKTOP_CALCULATE_OPERATION) return this.runCalculation(command);
     if (command.deviceId !== identity.deviceId || command.tenantId !== identity.tenantId || command.ownerId !== identity.ownerId) return fail('IDENTITY_MISMATCH', ['COMMAND_FOR_ANOTHER_DEVICE_OR_USER']);
     const parsed = parseDesktopWriteAndSavePlan(command.data);
     if (!parsed.ok) return fail(parsed.code as DesktopPlanFailure, ['COMMAND_REJECTED']);
@@ -319,6 +350,116 @@ export class DesktopPlanExecutor {
       if (windowOpen && !saved) {
         const discarded = await controller.closeDiscard(session).catch((e: Error): DesktopWorkerResult => errorResult(e));
         steps.push(discarded.status === 'OK' ? 'OWN_WINDOW_DISCARDED' : `OWN_WINDOW_DISCARD:${discarded.status}`);
+      }
+      await controller.shutdown(session).catch(() => undefined);
+    }
+  }
+
+  // ---- calculate in the Calculator: the same guards as above, a different recipe, the same rule - report only what was seen --------------------------------------------------------------------------
+  private async runCalculation(command: DevicePendingCommand): Promise<DesktopPlanReport> {
+    const fail = (resultCode: DesktopPlanFailure, steps: string[], extra: Record<string, unknown> = {}): DesktopPlanReport => ({ stage: 'FAILED', resultCode, evidence: { steps, ...extra } });
+    const { identity } = this.options;
+    if (command.deviceId !== identity.deviceId || command.tenantId !== identity.tenantId || command.ownerId !== identity.ownerId) return fail('IDENTITY_MISMATCH', ['COMMAND_FOR_ANOTHER_DEVICE_OR_USER']);
+    const parsed = parseDesktopCalculatePlan(command.data);
+    if (!parsed.ok) return fail(parsed.code as DesktopPlanFailure, ['COMMAND_REJECTED']);
+    const plan = parsed.plan;
+    if (plan.deviceId !== identity.deviceId || plan.tenantId !== identity.tenantId || plan.principalId !== identity.ownerId) return fail('IDENTITY_MISMATCH', ['PLAN_FOR_ANOTHER_DEVICE_OR_USER']);
+    if (Date.parse(plan.expiresAt) <= this.now()) return fail('COMMAND_EXPIRED', ['PLAN_EXPIRED']);
+    if (this.options.replayGuard.has(command.commandId) || this.options.replayGuard.has(plan.planId)) return fail('COMMAND_REPLAY', ['ALREADY_TAKEN_ON']);
+    if (this.busy) return fail('AGENT_BUSY', ['ANOTHER_PLAN_IS_RUNNING']);
+    if (!this.options.controller.isAvailable()) return fail('CONTROLLER_UNAVAILABLE', ['NATIVE_CONTROLLER_NOT_PRESENT']);
+    // from here on this command counts as taken on: even if it fails half-way it is never run a second time
+    this.options.replayGuard.remember(command.commandId);
+    this.options.replayGuard.remember(plan.planId);
+    this.busy = true;
+    try {
+      await this.options.report(command, { stage: 'EXECUTING', resultCode: 'STARTED', evidence: { steps: ['ACCEPTED'], appId: plan.appId, mode: 'INTERACTIVE' } }).catch(() => undefined);
+      return await this.carryOutCalculation(plan);
+    } finally {
+      this.busy = false;
+    }
+  }
+
+  private async carryOutCalculation(plan: DesktopCalculatePlanV1): Promise<DesktopPlanReport> {
+    const controller = this.options.controller;
+    const profile = CALCULATOR_PROFILE;
+    const session = `dplan_${plan.planId}`.slice(0, 120);
+    const steps: string[] = ['ACCEPTED'];
+    const facts: Record<string, unknown> = { appId: plan.appId, mode: 'INTERACTIVE', operation: DESKTOP_CALCULATE_OPERATION, left: plan.left, op: plan.op, right: plan.right, expected: plan.expected };
+    const failed = (resultCode: DesktopPlanFailure): DesktopPlanReport => ({ stage: 'FAILED', resultCode, evidence: { ...facts, steps } });
+    let windowOpen = false;
+    let done = false;
+    const press = (automationId: string): Promise<DesktopWorkerResult> => controller.mutate(session, 'INVOKE', '', undefined, { controlType: 'Button', automationId }).catch((e: Error): DesktopWorkerResult => errorResult(e));
+    const display = async (): Promise<number | null> => {
+      const read = await controller.observe(session, profile.anchorId).catch((e: Error): DesktopWorkerResult => errorResult(e));
+      return read.status === 'OK' ? parseCalculatorDisplay(read.observedAfter ?? '') : null;
+    };
+    // the keys of one whole number, pressed one by one; the display is then READ BACK and must show that number
+    const enter = async (value: number, which: 'LEFT' | 'RIGHT'): Promise<boolean> => {
+      for (const digit of String(value)) {
+        const key = await press(`num${digit}Button`);
+        if (key.status !== 'SUCCEEDED_VERIFIED') { steps.push(`KEY_NUM:${key.status}`); facts.nativeCode = key.errorCode ?? ''; facts.keyMatches = key.matchCount; return false; }
+      }
+      const shown = await display();
+      facts[`${which.toLowerCase()}ShownOnDisplay`] = shown;
+      if (shown !== value) { steps.push(`${which}_OPERAND:DISPLAY_DIFFERS`); return false; }
+      steps.push(`${which}_OPERAND_ENTERED_AND_READ_BACK`);
+      return true;
+    };
+    try {
+      const init = await controller.init(session, 'INTERACTIVE').catch((e: Error): DesktopWorkerResult => errorResult(e));
+      if (init.status !== 'OK') { steps.push(`CONTROLLER_INIT:${init.status}`); return failed('CONTROLLER_START_FAILED'); }
+      steps.push('CONTROLLER_STARTED');
+
+      const open = await controller.openApp(session, profile.executable(), '', { mode: 'INTERACTIVE', expectClass: profile.expectClass, expectImage: profile.expectImage, expectAnchorId: profile.anchorId }).catch((e: Error): DesktopWorkerResult => errorResult(e));
+      if (open.status === 'TARGET_AMBIGUOUS') { steps.push('NEW_WINDOW:AMBIGUOUS'); facts.newWindows = open.matchCount; return failed('UNEXPECTED_WINDOW'); }
+      if (open.status !== 'OK') { steps.push(`APP_OPEN:${open.status}`); facts.nativeCode = open.errorCode ?? ''; return failed(open.status === 'FAILED' ? 'APP_WINDOW_NOT_FOUND' : 'APP_START_FAILED'); }
+      windowOpen = true;
+      steps.push('APP_WINDOW_FOUND_BY_HANDLE');
+
+      // a fresh calculation: whatever the Calculator held is cleared, and the display must say zero before anything is entered
+      const cleared = await press(profile.clearKey);
+      if (cleared.status !== 'SUCCEEDED_VERIFIED') { steps.push(`CLEAR_KEY:${cleared.status}`); return failed('CALC_CONTROL_NOT_FOUND'); }
+      if ((await display()) !== 0) { steps.push('DISPLAY_NOT_ZERO'); return failed('OPERAND_NOT_VERIFIED'); }
+      steps.push('DISPLAY_IS_ZERO');
+
+      if (!(await enter(plan.left, 'LEFT'))) return failed(steps[steps.length - 1].startsWith('KEY_NUM') ? 'CALC_CONTROL_NOT_FOUND' : 'OPERAND_NOT_VERIFIED');
+      const operator = await press(profile.operatorKey[plan.op]);
+      if (operator.status !== 'SUCCEEDED_VERIFIED') { steps.push(`OPERATOR_KEY:${operator.status}`); return failed('CALC_CONTROL_NOT_FOUND'); }
+      steps.push('OPERATOR_PRESSED');
+      if (!(await enter(plan.right, 'RIGHT'))) return failed(steps[steps.length - 1].startsWith('KEY_NUM') ? 'CALC_CONTROL_NOT_FOUND' : 'OPERAND_NOT_VERIFIED');
+
+      const equals = await press(profile.equalsKey);
+      if (equals.status !== 'SUCCEEDED_VERIFIED') { steps.push(`EQUALS_KEY:${equals.status}`); return failed('CALC_CONTROL_NOT_FOUND'); }
+      steps.push('EQUALS_PRESSED');
+
+      // the result comes from the DISPLAY and is compared with what NAgex computed and the person approved; a moment is allowed for the display to settle
+      let shown: number | null = null;
+      for (let attempt = 0; attempt < 6; attempt += 1) {
+        shown = await display();
+        if (shown === plan.expected) break;
+        await this.sleep(200);
+      }
+      facts.observedResult = shown;
+      facts.resultMatchesExpected = shown === plan.expected;
+      if (shown !== plan.expected) { steps.push('RESULT:DISPLAY_DIFFERS_FROM_EXPECTED'); return failed('CALC_RESULT_MISMATCH'); }
+      steps.push('RESULT_READ_FROM_DISPLAY_MATCHES_EXPECTED');
+      done = true;
+
+      const closed = await controller.closeApp(session).catch((e: Error): DesktopWorkerResult => errorResult(e));
+      facts.windowClosed = closed.status === 'OK';
+      steps.push(closed.status === 'OK' ? 'WINDOW_CLOSED' : `WINDOW_CLOSE:${closed.status}`);
+      windowOpen = closed.status !== 'OK';
+      return { stage: 'COMPLETED', resultCode: 'DESKTOP_CALCULATED_VERIFIED', evidence: { ...facts, steps } };
+    } catch {
+      steps.push('EXECUTOR_ERROR');
+      return failed('EXECUTOR_ERROR');
+    } finally {
+      // leave nothing behind: the window this plan opened is closed (it holds only what this plan entered); then the controller is shut down
+      if (windowOpen && !done) {
+        const closed = await controller.closeApp(session).catch((e: Error): DesktopWorkerResult => errorResult(e));
+        if (closed.status !== 'OK') await controller.closeDiscard(session).catch(() => undefined);
+        steps.push(closed.status === 'OK' ? 'OWN_WINDOW_CLOSED' : 'OWN_WINDOW_CLOSE_UNCONFIRMED');
       }
       await controller.shutdown(session).catch(() => undefined);
     }

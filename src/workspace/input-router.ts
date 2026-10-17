@@ -1,5 +1,5 @@
 import { detectRequestLanguage, type RequestLanguage } from '../common/request-language.js';
-import { isDesktopWriteRequest } from '../device-agent/desktop-request-interpreter.js';
+import { isDesktopCalculateRequest, isDesktopWriteRequest } from '../device-agent/desktop-request-interpreter.js';
 import { classifyPlanRequest } from '../model-gateway/plan-request-kind.js';
 import { isVaultSaveRequest } from './vault-save-intent.js';
 import { detectVersionIntent } from './version-intent.js';
@@ -89,6 +89,8 @@ export interface ClassifyInput {
   productBuilderAvailable?: boolean;
   // a PC of the signed-in person is enrolled and can drive Notepad (the server knows). Without one a "write this in Notepad and save it" request is an honest 'not available'.
   desktopTaskAvailable?: boolean;
+  /** an enrolled PC of the person's reports that it can drive the Calculator */
+  desktopCalculatorAvailable?: boolean;
 }
 
 // ----- cue tables (substring matches for Korean, word-aware for English) -----------------------------------------------------------------------------------
@@ -275,7 +277,7 @@ export function isDeckEditRequest(text: string): boolean {
   return (DECK_EDIT_VERB_KO.test(t) && DECK_PART_KO.test(t)) || (DECK_EDIT_VERB_EN.test(t) && DECK_PART_EN.test(t));
 }
 
-export function decideRouting(rawText: string, options: { hasAttachment?: boolean; hint?: ClassifyInput['hint']; revisingDocument?: boolean; activeArtifact?: ClassifyInput['activeArtifact']; sourceDocument?: boolean; videoAvailable?: boolean; browserTaskAvailable?: boolean; productBuilderAvailable?: boolean; desktopTaskAvailable?: boolean } = {}): RoutingDecision {
+export function decideRouting(rawText: string, options: { hasAttachment?: boolean; hint?: ClassifyInput['hint']; revisingDocument?: boolean; activeArtifact?: ClassifyInput['activeArtifact']; sourceDocument?: boolean; videoAvailable?: boolean; browserTaskAvailable?: boolean; productBuilderAvailable?: boolean; desktopTaskAvailable?: boolean; desktopCalculatorAvailable?: boolean } = {}): RoutingDecision {
   const text = (rawText || '').normalize('NFC').trim();
   const language = detectRequestLanguage(text);
   const hasAttachment = options.hasAttachment === true;
@@ -309,6 +311,14 @@ export function decideRouting(rawText: string, options: { hasAttachment?: boolea
   if (!executionNegated && isDesktopWriteRequest(work)) {
     if (options.desktopTaskAvailable === true) {
       return makeDecision({ kind: 'ACTION_PLAN', language, needs: [{ capability: 'ACTION', supported: true, approvalRequired: true }], confidence: 0.88, permissionRisk: 'LOCAL_CREATE', executionNegated, reasonCodes: [...reasonCodes, 'DESKTOP_TASK', 'APPROVAL_REQUIRED'] });
+    }
+    return makeDecision({ kind: 'UNSUPPORTED', language, needs: [{ capability: 'ACTION', supported: false }], confidence: 0.85, reasonCodes: [...reasonCodes, 'DESKTOP_DEVICE_UNAVAILABLE'] });
+  }
+
+  // 1d. Calculating on the person's own PC: "use the Calculator to work out 17 x 24" - the second canonical desktop action, with the same rules as 1c.
+  if (!executionNegated && isDesktopCalculateRequest(work)) {
+    if (options.desktopCalculatorAvailable === true) {
+      return makeDecision({ kind: 'ACTION_PLAN', language, needs: [{ capability: 'ACTION', supported: true, approvalRequired: true }], confidence: 0.88, permissionRisk: 'LOCAL_CREATE', executionNegated, reasonCodes: [...reasonCodes, 'DESKTOP_TASK', 'DESKTOP_CALCULATE', 'APPROVAL_REQUIRED'] });
     }
     return makeDecision({ kind: 'UNSUPPORTED', language, needs: [{ capability: 'ACTION', supported: false }], confidence: 0.85, reasonCodes: [...reasonCodes, 'DESKTOP_DEVICE_UNAVAILABLE'] });
   }
@@ -481,7 +491,7 @@ export class InputRouter {
         confidence: 0.98,
         reason: 'Input contains file payload',
         normalizedPayload: { rawInput: rawText, mimeType: input.mimeType || 'application/octet-stream' },
-        decision: rawText ? decideRouting(rawText, { hasAttachment, hint: input.hint, revisingDocument: input.revisingDocument === true, activeArtifact: input.activeArtifact, sourceDocument: input.sourceDocument === true, videoAvailable: input.videoAvailable === true, browserTaskAvailable: input.browserTaskAvailable === true, productBuilderAvailable: input.productBuilderAvailable === true, desktopTaskAvailable: input.desktopTaskAvailable === true }) : captureDecision(0.98, 'FILE_PAYLOAD'),
+        decision: rawText ? decideRouting(rawText, { hasAttachment, hint: input.hint, revisingDocument: input.revisingDocument === true, activeArtifact: input.activeArtifact, sourceDocument: input.sourceDocument === true, videoAvailable: input.videoAvailable === true, browserTaskAvailable: input.browserTaskAvailable === true, productBuilderAvailable: input.productBuilderAvailable === true, desktopTaskAvailable: input.desktopTaskAvailable === true, desktopCalculatorAvailable: input.desktopCalculatorAvailable === true }) : captureDecision(0.98, 'FILE_PAYLOAD'),
       };
     }
 
@@ -528,7 +538,7 @@ export class InputRouter {
     }
 
     // 5. everything else is routed by what the person asked for
-    const decision = decideRouting(rawText, { hasAttachment: false, hint: input.hint, revisingDocument: input.revisingDocument === true, activeArtifact: input.activeArtifact, sourceDocument: input.sourceDocument === true, videoAvailable: input.videoAvailable === true, browserTaskAvailable: input.browserTaskAvailable === true, productBuilderAvailable: input.productBuilderAvailable === true, desktopTaskAvailable: input.desktopTaskAvailable === true });
+    const decision = decideRouting(rawText, { hasAttachment: false, hint: input.hint, revisingDocument: input.revisingDocument === true, activeArtifact: input.activeArtifact, sourceDocument: input.sourceDocument === true, videoAvailable: input.videoAvailable === true, browserTaskAvailable: input.browserTaskAvailable === true, productBuilderAvailable: input.productBuilderAvailable === true, desktopTaskAvailable: input.desktopTaskAvailable === true, desktopCalculatorAvailable: input.desktopCalculatorAvailable === true });
     const primaryIntent: InputIntent = decision.kind === 'ACTION_PLAN' ? 'COMMAND' : 'ASK';
     return {
       primaryIntent,

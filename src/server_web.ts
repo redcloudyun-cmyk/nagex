@@ -62,7 +62,7 @@ import { handleProactiveSuggestionsRoutes } from './http/routes/proactive-sugges
 import { handleCapabilitiesRoutes } from './http/routes/capabilities.routes.js';
 import { handleMySpaceRoutes } from './http/routes/my-space.routes.js';
 import { handleDeviceAgentRoutes } from './http/routes/device-agent.routes.js';
-import { DESKTOP_APP_CAPABILITY } from './device-agent/desktop-plan.types.js';
+import { DESKTOP_APP_CAPABILITY, DESKTOP_CALCULATOR_CAPABILITY } from './device-agent/desktop-plan.types.js';
 import { handleMobileDeviceRoutes } from './http/routes/mobile-device.routes.js';
 import { handleMobileMessageRoutes } from './http/routes/mobile-message.routes.js';
 import { handleAuthRoutes } from './http/routes/auth.routes.js';
@@ -617,7 +617,7 @@ export async function handleAsyncApiRequest(
     // (route-input, storage/status, inbox, vault, uploads, captures, items,
     // candidates, activity) now resolve through one registrar call.
     {
-      const workspaceResult = await handleWorkspaceRoutes(method, pathname, body, headers, query, { quickCaptureService, artifactStore: app.artifactStore, isVideoAvailable: () => app.videoJobService.isAvailable(), isBrowserTaskAvailable: () => Boolean(app.browserTaskService), isProductBuilderAvailable: () => app.productBuilderService.capability().available, isDesktopTaskAvailable: (tenantId, principalId) => deviceIdentityStore.listOwned(tenantId, principalId).some((device) => device.status === 'ACTIVE' && device.capabilityInventory.includes(DESKTOP_APP_CAPABILITY.NOTEPAD)) });
+      const workspaceResult = await handleWorkspaceRoutes(method, pathname, body, headers, query, { quickCaptureService, artifactStore: app.artifactStore, isVideoAvailable: () => app.videoJobService.isAvailable(), isBrowserTaskAvailable: () => Boolean(app.browserTaskService), isProductBuilderAvailable: () => app.productBuilderService.capability().available, isDesktopTaskAvailable: (tenantId, principalId) => deviceIdentityStore.listOwned(tenantId, principalId).some((device) => device.status === 'ACTIVE' && device.capabilityInventory.includes(DESKTOP_APP_CAPABILITY.NOTEPAD)), isDesktopCalculatorAvailable: (tenantId, principalId) => deviceIdentityStore.listOwned(tenantId, principalId).some((device) => device.status === 'ACTIVE' && device.capabilityInventory.includes(DESKTOP_CALCULATOR_CAPABILITY)) });
       if (workspaceResult) return workspaceResult;
 
       const commandContextResult = await handleCommandContextRoutes(method, pathname, body, headers, query, { commandService: multimodalCommandService, sessionStore: customDeps?.sessionStore ?? sessionStore });

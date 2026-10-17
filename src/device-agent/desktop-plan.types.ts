@@ -123,3 +123,106 @@ export function parseDesktopWriteAndSavePlan(data: Record<string, unknown>): { o
     },
   };
 }
+
+// ---- the second canonical action: a calculation in the allowlisted Calculator ------------------------------------------------------------------------------------------------------------------------
+//
+//   WHAT  = calculate "left <operator> right" in the device's Calculator and read the result back from its display
+//   WHERE = one enrolled device of the signed-in person
+//   HOW   = the device's own execution route (UI Automation on the user's desktop: the keys of the Calculator, by their stable automation ids)
+//
+// The same contract as writing a file: the command carries exactly the fields the person approved (the approval is bound to their hash), the device checks its own identity, the version, the expiry and
+// that the command was not run before, and it reports only what it SAW. The expected result is computed by NAgex from the operands and is part of what is approved: the device compares the Calculator's
+// display with that - a value the application shows is not trusted on its own.
+export const DESKTOP_CALCULATE_TOOL_ID = 'device.desktop.calculator.calculate';
+export const DESKTOP_CALCULATE_OPERATION = 'CALCULATE';
+export const DESKTOP_CALCULATOR_CAPABILITY = 'desktop:UIA_INTERACTIVE:CALCULATOR';
+/** whole numbers up to six digits: what the Calculator's keys enter and its display shows without any rounding or locale-dependent separators beyond a thousands separator */
+export const DESKTOP_CALC_MAX_OPERAND = 999_999;
+export type DesktopCalcAppId = 'CALCULATOR';
+export type DesktopCalcOperator = '+' | '-' | '*';
+const CALC_OPERATORS: ReadonlySet<string> = new Set<string>(['+', '-', '*']);
+
+export interface DesktopCalculateRequest {
+  deviceId: string;
+  appId: DesktopCalcAppId;
+  left: number;
+  op: DesktopCalcOperator;
+  right: number;
+}
+
+export function desktopCalculateExpected(left: number, op: DesktopCalcOperator, right: number): number {
+  return op === '+' ? left + right : op === '-' ? left - right : left * right;
+}
+
+export function validateDesktopCalculate(request: Partial<DesktopCalculateRequest>): DesktopPlanValidation {
+  if (typeof request.deviceId !== 'string' || !request.deviceId.trim()) return { ok: false, code: 'DESKTOP_PLAN_DEVICE_REQUIRED', message: 'A device is required.' };
+  if (request.appId !== 'CALCULATOR') return { ok: false, code: 'DESKTOP_APP_NOT_ALLOWED', message: 'This application is not one NAgex may control.' };
+  const whole = (value: unknown): value is number => typeof value === 'number' && Number.isInteger(value) && value >= 0 && value <= DESKTOP_CALC_MAX_OPERAND;
+  if (!whole(request.left) || !whole(request.right)) return { ok: false, code: 'DESKTOP_CALC_OPERAND_INVALID', message: `Each number must be a whole number from 0 to ${DESKTOP_CALC_MAX_OPERAND}.` };
+  if (typeof request.op !== 'string' || !CALC_OPERATORS.has(request.op)) return { ok: false, code: 'DESKTOP_CALC_OPERATOR_INVALID', message: 'NAgex can add, subtract and multiply.' };
+  // a result below zero is shown with a minus sign in several forms; version 1 stays with results that read back unambiguously
+  if (request.op === '-' && request.left < request.right) return { ok: false, code: 'DESKTOP_CALC_NEGATIVE_RESULT', message: 'The result would be below zero; version 1 calculates results of zero or more.' };
+  return { ok: true };
+}
+
+/** The exact fields the person approves; the approval record keeps a hash of this object. */
+export function desktopCalculateApprovalPayload(request: DesktopCalculateRequest): Record<string, unknown> {
+  return {
+    actionType: DESKTOP_CALCULATE_TOOL_ID,
+    operation: DESKTOP_CALCULATE_OPERATION,
+    deviceId: request.deviceId,
+    appId: request.appId,
+    route: DESKTOP_PLAN_ROUTE,
+    interactive: true,
+    left: request.left,
+    op: request.op,
+    right: request.right,
+    expected: desktopCalculateExpected(request.left, request.op, request.right),
+  };
+}
+
+export interface DesktopCalculatePlanV1 {
+  commandVersion: typeof DESKTOP_PLAN_COMMAND_VERSION;
+  planId: string;
+  executionId: string;
+  operation: typeof DESKTOP_CALCULATE_OPERATION;
+  appId: DesktopCalcAppId;
+  route: typeof DESKTOP_PLAN_ROUTE;
+  left: number;
+  op: DesktopCalcOperator;
+  right: number;
+  expected: number;
+  approvalRef: string;
+  deviceId: string;
+  principalId: string;
+  tenantId: string;
+  expiresAt: string;
+}
+
+/** The structural check a device makes of a delivered calculation before it does anything: right version, right shape, and an expected result that is really the result of the operands. */
+export function parseDesktopCalculatePlan(data: Record<string, unknown>): { ok: true; plan: DesktopCalculatePlanV1 } | { ok: false; code: string } {
+  if (data.commandVersion !== DESKTOP_PLAN_COMMAND_VERSION) return { ok: false, code: 'COMMAND_VERSION_UNSUPPORTED' };
+  const str = (key: string): string => (typeof data[key] === 'string' ? (data[key] as string) : '');
+  if (data.operation !== DESKTOP_CALCULATE_OPERATION || data.route !== DESKTOP_PLAN_ROUTE) return { ok: false, code: 'COMMAND_SHAPE_INVALID' };
+  const request: Partial<DesktopCalculateRequest> = { deviceId: str('deviceId'), appId: str('appId') as DesktopCalcAppId, left: data.left as number, op: data.op as DesktopCalcOperator, right: data.right as number };
+  const valid = validateDesktopCalculate(request);
+  if (!valid.ok) return { ok: false, code: valid.code };
+  const left = request.left as number;
+  const op = request.op as DesktopCalcOperator;
+  const right = request.right as number;
+  if (data.expected !== desktopCalculateExpected(left, op, right)) return { ok: false, code: 'COMMAND_EXPECTED_MISMATCH' };
+  const planId = str('planId');
+  const executionId = str('executionId');
+  const approvalRef = str('approvalRef');
+  const principalId = str('principalId');
+  const tenantId = str('tenantId');
+  const expiresAt = str('expiresAt');
+  if (!planId || !executionId || !approvalRef || !principalId || !tenantId || !Number.isFinite(Date.parse(expiresAt))) return { ok: false, code: 'COMMAND_SHAPE_INVALID' };
+  return {
+    ok: true,
+    plan: {
+      commandVersion: DESKTOP_PLAN_COMMAND_VERSION, planId, executionId, operation: DESKTOP_CALCULATE_OPERATION, appId: 'CALCULATOR', route: DESKTOP_PLAN_ROUTE,
+      left, op, right, expected: desktopCalculateExpected(left, op, right), approvalRef, deviceId: request.deviceId as string, principalId, tenantId, expiresAt,
+    },
+  };
+}

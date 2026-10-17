@@ -3,7 +3,7 @@
 //
 // This is deliberately plain and deterministic: no model is asked to guess a file name or a sentence. The result is not an authority either - it only fills in the approval card, which shows the
 // person exactly what NAgex understood (the text, the name, the folder, "on your screen") and does nothing until they approve it. What cannot be read from the request is asked for, not invented.
-import { validateDesktopWriteAndSave, type DesktopPlanAppId, type DesktopPlanRootAlias } from './desktop-plan.types.js';
+import { DESKTOP_CALC_MAX_OPERAND, validateDesktopCalculate, validateDesktopWriteAndSave, type DesktopCalcOperator, type DesktopPlanAppId, type DesktopPlanRootAlias } from './desktop-plan.types.js';
 
 export type DesktopRequestInterpretation =
   | { ok: true; appId: DesktopPlanAppId; text: string; fileName: string; rootAlias: DesktopPlanRootAlias }
@@ -75,4 +75,48 @@ export function interpretDesktopWriteRequest(rawPrompt: string): DesktopRequestI
     return { ok: false, missing: 'TEXT', detail: check.code };
   }
   return { ok: true, appId: 'NOTEPAD', text, fileName, rootAlias };
+}
+
+// ---- "계산기로 17 곱하기 24 계산해줘" / "use the Calculator to work out 17 * 24" -> the two numbers and the operator - or what is missing -----------------------------------------------------------------
+// Plain and deterministic like the write request above: the result only fills in the approval card, which shows the calculation exactly as understood and does nothing until it is approved.
+const CALCULATOR = /계산기|\bcalculator\b/i;
+const EXPRESSION = /(?<left>\d[\d,]*)\s*(?:(?<mul>×|✕|\*|x|곱하기|곱한|곱|times|multiplied\s+by)|(?<add>\+|더하기|더한|더|plus)|(?<sub>−|–|-|빼기|뺀|빼|minus))\s*(?<right>\d[\d,]*)/i;
+const PAIR_FORM = /(?<left>\d[\d,]*)\s*(?:과|와|하고|이랑|랑)\s*(?<right>\d[\d,]*)\s*(?:을|를)?\s*(?<verb>곱|더)/;
+
+export type DesktopCalculateInterpretation =
+  | { ok: true; appId: 'CALCULATOR'; left: number; op: DesktopCalcOperator; right: number }
+  | { ok: false; missing: 'APP' | 'EXPRESSION'; detail?: string };
+
+export function interpretDesktopCalculateRequest(rawPrompt: string): DesktopCalculateInterpretation {
+  const prompt = String(rawPrompt || '').normalize('NFC').trim();
+  if (!CALCULATOR.test(prompt)) return { ok: false, missing: 'APP' };
+  let left = ''; let right = ''; let op: DesktopCalcOperator | null = null;
+  const infix = EXPRESSION.exec(prompt);
+  if (infix) {
+    // the named groups say which number is which and which operator matched
+    const groups = infix.groups ?? {};
+    left = groups.left ?? ''; right = groups.right ?? '';
+    op = groups.mul ? '*' : groups.add ? '+' : groups.sub ? '-' : null;
+  } else {
+    const pair = PAIR_FORM.exec(prompt);
+    if (pair?.groups) { left = pair.groups.left; right = pair.groups.right; op = pair.groups.verb === '곱' ? '*' : '+'; }
+  }
+  if (!op || !left || !right) return { ok: false, missing: 'EXPRESSION' };
+  const toNumber = (text: string): number => Number(text.replace(/,/g, ''));
+  const a = toNumber(left); const b = toNumber(right);
+  if (!Number.isInteger(a) || !Number.isInteger(b)) return { ok: false, missing: 'EXPRESSION' };
+  if (a > DESKTOP_CALC_MAX_OPERAND || b > DESKTOP_CALC_MAX_OPERAND) return { ok: false, missing: 'EXPRESSION', detail: 'OPERAND_TOO_LARGE' };
+  const check = validateDesktopCalculate({ deviceId: 'x', appId: 'CALCULATOR', left: a, op, right: b });
+  if (!check.ok) return { ok: false, missing: 'EXPRESSION', detail: check.code };
+  return { ok: true, appId: 'CALCULATOR', left: a, op, right: b };
+}
+
+// a negated request ("don't calculate it", "계산하지 마") is not a request, so it never reaches the approval card
+// "don't calculate it": a request NOT to do something is not a request (the router's own negation list names consequential verbs - sending, saving, deleting - and does not include calculating)
+const CALC_NEGATED = /계산(?:을|는|를)?\s*(?:하)?지(?:는|를)?\s*(?:말고|마|말아|말라|않)|\b(?:don'?t|do not|never|no need to)\s+(?:\w+\s+){0,2}?(?:calculat|comput|work out)/i;
+
+/** true for a request to calculate something in the Calculator (not for a question about it, and not for a request NOT to) */
+export function isDesktopCalculateRequest(text: string): boolean {
+  const t = String(text || '').normalize('NFC');
+  return CALCULATOR.test(t) && !QUESTION.test(t) && !CALC_NEGATED.test(t) && interpretDesktopCalculateRequest(t).ok;
 }
