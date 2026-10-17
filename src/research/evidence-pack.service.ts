@@ -12,6 +12,7 @@ import type { SearchQueryResult } from './web-search-provider.port.js';
 import type { SearchQueryPlannerPort } from './search-query-planner.js';
 import { STATUS_PRECEDENCE } from './search-recovery.js';
 import { detectRequestLanguage } from '../common/request-language.js';
+import type { PipelineTelemetry } from '../observability/pipeline-telemetry.js';
 
 export function mapSearchStatusToEvidenceStatus(status: string): EvidencePackStatus {
   switch (status) {
@@ -59,6 +60,7 @@ export interface EvidencePackServiceOptions {
   excerptSources?: number;
   excerptBudgetMs?: number;
   now?: () => number;
+  telemetry?: PipelineTelemetry;
 }
 
 const DEFAULT_CACHE_TTL_MS = 10 * 60_000;
@@ -107,12 +109,22 @@ export class EvidencePackService {
     if (cacheKey) {
       const hit = this.cache.get(cacheKey);
       if (hit && this.now() - hit.at < (this.options.cacheTtlMs ?? DEFAULT_CACHE_TTL_MS)) {
+        const finish = this.options.telemetry?.start(options?.requestId ?? evidencePackId, 'WEB_SEARCH');
+        finish?.({ cache: 'HIT', attemptCount: 0, details: { sources: hit.pack.sources.length } });
         return { ...hit.pack, fromCache: true };
       }
       if (hit) this.cache.delete(cacheKey);
     }
 
-    const searchOutcome = await this.searchAll(query, options, classification.category);
+    const finishSearch = this.options.telemetry?.start(options?.requestId ?? evidencePackId, 'WEB_SEARCH');
+    let searchOutcome: SearchQueryResult;
+    try {
+      searchOutcome = await this.searchAll(query, options, classification.category);
+      finishSearch?.({ provider: searchOutcome.provider ?? null, attemptCount: searchOutcome.attempts?.length ?? 1, cache: 'MISS', errorCode: searchOutcome.status === 'SUCCESS' ? null : searchOutcome.status, details: { queryCount: searchOutcome.queries?.length ?? 1, resultCount: searchOutcome.results.length } });
+    } catch (error) {
+      finishSearch?.({ cache: 'MISS', errorCode: error instanceof Error ? error.name : 'WEB_SEARCH_FAILED' });
+      throw error;
+    }
 
     if (searchOutcome.status !== 'SUCCESS') {
       const mappedStatus = mapSearchStatusToEvidenceStatus(searchOutcome.status);
@@ -142,7 +154,10 @@ export class EvidencePackService {
       };
     }
 
-    await this.attachExcerpts(this.readingOrder(sources, query, classification.category).slice(0, this.options.excerptSources ?? 4), query, now, classification.category);
+    const toRead = this.readingOrder(sources, query, classification.category).slice(0, this.options.excerptSources ?? 4);
+    const finishFetch = this.options.telemetry?.start(options?.requestId ?? evidencePackId, 'EVIDENCE_FETCH', { sourceCount: toRead.length });
+    await this.attachExcerpts(toRead, query, now, classification.category);
+    finishFetch?.({ attemptCount: toRead.length, details: { pagesRead: toRead.filter((source) => Boolean(source.excerpt || source.fullText)).length } });
 
     // For a named, versioned product (a phone, a console, a graphics card) a page that mentions none of the named things is another product's page, not evidence: it is dropped, and when nothing is left the
     // honest result is "no relevant source" - never an unrelated page offered as support.

@@ -17,13 +17,38 @@ export const KNOWLEDGE_BOUNDARY = [
   'Never say that something has not been released, does not exist, is not available or is "expected" merely because you do not know it. If you cannot confirm it, say that you cannot confirm it. Do not present a guess about the present as a fact.',
 ].join('\n');
 
+const normalizeProjectionText = (value: string): string => value.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
+
+export function excerptContainsSnippet(source: Pick<EvidenceSource, 'snippet' | 'excerpt'>): boolean {
+  if (!source.snippet || !source.excerpt) return false;
+  const snippet = normalizeProjectionText(source.snippet);
+  const excerpt = normalizeProjectionText(source.excerpt);
+  return snippet.length > 0 && excerpt.includes(snippet);
+}
+
+export function evidenceProjectionStats(pack: EvidencePack | undefined): { sourceCount: number; snippetsIncluded: number; snippetsOmitted: number; charactersBefore: number; charactersAfter: number } {
+  const sources = pack?.sources ?? [];
+  let snippetsOmitted = 0;
+  let charactersBefore = 0;
+  let charactersAfter = 0;
+  for (const source of sources) {
+    const snippet = source.snippet || '';
+    charactersBefore += snippet.length + (source.excerpt?.length ?? 0);
+    const omit = excerptContainsSnippet(source);
+    if (omit) snippetsOmitted += 1;
+    else charactersAfter += snippet.length;
+    charactersAfter += source.excerpt?.length ?? 0;
+  }
+  return { sourceCount: sources.length, snippetsIncluded: sources.length - snippetsOmitted, snippetsOmitted, charactersBefore, charactersAfter };
+}
+
 function sourceLine(source: EvidenceSource): string {
   const parts = [
     `[${source.sourceId}] ${source.title}`,
     `URL: ${source.url}`,
     `Published: ${source.publishedAt || 'UNDATED'} (freshness: ${source.freshnessStatus})`,
-    `Snippet: ${source.snippet || '(none)'}`,
   ];
+  if (!excerptContainsSnippet(source)) parts.push(`Snippet: ${source.snippet || '(none)'}`);
   if (source.excerpt) parts.push(`Page excerpt: ${source.excerpt}`);
   return parts.join('\n');
 }

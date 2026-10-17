@@ -14,11 +14,13 @@ import { checkClaims, detectReleaseDateConflicts, extractClaims, sourceTextOf } 
 import { compareWithReading, verifiedFacts, type ReviewFact, type ReviewReadingPort } from './independent-review.js';
 import type { LevelDecision } from './verification-policy.js';
 import type { ClaimCheck, Disagreement, ReviewMode, SourceConflict, VerificationReport, VerificationStatus } from './verification.types.js';
+import type { PipelineTelemetry } from '../observability/pipeline-telemetry.js';
 
 export interface AnswerVerifierDeps {
   reading?: ReviewReadingPort | null;
   /** one bounded, targeted extra search for a disputed claim (returns a pack, or null when search is not possible) */
   retrieve?: (query: string, requestId?: string) => Promise<EvidencePack | null>;
+  telemetry?: PipelineTelemetry;
 }
 
 export interface VerifyInput {
@@ -156,6 +158,7 @@ export class AnswerVerifier {
       const plan = reading ? reading.plan(input.answerProvider, decision.level === 'L3') : null;
       if (!reading || !plan) review.mode = 'UNAVAILABLE';
       else {
+        const finishReview = this.deps.telemetry?.start(input.requestId ?? 'independent_review_unscoped', 'INDEPENDENT_REVIEW');
         try {
           const result = await reading.read({
             question: input.question, language: input.language, provider: plan.provider, independent: plan.mode === 'INDEPENDENT_MODEL_REVIEW', requestId: input.requestId,
@@ -167,8 +170,10 @@ export class AnswerVerifier {
           review.reviewerProvider = result.provider;
           facts = verifiedFacts(result.claims, sources);
           review.independentFacts = facts.length;
+          finishReview?.({ provider: result.provider, model: result.model, attemptCount: 1, details: { independent, facts: facts.length } });
         } catch {
           review.mode = 'UNAVAILABLE';
+          finishReview?.({ attemptCount: 1, errorCode: 'INDEPENDENT_REVIEW_FAILED' });
         }
       }
       if (facts.length > 0) {

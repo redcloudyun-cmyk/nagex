@@ -252,7 +252,8 @@
       "answer_verification_core",
       "jev_config",
       "jev_idempotency",
-      "answer_quality_benchmark"
+      "answer_quality_benchmark",
+      "pipeline_optimization_p0a"
     ],
     "personal-home": [
       "main_unified_workspace_browser",
@@ -305,6 +306,7 @@
       "nebius_nemotron_first",
       "advisory_plan",
       "jev_shadow_runtime",
+      "pipeline_optimization_p0a",
       "document_length",
       "structured_output_recovery",
       "jev_decision_port",

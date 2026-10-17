@@ -319,6 +319,14 @@ PROVIDER_NAME_OR_INTERNAL_ID_ON_SCREEN = 0
 Not claimed: that a supported figure is attached to the right attribute (the independent reading is the safeguard), that prose quality was judged, or that any live second provider has reviewed anything - only one provider is configured where this was built.
 
 
+### 10.5 Request pipeline observability
+
+The runtime emits content-free phase events under the existing request id for intent analysis, query planning, web search, evidence fetch, context assembly, model routing, generation, independent review, answer rewrite and final response. A completed phase records timestamps, latency, provider/model where applicable, actual attempt count, provider-reported token counts, cache state, a normalized error code and estimated cost when an operator-maintained rate is available. Prompts, answers, search queries, retrieved text, personal data, credentials and hidden reasoning are never phase fields.
+
+Model cost is intentionally not hard-coded because provider prices change. Operators may set `NAGEX_MODEL_COST_RATES_JSON` to a JSON map keyed by provider or `provider/model`, with non-negative `inputPerMillionUsd`, `outputPerMillionUsd` and optional `reasoningPerMillionUsd`. Invalid or absent rates leave `estimatedCostUsd` as `null`; unknown cost is never reported as zero.
+
+JEV observability uses four states: `DISABLED` when no call is eligible, `SHADOW` when the model-router observation cannot alter routing, `ADVISORY` when advice was obtained but did not change the deterministic decision, and `APPLIED` only when a permitted tighten-only advisory actually raised the verification level. Each record carries call count, latency and failure code but no request content.
+
 ## 11. Three-Level Intelligence Model
 
 ```text

@@ -96,6 +96,7 @@ import type { WebSearchService } from '../research/web-search.service.js';
 import type { EvidencePackService } from '../research/evidence-pack.service.js';
 import type { AnswerVerifier } from '../verification/answer-verifier.js';
 import type { VerificationAdvisorPort } from '../verification/verification-flow.js';
+import type { PipelineTelemetry } from '../observability/pipeline-telemetry.js';
 
 export interface NagexApplication {
   questionClassificationService: QuestionClassificationService;
@@ -103,6 +104,7 @@ export interface NagexApplication {
   evidencePackService: EvidencePackService;
   answerVerifier: AnswerVerifier;
   verificationAdvisor: VerificationAdvisorPort | null;
+  pipelineTelemetry: PipelineTelemetry;
   mcpService: McpService;
   demoScenarioService: DemoScenarioService;
   personalReminderStore: PersonalReminderStore;

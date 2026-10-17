@@ -199,6 +199,7 @@ import { CompetitorPricingRunStore } from '../agents/competitor-pricing-run.stor
 import { CompetitorPricingRunService } from '../agents/competitor-pricing-run.service.js';
 import { CompetitorPricingResearchService } from '../agents/competitor-pricing-research.service.js';
 import { PricingExtractionService } from '../agents/pricing-extraction.service.js';
+import { PipelineTelemetry, resolveModelCostRates } from '../observability/pipeline-telemetry.js';
 
 export function createNagexApplication(): NagexApplication {
   const socialIdentityStore = new SocialIdentityStore();
@@ -220,7 +221,8 @@ export function createNagexApplication(): NagexApplication {
   const memoryEngine = new MemoryEngine();
   const personalContextService = new PersonalContextService(memoryEngine, (id: string) => pinnedMemories.has(id));
   const conversationMemoryExtractor = new ConversationMemoryExtractor(memoryEngine);
-  const modelRouter = new UnifiedModelRouter(createProviders());
+  const pipelineTelemetry = new PipelineTelemetry(undefined, resolveModelCostRates());
+  const modelRouter = new UnifiedModelRouter(createProviders(), undefined, undefined, undefined, undefined, pipelineTelemetry);
   // A fallback away from the preferred provider (e.g. Nemotron failed or was skipped) is written to the server audit record with its reason.
   modelRouter.setFallbackAuditSink((record) => {
     auditLogger.logEvent({
@@ -234,7 +236,7 @@ export function createNagexApplication(): NagexApplication {
       details: { taskKind: record.taskKind, preferredProvider: record.preferredProvider, actualProvider: record.actualProvider, model: record.model, latencyMs: record.latencyMs },
     });
   });
-  const aiService = new AiService(modelRouter);
+  const aiService = new AiService(modelRouter, pipelineTelemetry);
   const planResolver = new PlanResolver(canonicalSkillRegistry, canonicalToolRegistry);
   // Things that must follow an approval's expiry (registered once the Task continuation coordinator exists; the store may notice an expiry while it is still being restored).
   const approvalExpiryHooks: Array<(record: { approvalId: string }) => void> = [];
@@ -431,12 +433,13 @@ export function createNagexApplication(): NagexApplication {
   // The pages of the best sources are read (robots.txt, the outbound policy and byte/time budgets apply) so an answer rests on the page and not only on a search snippet. Loopback fixtures are reachable
   // only behind the established test-only switch; real runs never set it.
   const evidenceFetcher = new SourceFetcher(process.env.NAGEX_ALLOW_LOCAL_TEST_URLS === '1' ? { allowLocalTestDestinations: true, perHostIntervalMs: 0 } : {});
-  const evidencePackService = new EvidencePackService(questionClassificationService, webSearchService, { allowLocalTestDestinations: process.env.NAGEX_ALLOW_LOCAL_TEST_URLS === '1', fetcher: evidenceFetcher, queryPlanner: new ModelSearchQueryPlanner(aiService) });
+  const evidencePackService = new EvidencePackService(questionClassificationService, webSearchService, { allowLocalTestDestinations: process.env.NAGEX_ALLOW_LOCAL_TEST_URLS === '1', fetcher: evidenceFetcher, queryPlanner: new ModelSearchQueryPlanner(aiService, 6_000, pipelineTelemetry), telemetry: pipelineTelemetry });
   // After an answer is written it is checked against the evidence it was written from (src/verification/): claims against the sources they cite, a second DISTINCT provider's independent reading of the same
   // sources where one is configured, one bounded extra search for what is in dispute. JEV may only ask for deeper checking, and only when the operator turned it on and gave it a key.
   const answerVerifier = new AnswerVerifier({
     reading: new GatewayReviewReading(modelRouter, aiService),
     retrieve: (query, requestId) => evidencePackService.buildEvidencePack(query, { forceSearch: true, maxSources: 3, requestId, webMode: 'ON' }),
+    telemetry: pipelineTelemetry,
   });
   const verificationAdvisor = jevConfig.advisorsActive ? new JevVerificationAdvisor({ apiKey: jevDecisionKey }) : null;
   const perspectiveCompareService = new PerspectiveCompareService(modelRouter, evidencePackService);
@@ -991,6 +994,7 @@ export function createNagexApplication(): NagexApplication {
     evidencePackService,
     answerVerifier,
     verificationAdvisor,
+    pipelineTelemetry,
     mcpService,
     demoScenarioService,
     socialIdentityStore,
