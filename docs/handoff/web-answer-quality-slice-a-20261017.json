@@ -1,0 +1,23 @@
+{
+  "missionId": "WEB-ANSWER-QUALITY-SLICE-A-ROOT-CAUSE-AND-SEARCH-RECOVERY",
+  "date": "2026-10-17",
+  "branch": "topic/p0-web-answer-quality-20261017",
+  "baseSha": "513e17a",
+  "finalSha": "the commit that adds this file (the integration merge SHA is in the delivery report)",
+  "track": "A",
+  "directives": ["P0 AI Answer Quality & Adaptive Web Research Recovery", "Outcome Quality First (slice A part)", "Multi-AI Cross-Verification (slice B, NOT in this slice)"],
+  "filesChanged": {
+    "added": ["src/research/turn-analysis.ts", "src/research/limitation-notice.ts", "src/research/evidence-excerpt.ts", "src/research/search-recovery.ts", "src/research/search-query-planner.ts", "src/model-gateway/chat-grounding.ts", "tests/_fact_world.ts", "tests/web_answer_quality_core.test.ts", "tests/web_answer_quality_route.test.ts", "tests/web_answer_quality_browser.test.ts", "tests/web_answer_quality_live.test.ts", "docs/adr/ADR-0018-current-fact-answers.md", "docs/evidence/NAGEX_WEB_ANSWER_QUALITY_20261017.md", "docs/evidence/web-answer-quality-20261017/*"],
+    "modified": ["src/research/question-classification.service.ts", "src/research/evidence-pack.service.ts", "src/research/evidence-pack.types.ts", "src/research/web-search.service.ts", "src/research/web-search-provider.port.ts", "src/research/providers/*", "src/research/source-freshness.validator.ts", "src/model-gateway/ai-service.ts", "src/http/routes/conversation.routes.ts", "src/app/create-nagex-application.ts", "src/adaptive/route-candidate.ts", "public/main-surface.js", "public/i18n.js", "public/main-surface-rearchitecture.css", "tests/test-contract.registry.json", "tests/test-scope.registry.json", "docs/canonical/NAgex_AI_Model_and_Decision_Architecture.md", "docs/NAGEX_PROJECT_INDEX.md"]
+  },
+  "rootCauses": ["classifier: Hangul under ASCII \\b + no product/release category", "turn judged alone", "Web switch read by no server code", "canned English refusal that skipped the model"],
+  "tests": { "core": 53, "route": 16, "browser": 6, "liveOptIn": 4, "routeTestOnPreFixCommit": "14 of 14 fail (turn 1: 'a search was made' is false)" },
+  "blockers": [
+    { "id": "GENERAL_WEB_SEARCH_PROVIDER", "need": "an operator-configured search provider on the deployed instance (Tavily key or an HTTP search endpoint), or an explicit decision to opt in to the keyless open_knowledge route (encyclopedic, rate-limited)", "status": "WAITING_OPERATOR_ACTION" },
+    { "id": "INDEPENDENT_MODEL_REVIEW_LIVE", "need": "a second, distinct model provider with credentials (only Gemini is configured on this machine)", "status": "BLOCKED_WITH_EVIDENCE" },
+    { "id": "LIVE_JEV", "need": "NAGEX_JEV_API_KEY and an explicit decision to run the live check", "status": "NOT_RUN" }
+  ],
+  "nextIndependentTask": "Slice B: verification policy L0-L3 (not keyword-only), claim extraction and claim-vs-source support check, independent second-model review (SELF_REVIEW vs INDEPENDENT_MODEL_REVIEW), conflict investigation with one bounded extra retrieval, final status VERIFIED / PARTIALLY_VERIFIED / UNVERIFIED / DISPUTED, user preference for stronger verification, JEV advisory with deterministic fallback, benchmark cases A-E",
+  "approvalRequired": "NO for slice B code; YES for any deployment, any operator configuration of the deployed service, any billable provider call",
+  "integrationReadiness": "READY after the final gates and CI"
+}

@@ -4671,6 +4671,56 @@
       "notes": "STAND-INS: the Google and NVIDIA image endpoints are local servers and the model is the local deterministic one. No real provider, key or money. The tests depend on each other in order (the exhausted account stays out for its cool-down within the server's life).",
       "writesRepositoryArtifacts": false
     },
+    "web_answer_quality_core": {
+      "milestone": "WEB-ANSWER-QUALITY-20261017",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": ["model-routing","runtime","architecture"],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "Questions about the current world are recognised by the STRUCTURE of the question (a versioned name that is compared, released or on sale; Korean category words that JavaScript word boundaries never matched), a follow-up or a challenge keeps the subject of the earlier question, retrieved evidence is fenced as untrusted data, the model is told what it does not know, citations to sources that were not retrieved are removed, the person is told in their own language when nothing could be checked, a live value is never answered from memory, and a failed search route is classified, bounded, never hammered and never moved to an unapproved service.",
+      "notes": "Deterministic. The incident prompts are inputs; nothing under test knows a product and the fixtures are fictional. Not evidence that a real model or search provider answered well."
+    },
+    "web_answer_quality_route": {
+      "milestone": "WEB-ANSWER-QUALITY-20261017",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": ["model-routing","runtime","security"],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "The production /api/v1/ai/chat route replays the Galaxy Fold incident with a fictional device line: a spec comparison is searched and answered from the retrieved pages with their numbers and citations, \"make it a table\" keeps its subject, a challenge is checked against the sources, acknowledged first and corrected, the Web switch is honoured, a failing search route is reported honestly in Korean, hostile page text stays inside the evidence fence, and a model answering in the wrong language is asked exactly once more. Assertions are about what the answers SAY, and unrelated products/languages guard against overfitting.",
+      "notes": "STAND-INS: the search service, pages and model are the deterministic world of tests/_fact_world.ts (a grounded reader that can only state what it was given). Certifies NAgex's chain, not a real model's or provider's quality. Tests depend on each other in order."
+    },
+    "web_answer_quality_browser": {
+      "milestone": "WEB-ANSWER-QUALITY-20261017",
+      "classification": "REAL_BROWSER_CERT",
+      "canonical": true,
+      "scopes": ["browser","ux","model-routing"],
+      "externalDependencies": [],
+      "realBrowser": true,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "The incident as the person lives it, in real Chromium against the production server: the three turns typed into the composer show the retrieved facts with numbered citations and a numbered source list, a real table, a correction acknowledged first, a Korean note when the Web switch is off or the search service is down, no internal source ids, and sources that stay inside a 390 px phone screen.",
+      "notes": "STAND-INS as web_answer_quality_route. Tests depend on each other in order.",
+      "writesRepositoryArtifacts": false
+    },
+    "web_answer_quality_live": {
+      "milestone": "WEB-ANSWER-QUALITY-20261017",
+      "classification": "LIVE_EXTERNAL",
+      "canonical": false,
+      "scopes": ["model-routing","browser"],
+      "externalDependencies": ["Gemini API (free-tier key)", "Wikipedia and OpenAlex public APIs", "internet", "provider credentials", "Chromium"],
+      "realBrowser": true,
+      "sourceImplementationAssertions": false,
+      "deterministic": false,
+      "assertionIntent": "Opt-in (NAGEX_WEB_ANSWER_LIVE=1) and skipped without a Gemini key: the Fold incident's three real Korean prompts and one English prompt are sent to the production server on an isolated instance, answered by a REAL model with REAL retrieval (the keyless open-knowledge route: Wikipedia ko/en + OpenAlex; NOT a general web search engine). The assertions are structural (a search ran, sources are real addresses, no citation reaches the person that was not retrieved, the language is kept, the old canned sentence is gone); whether the answers are factually right is judged by reading the recorded transcript against the recorded sources and is reported as human review, never as a model self-assessment.",
+      "notes": "Spends a handful of free-tier model requests and a few public-API requests per run (the public APIs rate-limit repeated runs - observed live: HTTP 429 with Retry-After). Writes its transcript only where NAGEX_LIVE_EVIDENCE_DIR points. Never part of a certification gate.",
+      "writesRepositoryArtifacts": false
+    },
     "device_enrollment": {
       "milestone": "WINDOWS-DESKTOP-20261016",
       "classification": "CANONICAL_BEHAVIOR",

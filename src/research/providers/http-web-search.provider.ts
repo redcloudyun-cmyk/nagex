@@ -1,5 +1,5 @@
 import { getCurrentISOString } from '../../common/utils.js';
-import type { SearchQueryInput, SearchQueryResult, SearchResult, WebSearchProviderPort } from '../web-search-provider.port.js';
+import { retryAfterMsOf, type SearchQueryInput, type SearchQueryResult, type SearchResult, type WebSearchProviderPort } from '../web-search-provider.port.js';
 
 export interface HttpProviderOptions {
   apiKey?: string;
@@ -71,6 +71,7 @@ export class HttpWebSearchProvider implements WebSearchProviderPort {
           results: [],
           error: `HTTP search authentication failed (HTTP ${res.status}).`,
           provider: this.name,
+          httpStatus: res.status,
         };
       }
 
@@ -80,6 +81,8 @@ export class HttpWebSearchProvider implements WebSearchProviderPort {
           results: [],
           error: 'HTTP search rate limit exceeded.',
           provider: this.name,
+          httpStatus: 429,
+          retryAfterMs: retryAfterMsOf(res.headers),
         };
       }
 
@@ -89,6 +92,7 @@ export class HttpWebSearchProvider implements WebSearchProviderPort {
           results: [],
           error: `HTTP search provider returned status ${res.status}.`,
           provider: this.name,
+          httpStatus: res.status,
         };
       }
 

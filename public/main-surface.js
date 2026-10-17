@@ -1351,6 +1351,60 @@
     ]);
   }
 
+  // The model cites a retrieved source as [src_2]; the person sees [2], matching the numbered list of sources under the answer. (Display only: the stored answer keeps the id.)
+  function displayCitations(text) {
+    return String(text == null ? '' : text).replace(/\[\s*(src_\d+(?:\s*[,;]\s*src_\d+)*)\s*\]/g, (_match, group) => '[' + group.split(/\s*[,;]\s*/).map((id) => id.replace('src_', '')).join(', ') + ']');
+  }
+
+  // Under an answer that rests on sources: where each came from, when it was published (or that the date is unknown), and whether the page itself was read. Nothing is shown for an answer without sources.
+  function renderAnswerSources(turn, sources, grounding) {
+    if (!turn || !turn.el) return;
+    const previous = turn.el.querySelector('.main-answer-sources');
+    if (previous) previous.remove();
+    const list = (Array.isArray(sources) ? sources : []).filter((s) => s && typeof s.url === 'string' && /^https?:\/\//i.test(s.url));
+    if (!list.length) return;
+    const box = document.createElement('div');
+    box.className = 'main-answer-sources';
+    box.setAttribute('role', 'group');
+    box.setAttribute('aria-label', bt('mainAnswer.sources', 'Sources'));
+    const head = document.createElement('strong');
+    head.className = 'main-answer-sources-head';
+    head.textContent = bt('mainAnswer.sources', 'Sources');
+    box.appendChild(head);
+    const ol = document.createElement('ol');
+    ol.className = 'main-answer-sources-list';
+    list.forEach((source) => {
+      const n = /^src_(\d+)$/.exec(String(source.sourceId || ''));
+      const li = document.createElement('li');
+      if (n) li.value = Number(n[1]);
+      const a = document.createElement('a');
+      a.href = source.url;
+      a.target = '_blank';
+      a.rel = 'noopener noreferrer nofollow';
+      a.textContent = String(source.title || source.url).slice(0, 140);
+      a.title = bt('mainAnswer.openSource', 'Open source');
+      li.appendChild(a);
+      let host = '';
+      try { host = new URL(source.url).hostname; } catch { host = ''; }
+      const published = typeof source.publishedAt === 'string' && source.publishedAt ? source.publishedAt.slice(0, 10) : bt('mainAnswer.dateUnknown', 'date unknown');
+      const meta = document.createElement('span');
+      meta.className = 'main-answer-source-meta';
+      meta.textContent = [host, published, source.excerpt ? bt('mainAnswer.checkedPage', 'page text read') : bt('mainAnswer.snippetOnly', 'search result only')].filter(Boolean).join(' · ');
+      li.appendChild(meta);
+      ol.appendChild(li);
+    });
+    box.appendChild(ol);
+    if (grounding && grounding.fromCache) {
+      const note = document.createElement('p');
+      note.className = 'main-answer-sources-note';
+      note.textContent = bt('mainAnswer.fromEarlier', 'Sources from a search a few minutes ago.');
+      box.appendChild(note);
+    }
+    const summaryEl = turn.el.querySelector('.main-work-summary');
+    if (summaryEl && summaryEl.parentNode) summaryEl.parentNode.insertBefore(box, summaryEl.nextSibling);
+    else turn.el.appendChild(box);
+  }
+
   async function runAnswer(prompt, metadata, route) {
     const result = await api('/api/v1/ai/chat', {
       method: 'POST',
@@ -1364,12 +1418,13 @@
       ]);
       return;
     }
-    const answer = (result.data && result.data.message) || result.message || '';
+    const answer = displayCitations((result.data && result.data.message) || result.message || '');
     if (answer) rememberAnswer(answer);
     showThread(prompt, 'Answered', 'NAgex answered inline', answer || 'NAgex returned an empty answer.', [
       { state: 'done', label: 'Intent classified', detail: routeLabel(routingDecisionOf(route, metadata)) },
       { state: 'done', label: 'Answer prepared', detail: (result.data && result.data.messageId) || result.requestId || '' },
     ]);
+    renderAnswerSources(state.activeTurn, result.data && result.data.sources, result.data && result.data.grounding);
     renderInlineActions([
       { id: 'follow', label: 'Ask follow-up', action: () => focusComposer('') },
       { id: 'save', label: 'Save to Vault', action: () => saveTextToVault(answer || prompt) },

@@ -53,7 +53,7 @@ export class SourceFreshnessValidator {
       return 'STALE';
     }
 
-    if (['TECHNOLOGY', 'COMPANY'].includes(upperCategory)) {
+    if (['TECHNOLOGY', 'COMPANY', 'PRODUCT'].includes(upperCategory)) {
       if (diffDays <= 30) return 'CURRENT';
       if (diffDays <= 90) return 'RECENT';
       return 'STALE';

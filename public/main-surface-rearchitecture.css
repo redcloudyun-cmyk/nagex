@@ -2050,3 +2050,14 @@
   :root:not([data-theme="light"]) .main-pb-recovery-lead, :root:not([data-theme="light"]) .main-pb-recovery-note, :root:not([data-theme="light"]) .main-pb-recovery-ranked, :root:not([data-theme="light"]) .main-pb-routes summary { color: #9fb0cc; }
   :root:not([data-theme="light"]) .main-pb-option { border-color: #2a3a63; background: rgba(127, 168, 255, .08); }
 }
+.main-answer-sources { margin: 10px 0 2px; padding: 8px 12px; border: 1px solid rgba(59, 111, 208, .22); border-radius: 10px; background: rgba(59, 111, 208, .04); }
+.main-answer-sources-head { display: block; margin-bottom: 4px; font-size: .82rem; letter-spacing: .02em; color: #3b4a68; }
+.main-answer-sources-list { margin: 0; padding-left: 22px; display: flex; flex-direction: column; gap: 4px; font-size: .86rem; }
+.main-answer-sources-list a { overflow-wrap: anywhere; }
+.main-answer-source-meta { display: block; font-size: .78rem; color: #66738d; overflow-wrap: anywhere; }
+.main-answer-sources-note { margin: 6px 0 0; font-size: .78rem; color: #66738d; }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .main-answer-sources { border-color: #2a3a63; background: rgba(127, 168, 255, .07); }
+  :root:not([data-theme="light"]) .main-answer-sources-head { color: #b5c4e0; }
+  :root:not([data-theme="light"]) .main-answer-source-meta, :root:not([data-theme="light"]) .main-answer-sources-note { color: #9fb0cc; }
+}

@@ -249,6 +249,42 @@ UNVERIFIED_PROVIDER_OUTPUT_ACCEPTED_AS_GOAL_COMPLETE = 0
 
 First consumer: the Product Builder's mockups. Not yet routed through this layer: the Model Gateway's own provider failover (an operator-level, pre-configured choice), video jobs, deployment and the coding engine.
 
+### 10.3 Answers about the current world (as built, 2026-10-17)
+
+A fluent answer is not a trustworthy answer. For anything that changes over time - products and their newest models, releases, prices, availability, versions, laws, office holders, events - what a model remembers is
+the *oldest* part of the truth. NAgex therefore decides **deterministically** whether current facts are needed, hands the model evidence as **untrusted data**, and **checks the answer afterwards** (ADR-0018).
+The model proposes words; NAgex owns what is claimed as checked.
+
+```text
+question -> (read in its conversation: follow-up / correction) -> freshness by STRUCTURE
+         -> Web switch -> search ROUTES (adaptive core, ADR-0017) -> pages read -> relevant sources only
+         -> evidence fenced as data -> answer -> citations / language / denial checks -> honest note when unchecked
+```
+
+- **What needs checking is recognised by the structure of the question**, never by a product's name: a versioned name (a name and a number) that is compared, released, on sale or priced; release-status questions; live values (price, quote, weather, headline); policy and technology status. Korean is matched as Korean (JavaScript `\b` never matched Hangul). Text the person supplied (translate, proofread) is not a question about the world.
+- **A turn is read in its conversation.** A follow-up keeps the subject of the earlier question. A challenge to an earlier answer is a *correction*: the disputed claim is found, checked against the evidence, corrected explicitly in the first sentence when the evidence shows the person is right, and the original question is answered again. Only earlier *questions* are ever sent to a search engine, never earlier answers.
+- **The Web switch is real.** Off means nothing is looked up; the answer begins with one plain note, in the person's language, that nothing was checked.
+- **Live values are never guessed.** A question whose whole answer is a live value and that could not be checked is not answered from memory; the reply says why and what the person can do. Other questions are answered from the model's knowledge **labelled as unverified**, and a model without sources **may not deny** that something exists or has been released (it is asked once more; a surviving denial is removed).
+- **Evidence is data, not instructions.** It is fenced with a per-request random marker, listed by id, and includes the page's relevant passages, read under robots.txt and the outbound URL policy. A source that mentions none of the named products is not evidence. A citation to a source that was not retrieved never reaches the person. When part of the search could not be asked, the result is that failure - "nothing relevant" is never claimed.
+- **Search is a goal with routes** (ADR-0017): failures are classified; a quota, a rejected credential or a long Retry-After is not retried or waited out in an interactive request and not asked again during its cool-down; another route is used only inside the operator's explicit configuration (`NAGEX_WEB_SEARCH_FALLBACKS`) and when its price is known to be zero; any other alternative stops the search and says it needs the person. A model may *name what to look up* (a natural question is a poor query); it never supplies facts.
+- **What this layer does not claim.** `grounding` in the chat response says what an answer *rests on* (sources cited / retrieved but not cited / not verified live / not required) - retrieval-level facts. It never says a claim was verified. Claim-level verification, independent second-model review and conflicting-source investigation are the next layer and extend this path.
+
+```text
+CURRENT_FACT_STATED_AS_FACT_WITHOUT_EVIDENCE = 0
+RELEASE_OR_EXISTENCE_DENIED_WITHOUT_EVIDENCE = 0
+LIVE_VALUE_ANSWERED_FROM_MEMORY = 0
+FABRICATED_CITATION_REACHES_THE_PERSON = 0
+WEB_SWITCH_IGNORED = 0
+RETRIEVED_TEXT_OBEYED_AS_INSTRUCTION = 0
+CANNED_ENGLISH_FOR_A_NON_ENGLISH_REQUEST = 0
+INTERNAL_INSTRUCTION_LABEL_IN_ANSWER = 0
+RATE_LIMITED_ROUTE_ASKED_AGAIN_WITHIN_ITS_WAIT = 0
+UNRELATED_PRODUCT_PAGE_OFFERED_AS_EVIDENCE = 0
+```
+
+Without an operator-configured web-search provider NAgex cannot ground answers in the real web: Product questions are then answered unverified, with the note. The keyless `open_knowledge` route (Wikipedia + OpenAlex) is encyclopedic, not general web search, and cannot reach a manufacturer's own pages.
+
+
 ## 11. Three-Level Intelligence Model
 
 ```text

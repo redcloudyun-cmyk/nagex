@@ -39,6 +39,8 @@ function getHeaderValue(headers: Record<string, string | string[] | undefined>, 
 import type { ConversationMemoryExtractor } from '../../context/conversation-memory-extractor.js';
 import type { EvidencePackService } from '../../research/evidence-pack.service.js';
 import type { EvidencePack } from '../../research/evidence-pack.types.js';
+import { analyzeTurn } from '../../research/turn-analysis.js';
+import { limitationNotice, liveValueRefusal, mustNotAnswerWithoutEvidence, parseWebMode } from '../../research/limitation-notice.js';
 import { callerIdentity } from '../request-identity.js';
 import { resolveEffectiveTimeZone } from '../../common/time-context.js';
 import { classifyPlanRequest } from '../../model-gateway/plan-request-kind.js';
@@ -213,23 +215,20 @@ export const handleConversationRoutes: AsyncRouteRegistrar<ConversationRouteDeps
 
     const memories = getRelevantMemories(tenantId, principalId, message);
 
+    // A turn is read in the light of the conversation: "make it a table" and "isn't that wrong, X is on sale now" have no subject of their own, so the subject of the earlier question travels with
+    // them to the freshness check and the search. The person's Web switch (requestMetadata.allowWebResearch) is honoured: OFF means nothing is looked up, and the answer says so.
+    const turn = analyzeTurn(message, conversation);
+    const webMode = parseWebMode(body);
+    const answerLanguage = detectRequestLanguage(message);
     let evidencePack: EvidencePack | undefined;
     if (deps.evidencePackService) {
-      evidencePack = await deps.evidencePackService.buildEvidencePack(message, { requestId });
-      if (evidencePack.freshnessRequirement === 'REQUIRED' && (evidencePack.status !== 'SUCCESS' || evidencePack.sources.length === 0)) {
-        const notAvailMsg = evidencePack.status === 'UNAVAILABLE'
-          ? "I can't verify current information right now because live web search is unavailable."
-          : `I can't verify current information right now because live web search returned no verified sources (${evidencePack.status}).`;
-        const botMsgRecord = convStore.append({
-          tenantId,
-          principalId,
-          sessionId: session.sessionId,
-          role: 'ASSISTANT',
-          source: 'SYSTEM',
-          content: notAvailMsg,
-          requestId,
-        });
-
+      evidencePack = await deps.evidencePackService.buildEvidencePack(turn.retrievalQuery, { requestId, webMode, scopeKey: `${tenantId}|${principalId}`, planQueries: true });
+      // A question whose whole answer is a live value (a price, a quote, the weather, a headline) is not answered from memory when it could not be checked: that would be an invented value (R22.4).
+      // The reply says why, in the person's language, and what they can do. Everything else (a product's specifications, a technology, a company, a policy) is still ANSWERED - from what the model knows,
+      // labelled as unverified and possibly out of date (see limitationNotice, and chat-grounding.ts, which forbids "not released" / "does not exist" guesses).
+      if (mustNotAnswerWithoutEvidence(evidencePack)) {
+        const refusal = liveValueRefusal(evidencePack, answerLanguage);
+        const botMsgRecord = convStore.append({ tenantId, principalId, sessionId: session.sessionId, role: 'ASSISTANT', source: 'SYSTEM', content: refusal, requestId });
         auditLogger.logEvent({
           actor: { type: 'user', id: principalId },
           tenant_id: tenantId,
@@ -237,18 +236,18 @@ export const handleConversationRoutes: AsyncRouteRegistrar<ConversationRouteDeps
           resource: { type: 'ConversationMessage', id: botMsgRecord.messageId },
           result: 'SUCCESS',
           request_id: requestId,
-          details: { sessionId: session.sessionId, messageId: botMsgRecord.messageId, role: 'ASSISTANT', source: 'SYSTEM' },
+          details: { sessionId: session.sessionId, messageId: botMsgRecord.messageId, role: 'ASSISTANT', source: 'SYSTEM', basis: 'NOT_VERIFIED_LIVE', evidenceStatus: evidencePack.status },
         });
-
         return {
           status: 200,
           data: {
-            message: notAvailMsg,
+            message: refusal,
             messageId: botMsgRecord.messageId,
             sessionId: session.sessionId,
             freshness: evidencePack.freshnessRequirement,
             evidencePack,
             sources: [],
+            grounding: { basis: 'NOT_VERIFIED_LIVE', webMode, turnKind: turn.kind, freshness: evidencePack.freshnessRequirement, category: evidencePack.category, evidenceStatus: evidencePack.status, sourcesRetrieved: 0, citedSourceIds: [], removedCitations: [], languageRewritten: false, provider: evidencePack.provider ?? null, attempts: evidencePack.attempts ?? [], ...(evidencePack.noEvidenceReason ? { noEvidenceReason: evidencePack.noEvidenceReason } : {}), fromCache: false },
           },
         };
       }
@@ -277,8 +276,36 @@ export const handleConversationRoutes: AsyncRouteRegistrar<ConversationRouteDeps
       mode: parseRoutingMode(body?.provider, process.env.NAGEX_MODEL_PROVIDER),
       requestId,
       clock,
+      turnKind: turn.kind,
       ...(personalContext ? { personalContext } : {}),
     });
+
+    // When current facts were needed and could not be checked, the answer begins with one plain sentence saying so, in the person's language; it is stored with the answer so the next turn knows too.
+    const notice = limitationNotice(evidencePack, answerLanguage);
+    const finalMessage = notice ? `${notice}\n\n${result.data.message}` : result.data.message;
+    result.data.message = finalMessage;
+    const cited = result.data.grounding?.citedSourceIds ?? [];
+    const sourcesRetrieved = evidencePack?.sources.length ?? 0;
+    // What the answer rests on - retrieval level only. (Claim-level verification is a separate, later layer; nothing here says a claim was verified.)
+    const grounding = {
+      basis: sourcesRetrieved > 0 ? (cited.length > 0 ? 'SOURCES_CITED' : 'SOURCES_RETRIEVED_NOT_CITED') : (evidencePack && evidencePack.freshnessRequirement !== 'NONE' && evidencePack.status !== 'NOT_REQUIRED' ? 'NOT_VERIFIED_LIVE' : 'NOT_REQUIRED'),
+      webMode,
+      turnKind: turn.kind,
+      freshness: evidencePack?.freshnessRequirement ?? 'NONE',
+      category: evidencePack?.category ?? 'GENERAL',
+      evidenceStatus: evidencePack?.status ?? 'NOT_REQUIRED',
+      sourcesRetrieved,
+      citedSourceIds: cited,
+      removedCitations: result.data.grounding?.removedCitations ?? [],
+      languageRewritten: result.data.grounding?.languageRewritten ?? false,
+      releaseDenial: result.data.grounding?.releaseDenial ?? 'NONE',
+      provider: evidencePack?.provider ?? null,
+      attempts: evidencePack?.attempts ?? [],
+      ...(evidencePack?.queries ? { queries: evidencePack.queries } : {}),
+      ...(evidencePack?.noEvidenceReason ? { noEvidenceReason: evidencePack.noEvidenceReason } : {}),
+      ...(evidencePack?.degraded ? { degraded: evidencePack.degraded } : {}),
+      fromCache: evidencePack?.fromCache === true,
+    };
 
     // Section 6: Persist ASSISTANT message AFTER successful AI response
     const assistantMsgRecord = convStore.append({
@@ -287,7 +314,7 @@ export const handleConversationRoutes: AsyncRouteRegistrar<ConversationRouteDeps
       sessionId: session.sessionId,
       role: 'ASSISTANT',
       source: 'WEB',
-      content: result.data.message,
+      content: finalMessage,
       requestId,
     });
 
@@ -298,10 +325,10 @@ export const handleConversationRoutes: AsyncRouteRegistrar<ConversationRouteDeps
       resource: { type: 'ConversationMessage', id: assistantMsgRecord.messageId },
       result: 'SUCCESS',
       request_id: requestId,
-      details: { sessionId: session.sessionId, messageId: assistantMsgRecord.messageId, role: 'ASSISTANT', source: 'WEB' },
+      details: { sessionId: session.sessionId, messageId: assistantMsgRecord.messageId, role: 'ASSISTANT', source: 'WEB', basis: grounding.basis, evidenceStatus: grounding.evidenceStatus, sourcesRetrieved, turnKind: turn.kind },
     });
 
-    return { status: 200, data: result };
+    return { status: 200, data: { ...result, data: { ...result.data, messageId: assistantMsgRecord.messageId, grounding } } };
   }
   if (pathname === '/api/v1/ambient/intent' && method === 'POST') {
     const prompt = typeof body?.prompt === 'string' ? body.prompt.trim() : '';

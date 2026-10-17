@@ -14,6 +14,7 @@ import { buildTimeContext, timeContextPromptLines } from '../common/time-context
 import { groundScheduleSteps, type ScheduleClock } from '../planning/schedule-grounding.js';
 import { capabilityBriefFor, capabilityBriefLines } from './capability-brief.js';
 import { analyzeRequest, checkCoverage, coverageCorrection, requestShapeInstructions } from './request-analysis.js';
+import { KNOWLEDGE_BOUNDARY, answerMatchesLanguage, challengePromptBlock, evidencePromptBlock, redactReleaseDenials, stripInternalMarkers, unsupportedReleaseDenials, unverifiedPromptBlock, validateCitations, type ChatTurnKind } from './chat-grounding.js';
 
 export type PlanStepNecessity = 'REQUIRED' | 'OPTIONAL';
 
@@ -437,7 +438,7 @@ function summarizeEvidencePack(pack?: EvidencePack): string {
     return '(No external evidence retrieved)';
   }
   return pack.sources
-    .map((s) => `[${s.sourceId}] Title: ${s.title}\nURL: ${s.url}\nSnippet: ${s.snippet || '(no snippet)'}\nPublished: ${s.publishedAt || 'UNDATED'} (Status: ${s.freshnessStatus})`)
+    .map((s) => `[${s.sourceId}] Title: ${s.title}\nURL: ${s.url}\nSnippet: ${s.snippet || '(no snippet)'}${s.excerpt ? `\nPage excerpt: ${s.excerpt}` : ''}\nPublished: ${s.publishedAt || 'UNDATED'} (Status: ${s.freshnessStatus})`)
     .join('\n\n');
 }
 
@@ -617,7 +618,9 @@ export class AiService {
     clock?: ScheduleClock;
     // facts NAgex read for this request from the person's own connected sources (their calendar), or the honest reason there are none
     personalContext?: string;
-  }): Promise<AiServiceResponse<{ message: string; evidencePackId?: string; sources?: EvidenceSource[] }>> {
+    // how this turn relates to the conversation: a follow-up keeps the subject, a correction disputes an earlier answer (src/research/turn-analysis.ts)
+    turnKind?: ChatTurnKind;
+  }): Promise<AiServiceResponse<{ message: string; evidencePackId?: string; sources?: EvidenceSource[]; grounding?: { citedSourceIds: string[]; removedCitations: string[]; languageRewritten: boolean; releaseDenial?: 'NONE' | 'REWRITTEN' | 'REDACTED' } }>> {
     const requestId = input.requestId || `chat_${randomUUID()}`;
     // what the request asks for (parts, an exact count of items, how big an answer it deserves) is told to the model and checked afterwards
     const shape = analyzeRequest(input.message);
@@ -627,6 +630,7 @@ export class AiService {
         'Answer in the language of the request. Be accurate and useful: complete (every instruction in the request is answered), specific (concrete explanations and examples, no generic filler), and proportionate (short for a simple question, thorough for a multi-part one). Never repeat yourself.',
         'If you do not know something or a capability is not available, say so plainly instead of guessing.',
       ].join('\n'),
+      KNOWLEDGE_BOUNDARY,
       capabilityBriefLines(capabilityBriefFor(this.capabilityProbe ? (() => { try { return this.capabilityProbe!(); } catch { return {}; } })() : {})).join('\n'),
       requestShapeInstructions(shape).join('\n'),
       languageInstruction(detectRequestLanguage(input.message)),
@@ -635,9 +639,9 @@ export class AiService {
       input.memories && input.memories.length > 0
         ? `Relevant personal memory:\n${summarizeMemories(input.memories)}`
         : null,
-      input.evidencePack && input.evidencePack.sources.length > 0
-        ? `Retrieved External Evidence Pack (ID: ${input.evidencePack.evidencePackId}):\n${summarizeEvidencePack(input.evidencePack)}\n\nInstructions for Evidence: Distinguish supported facts from inference. Refer to source IDs (e.g. [src_1]). Do not fabricate citations or URLs not present in the Evidence Pack.`
-        : null,
+      evidencePromptBlock(input.evidencePack),
+      unverifiedPromptBlock(input.evidencePack),
+      challengePromptBlock(input.turnKind),
     ]
       .filter((line): line is string => line !== null)
       .join('\n\n');
@@ -673,11 +677,31 @@ export class AiService {
       const second = await generateChat([...messages, { role: 'assistant', content: response.text }, { role: 'user', content: coverageCorrection(issues, shape) }]).catch(() => null);
       if (second && checkCoverage(shape, second.text).length < issues.length) response = second;
     }
+    // An answer in the wrong language is asked for once more, in the right one (one bounded extra call). A model that ignores the language twice is delivered as it is: NAgex never translates or rewrites it itself.
+    const requestLanguage = detectRequestLanguage(input.message);
+    let languageRewritten = false;
+    if (!answerMatchesLanguage(requestLanguage, response.text)) {
+      const again = await generateChat([...messages, { role: 'assistant', content: response.text }, { role: 'user', content: `Write the same answer again, entirely in ${requestLanguage === 'ko' ? 'Korean' : 'the language of my request'}. Keep every fact, figure and source id [src_n] unchanged. Do not mention this request.` }]).catch(() => null);
+      if (again && answerMatchesLanguage(requestLanguage, again.text)) { response = again; languageRewritten = true; }
+    }
+    // Without sources a model may say what it remembers, labelled - but it may not DENY a release or an existence it had no way to know (the incident's own sentence). It is asked once more; a denial that
+    // survives is removed. This is enforced here, not left to the instruction alone.
+    let releaseDenialHandled: 'NONE' | 'REWRITTEN' | 'REDACTED' = 'NONE';
+    let text = response.text;
+    const unchecked = Boolean(input.evidencePack) && input.evidencePack!.sources.length === 0 && input.evidencePack!.freshnessRequirement !== 'NONE';
+    if (unchecked && unsupportedReleaseDenials(text).length > 0) {
+      const again = await generateChat([...messages, { role: 'assistant', content: text }, { role: 'user', content: 'Your answer says that something has not been released or does not exist. You cannot know that: what came out after your knowledge ends is exactly what you do not know. Write the answer again WITHOUT any statement that something is unreleased, unavailable or nonexistent; say only what you remember (labelled as unverified) and that you cannot confirm the current state. Do not mention this request.' }]).catch(() => null);
+      if (again && unsupportedReleaseDenials(again.text).length === 0) { text = again.text; releaseDenialHandled = 'REWRITTEN'; }
+      else { text = redactReleaseDenials(again ? again.text : text, requestLanguage === 'ko' ? 'ko' : 'en'); releaseDenialHandled = 'REDACTED'; }
+    }
+    // A citation to a source that was not retrieved is a fabrication: it is removed, and it is reported.
+    const citations = validateCitations(stripInternalMarkers(text).text, input.evidencePack);
     return {
       data: {
-        message: response.text,
+        message: citations.text,
         evidencePackId: input.evidencePack?.evidencePackId,
         sources: input.evidencePack?.sources,
+        grounding: { citedSourceIds: citations.cited, removedCitations: citations.removed, languageRewritten, releaseDenial: releaseDenialHandled },
       },
       provider: response.provider,
       model: response.model,
