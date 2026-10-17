@@ -831,6 +831,38 @@ status: OPEN
 
 ---
 
+```yaml
+id: DEBT-0018
+area: ci / browser certification stability, and a stale Activity entry
+description: >
+  Three CI failures on the integration branch on 2026-10-17 did not reproduce and have NO confirmed cause. Each test passes locally (alone), and the same code passed on the next run:
+  (1) run 39013932802 (be2fa21), Windows: a fixed 15 s wait in a different browser suite on each of three runs -> Windows browser cert now runs one file at a time (38411e3).
+  (2) run 39017359933 (86b83af), Windows: tests/product_builder_browser.test.ts "build a customer management website: four gates" ended FAILED/DEPLOY_NOT_VERIFIED - the deploy
+      verifier saw reachable=true, status=200, markerFound=true, smokePassed=false. Passes locally (7/7, 26 s); Windows passed on 1dbf867 and 0f71886.
+      src/product-builder/adapters/http-deploy-verifier.ts swallows the smoke test's error (`catch { smokePassed = false; }`), so the reason (a thrown browser error, a check that failed,
+      or a timeout under runner load) is not recorded - the failure cannot be diagnosed after the fact.
+  (3) run 39019247222 (1dbf867), Ubuntu: tests/design_system_v2_browser.test.ts "list screens share one system" failed on "activity/en: no text above weight 600 (750 Failed | 750 Working)":
+      the Activity tab of a fresh test user held two entries. Mechanism REPRODUCED in-process: one GET /api/v1/daily-brief for a user with no model provider leaves exactly
+      daily_brief.failed:FAILED and daily_brief.started:RUNNING in Activity (each further GET adds another pair). What requested the brief inside that test on that runner is NOT known;
+      locally no daily-brief request is made from #activity. Passes locally (8/8); Ubuntu passed on 0f71886.
+  Separately - a defect that is certain from the code and the probe, whatever caused (3): src/assistant/daily-brief.pipeline.ts records daily_brief.started with status RUNNING under its own
+  dedupe key and never closes it (the outcome is a DIFFERENT record), so after any brief - finished or failed - the Activity tab shows a permanent "Working" entry. That is a stale-state leak.
+severity: medium (the stale "Working" entry is user-visible and untruthful); low (the CI flakes)
+introduced: daily_brief.started - the Daily Brief pipeline (R8/R9); the CI flakes - not attributable (none of the failing runs touched the failing code: they carried a workflow change, the Office quality slice, the JEV key fix)
+reason: >
+  Not fixed in the session that found them: the Enter/IME P0 was in flight and the CI attribution (existing flakes vs the Enter change) had to stay clean. The CI flakes are classified TRANSIENT
+  because both Windows runs after the failure (1dbf867, 0f71886) and the Ubuntu run on 0f71886 passed on the same code - which is a classification, not an explanation.
+risk: >
+  A false "Working" entry in a person's Activity; and a certification gate that fails now and then for an unknown reason, which erodes trust in a red run - or hides a real one.
+target: (a) close the daily_brief.started entry with the brief's outcome (same record, final status) and test it; (b) make the deploy verifier record WHY the smoke test did not pass (a structured
+  code - tester threw / a named check failed / timed out - plus the HTTP status), judging reachable, markerFound and smokePassed independently, without lengthening any wait;
+  (c) give the Design System V2 test the Activity API response in its failure message; (d) if any of the three recurs, treat it as a regression until its cause is shown.
+owner: NAGEX
+status: OPEN
+```
+
+---
+
 ## Explicitly classified as NON-GOAL, not debt
 
 Per the R11 directive's own explicit instruction not to silently call every disclosed limitation "debt":
