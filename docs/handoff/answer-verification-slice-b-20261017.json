@@ -1,0 +1,23 @@
+{
+  "missionId": "ANSWER-VERIFICATION-SLICE-B-CROSS-VERIFICATION",
+  "date": "2026-10-17",
+  "branch": "topic/p0-verification-engine-20261017",
+  "baseSha": "f585200",
+  "finalSha": "the commit that adds this file (the integration merge SHA is in the delivery report)",
+  "track": "A",
+  "directives": ["Multi-AI Cross-Verification & Trustworthy Answer Engine", "Outcome Quality First"],
+  "filesChanged": {
+    "added": ["src/verification/*", "tests/answer_verification_core.test.ts", "tests/answer_quality_benchmark.test.ts", "docs/adr/ADR-0019-answer-verification.md", "docs/evidence/NAGEX_ANSWER_VERIFICATION_20261017.md"],
+    "modified": ["src/http/routes/conversation.routes.ts", "src/model-gateway/ai-service.ts", "src/model-gateway/chat-grounding.ts", "src/research/evidence-pack.service.ts", "src/research/evidence-pack.types.ts", "src/app/create-nagex-application.ts", "src/app/nagex-application.ts", "src/server_web.ts", "public/main-surface.js", "public/i18n.js", "public/main-surface-rearchitecture.css", "tests/_fact_world.ts", "tests/web_answer_quality_browser.test.ts", "tests/web_answer_quality_live.test.ts", "tests/test-contract.registry.json", "tests/test-scope.registry.json", "docs/canonical/NAgex_AI_Model_and_Decision_Architecture.md", "docs/NAGEX_PROJECT_INDEX.md"]
+  },
+  "tests": { "verificationCore": 35, "benchmark": 14, "qualityBrowser": 9, "qualityRoute": 16, "qualityCore": 53, "liveOptIn": 4 },
+  "live": { "modelCalls": 8, "inputTokens": 14502, "outputTokens": 559, "charge": "none (free-tier key)", "medianTurnMs": 6800, "independentReview": "UNAVAILABLE on every turn (one provider)", "jev": "not called" },
+  "blockers": [
+    { "id": "SECOND_MODEL_PROVIDER", "need": "a second distinct model provider with credentials (an OpenAI key or a Nebius key) to run the independent reading live", "status": "BLOCKED_WITH_EVIDENCE" },
+    { "id": "LIVE_JEV", "need": "NAGEX_JEV_API_KEY and an explicit decision to run the live check", "status": "NOT_RUN" },
+    { "id": "GENERAL_WEB_SEARCH_PROVIDER", "need": "an operator-configured search provider on the deployed instance, or an explicit opt-in to the keyless encyclopedic route", "status": "WAITING_OPERATOR_ACTION" }
+  ],
+  "nextIndependentTask": "Outcome Quality for documents, presentations, images/video and coding (the same TECHNICAL / QUALITY / GOAL_COMPLETION separation), then Astra Computer Use (queued directive)",
+  "approvalRequired": "NO for the next code task; YES for any deployment, any operator configuration of the deployed service, any billable provider call",
+  "integrationReadiness": "READY after the final gates and CI"
+}

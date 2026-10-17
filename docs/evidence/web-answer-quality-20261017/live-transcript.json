@@ -1,5 +1,5 @@
 {
-  "at": "2026-10-17T03:19:18.960Z",
+  "at": "2026-10-17T04:27:58.625Z",
   "model": "gemini-flash-lite-latest",
   "retrieval": "open_knowledge (Wikipedia ko/en + OpenAlex)",
   "turns": [
@@ -7,82 +7,15 @@
       "label": "A",
       "prompt": "갤럭시 폴드6와 폴드7의 주요 스펙 차이가 뭐지?",
       "httpStatus": 200,
-      "elapsedMs": 14102,
+      "elapsedMs": 7146,
       "provider": "gemini",
       "model": "gemini-flash-lite-latest",
-      "modelLatencyMs": 1554,
-      "answer": "삼성 갤럭시 Z 폴드 7은 전작인 폴드 6에 비해 두께와 무게가 줄어들어 더욱 얇고 가벼워졌으며 [src_2], 3nm 공정의 퀄컴 스냅드래곤 8 엘리트 칩셋과 향상된 RAM 용량을 탑재했습니다 [src_2]. 접었을 때 크기는 약 168.4 × 72.6 × 8.9mm, 무게는 약 215g으로 시리즈 중 가장 가볍고 얇은 디자인을 갖추었습니다 [src_2].",
+      "modelLatencyMs": 1510,
+      "answer": "검색된 자료에는 갤럭시 Z 폴드 7의 이전 모델이 갤럭시 Z 폴드 6라는 사실 [src_2]과 폴드 7이 두께와 무게가 줄어들고 스냅드래곤 8 엘리트 칩셋을 탑재했다는 정보 [src_2]는 확인되나, 갤럭시 Z 폴드 6의 상세 스펙은 포함되어 있지 않아 두 모델 간의 구체적인 스펙 차이를 비교하기 어렵습니다.",
       "grounding": {
         "basis": "SOURCES_CITED",
         "webMode": "ON",
         "turnKind": "NEW_QUESTION",
-        "freshness": "REQUIRED",
-        "category": "PRODUCT",
-        "evidenceStatus": "SUCCESS",
-        "sourcesRetrieved": 3,
-        "citedSourceIds": [
-          "src_2"
-        ],
-        "removedCitations": [],
-        "languageRewritten": false,
-        "releaseDenial": "NONE",
-        "provider": "open_knowledge",
-        "attempts": [
-          {
-            "provider": "open_knowledge",
-            "outcome": "SUCCEEDED",
-            "failureClass": null
-          }
-        ],
-        "queries": [
-          "갤럭시 Z 폴드6 폴드7 스펙 차이 비교",
-          "Galaxy Z Fold6 vs Fold7 specs comparison"
-        ],
-        "fromCache": false
-      },
-      "sources": [
-        {
-          "id": "src_1",
-          "title": "삼성 갤럭시 Z 폴드 8",
-          "url": "https://ko.wikipedia.org/wiki/%EC%82%BC%EC%84%B1_%EA%B0%A4%EB%9F%AD%EC%8B%9C_Z_%ED%8F%B4%EB%93%9C_8",
-          "publishedAt": "2026-09-11T09:26:47.000Z",
-          "freshness": "RECENT",
-          "pageRead": true,
-          "excerpt": "\"},\"units_sold\":{\"wt\":\"480만 대 (계획)<ref name=\\\":prodA\\\">{{웹 인용|last=Leon |first=Jean |date=2026-07-19 |title=Samsung Ramps Up Galaxy Z Fold 8 Production as Prioritizes Wide Foldables Over Flip and Ultra |url=https://www.androidheadlines.com/2026/07/samsung-galaxy-z-fold-8-production-shift-wide-model.html |access-date=2026-07-19 |website=Android Headlines |language=en-US}}</ref><ref name=\\\":prodB\\\">{{웹 인용|last=Friedman |first=Alan |date=2026-07-19 |title=Samsung makes change to its Galaxy Z Fold 8 production plan |url=https://www.phonearena.com/news/samsung-last-second-galaxy-z-fold-8-production-plan_id181962 |access-date=2026-07-19 |website=PhoneArena |language=en-US}}</ref>\"},\"predecessor\":{"
-        },
-        {
-          "id": "src_2",
-          "title": "삼성 갤럭시 Z 폴드 7",
-          "url": "https://ko.wikipedia.org/wiki/%EC%82%BC%EC%84%B1_%EA%B0%A4%EB%9F%AD%EC%8B%9C_Z_%ED%8F%B4%EB%93%9C_7",
-          "publishedAt": "2026-07-28T12:08:46.000Z",
-          "freshness": "RECENT",
-          "pageRead": true,
-          "excerpt": "\"},\"image\":{\"wt\":\"Samsung_Galaxy_Fold7_Main_Screen_(cropped).jpg\"},\"caption\":{\"wt\":\"블루 섀도우 색상의 삼성 갤럭시 Z 폴드 7 메인 화면을 보여주는 모습\"},\"aka\":{\"wt\":\"삼성 갤럭시 폴드 7 (일부 유럽 국가에서)\"},\"brand\":{\"wt\":\"[[삼성 갤럭시]]\"},\"manufacturer\":{\"wt\":\"[[삼성전자]]\"},\"slogan\":{\"wt\":\"\"},\"series\":{\"wt\":\"[[삼성 갤럭시 Z 시리즈]]\"},\"serieslabel\":{\"wt\":\"\"},\"family\":{\"wt\":\"[[삼성 갤럭시]]\"},\"modelnumber\":{\"wt\":\"SM-F966B, SM-F966B/DS, SM-F966U, SM-F966U1\"},\"networks\":{\"wt\":\"GSM / CDMA / HSPA / EVDO / LTE / 5G\"},\"released\":{\"wt\":\"{{시작 날짜와 나이|2025|07|25}}\"},\"discontinued\":{\"wt\":\"<!-- {{끝 날짜|YYYY|MM|DD}} -->\"},\"predecessor\":{\"wt\":\"[[삼성 갤럭시 Z 폴드 6]]\"},\"successor\":{\"wt\":\"[[삼성 갤럭시 Z 폴드 8]]\"},\"related\":{\"wt\":\"[[삼성 갤럭시 S25]]<br>[[Samsung Galaxy Z Flip 7|삼성 갤럭"
-        },
-        {
-          "id": "src_3",
-          "title": "삼성 갤럭시 Z 폴드 6",
-          "url": "https://ko.wikipedia.org/wiki/%EC%82%BC%EC%84%B1_%EA%B0%A4%EB%9F%AD%EC%8B%9C_Z_%ED%8F%B4%EB%93%9C_6",
-          "publishedAt": "2026-08-13T00:18:11.000Z",
-          "freshness": "RECENT",
-          "pageRead": true,
-          "excerpt": "\"},\"logoalt\":{\"wt\":\"\"},\"image\":{\"wt\":\"Samsung Galaxy Z Fold6.png\"},\"imagesize\":{\"wt\":\"<!-- include \\\"px\\\" - Uses users default image size if omitted -->\"},\"alt\":{\"wt\":\"삼성 갤럭시 Z 폴드6\"},\"caption\":{\"wt\":\"삼성 갤럭시 Z 폴드6 (네이비) 후면\"},\"codename\":{\"wt\":\"\"},\"aka\":{\"wt\":\"Z 폴드6\"},\"brand\":{\"wt\":\"[[삼성 갤럭시]]\"},\"manufacturer\":{\"wt\":\"[[삼성전자]]\"},\"slogan\":{\"wt\":\"Epic search is here\"},\"colors\":{\"wt\":\"네이비, 실버 쉐도우, 핑크, 크래프티드 블랙, 화이트\"},\"series\":{\"wt\":\"[[삼성 갤럭시 Z 시리즈]]\"},\"serieslabel\":{\"wt\":\"\"},\"family\":{\"wt\":\"갤럭시 폴더블\"},\"modelnumber\":{\"wt\":\"\"},\"networks\":{\"wt\":\"\"},\"released\":{\"wt\":\"{{시작 날짜와 나이|2024|07|24}}\"},\"available\":{\"wt\":\"\"},\"discontinued\":{\"wt\":\"\"},\"unitssold\":{\"wt\":\"\"},\"unitsshipped\":{\"wt\":\"\"},\"predecessor\":{\"w"
-        }
-      ]
-    },
-    {
-      "label": "B",
-      "prompt": "비교표로 만들어봐.",
-      "httpStatus": 200,
-      "elapsedMs": 6784,
-      "provider": "gemini",
-      "model": "gemini-flash-lite-latest",
-      "modelLatencyMs": 1844,
-      "answer": "| 구분 | 삼성 갤럭시 Z 폴드 6 (이전 모델) | 삼성 갤럭시 Z 폴드 7 [src_2] |\n|:--- |:--- |:--- |\n| **두께 (접었을 때)** | - [src_2] | 약 8.9 mm [src_2] |\n| **크기 (펼쳤을 때)** | - [src_2] | 158.2 × 143 × 4.2 mm [src_2] |\n| **크기 (접었을 때)** | - [src_2] | 약 168.4 × 72.6 mm [src_2] |\n| **무게** | - [src_2] | 약 215 g (역대 가장 가볍고 얇음) [src_2] |\n| **AP 칩셋** | - [src_2] | 퀄컴 스냅드래곤 8 엘리트 for 갤럭시 (3nm 공정) [src_2] |\n| **메모리 (RAM)** | - [src_2] | 12GB (일반 모델), 16GB (1TB 모델) [src_2] |\n| **저장 공간** | - [src_2] | 256GB, 512GB, 1TB (UFS 4.0) [src_2] |\n\n*(참고: 검색된 문서에 갤럭시 Z 폴드 6의 세부 스펙 수치가 명시되지 않아 폴드 7의 확인된 스펙만 비교표에 기재했습니다 [src_2].)*",
-      "grounding": {
-        "basis": "SOURCES_CITED",
-        "webMode": "ON",
-        "turnKind": "FOLLOW_UP",
         "freshness": "REQUIRED",
         "category": "PRODUCT",
         "evidenceStatus": "SUCCESS",
@@ -102,10 +35,43 @@
           }
         ],
         "queries": [
-          "Galaxy Z Fold 6 vs Galaxy Z Fold 7 specs comparison",
-          "갤럭시 Z 폴드 6 폴드 7 스펙 차이"
+          "갤럭시 폴드6 폴드7 스펙 차이 비교",
+          "Galaxy Z Fold 7 specs vs Fold 6"
         ],
         "fromCache": false
+      },
+      "verification": {
+        "level": "L2",
+        "levelBasis": "RULES",
+        "status": "UNVERIFIED",
+        "statusReasons": [
+          "NOTHING_MATERIAL_TO_CHECK"
+        ],
+        "counts": {
+          "checked": 1,
+          "material": 0,
+          "supported": 0,
+          "unsupported": 0,
+          "contradicted": 0,
+          "uncheckable": 0
+        },
+        "review": {
+          "mode": "UNAVAILABLE",
+          "independentFacts": 0,
+          "disagreements": 0
+        },
+        "evidence": {
+          "sources": 2,
+          "pagesRead": 2,
+          "current": 2,
+          "stale": 0,
+          "undated": 0,
+          "primaryLike": 0
+        },
+        "conflicts": [],
+        "extraRetrievals": 0,
+        "revision": "NONE",
+        "claimsNeedingAttention": []
       },
       "sources": [
         {
@@ -129,14 +95,97 @@
       ]
     },
     {
+      "label": "B",
+      "prompt": "비교표로 만들어봐.",
+      "httpStatus": 200,
+      "elapsedMs": 6517,
+      "provider": "gemini",
+      "model": "gemini-flash-lite-latest",
+      "modelLatencyMs": 1165,
+      "answer": "제공된 검색 자료에는 갤럭시 Z 폴드 7의 스펙 일부만 확인되고 갤럭시 Z 폴드 6의 상세 스펙은 포함되어 있지 않아, 두 모델의 전체 스펙 비교표를 작성할 수 없습니다. 검색 자료에 따르면 폴드 7은 스냅드래곤 8 엘리트 칩셋을 탑재하고 전작인 폴드 6보다 얇고 가벼워졌으나, 구체적인 수치 비교를 위해서는 추가 정보가 필요합니다.",
+      "grounding": {
+        "basis": "SOURCES_RETRIEVED_NOT_CITED",
+        "webMode": "ON",
+        "turnKind": "FOLLOW_UP",
+        "freshness": "REQUIRED",
+        "category": "PRODUCT",
+        "evidenceStatus": "SUCCESS",
+        "sourcesRetrieved": 1,
+        "citedSourceIds": [],
+        "removedCitations": [
+          "src_2",
+          "src_3"
+        ],
+        "languageRewritten": false,
+        "releaseDenial": "NONE",
+        "provider": "open_knowledge",
+        "attempts": [
+          {
+            "provider": "open_knowledge",
+            "outcome": "SUCCEEDED",
+            "failureClass": null
+          }
+        ],
+        "queries": [
+          "갤럭시 Z 폴드6 갤럭시 Z 폴드7 스펙 차이 비교",
+          "Galaxy Z Fold6 vs Fold7 specs comparison"
+        ],
+        "fromCache": false
+      },
+      "verification": {
+        "level": "L2",
+        "levelBasis": "RULES",
+        "status": "UNVERIFIED",
+        "statusReasons": [
+          "NOTHING_MATERIAL_TO_CHECK"
+        ],
+        "counts": {
+          "checked": 0,
+          "material": 0,
+          "supported": 0,
+          "unsupported": 0,
+          "contradicted": 0,
+          "uncheckable": 0
+        },
+        "review": {
+          "mode": "UNAVAILABLE",
+          "independentFacts": 0,
+          "disagreements": 0
+        },
+        "evidence": {
+          "sources": 1,
+          "pagesRead": 1,
+          "current": 0,
+          "stale": 1,
+          "undated": 0,
+          "primaryLike": 0
+        },
+        "conflicts": [],
+        "extraRetrievals": 0,
+        "revision": "NONE",
+        "claimsNeedingAttention": []
+      },
+      "sources": [
+        {
+          "id": "src_1",
+          "title": "삼성 갤럭시 폴드",
+          "url": "https://ko.wikipedia.org/wiki/%EC%82%BC%EC%84%B1_%EA%B0%A4%EB%9F%AD%EC%8B%9C_%ED%8F%B4%EB%93%9C",
+          "publishedAt": "2025-12-27T11:19:59.000Z",
+          "freshness": "STALE",
+          "pageRead": true,
+          "excerpt": "</span>\"}'> 비슷한 이름의 삼성 갤럭시 폴더 에 관해서는 해당 문서를 참고하십시오.\n(The Future Unfolds)\"},\"시리즈\":{\"wt\":\"\"},\"모델번호\":{\"wt\":\"SM-F907N\"},\"네트워크\":{\"wt\":\"4G / 5G\"},\"발매\":{\"wt\":\"{{시작 날짜와 나이|2019|09|06}}<ref>{{뉴스 인용|url=https://view.asiae.co.kr/article/2019090307464331472}}</ref>\"},\"가능\":{\"wt\":\"<!-- 나라 {{시작 날짜|YYYY|MM|DD}} (판매) -->\"},\"중단\":{\"wt\":\"<!-- {{끝 날짜|YYYY|MM|DD}} -->\"},\"판매단위\":{\"wt\":\"\"},\"출하단위\":{\"wt\":\"\"},\"이전\":{\"wt\":\"\"},\"후속\":{\"wt\":\"[[삼성 갤럭시 Z 폴드 2]]\"},\"관련\":{\"wt\":\"\"},\"유형\":{\"wt\":\"스마트폰 / 패블릿\"},\"형태\":{\"wt\":\"폴딩 슬레이트\"},\"크기\":{\"wt\":\"{{ubl\\n| 접었을 때 :\\n| 62.8×160.9×17.1-15.7mm\\n| 펼쳤을 때 :\\n| 117.9×160.9×7.6-6.9mm\\n}}\"},\"무게\":{\"wt\":\"276g\"},\"os\":{\"wt\":\"안드로이드 9.0 \\\"파이\\\"</br>[[안드로이드 (운영 체제)|안드로이드]]'''10.0''' [[안드로이드 10|10]]\"},\"UI\":"
+        }
+      ]
+    },
+    {
       "label": "C",
       "prompt": "지금 갤럭시 폴드8이 판매되고 있는데 폴드7을 미출시라고 하는 것은 잘못된 것 아닌가?",
       "httpStatus": 200,
-      "elapsedMs": 7414,
+      "elapsedMs": 9346,
       "provider": "gemini",
       "model": "gemini-flash-lite-latest",
-      "modelLatencyMs": 1876,
-      "answer": "앞서 폴드 7을 미출시라고 표현했던 저의 답변은 잘못되었으며, 지적하신 대로 삼성 갤럭시 Z 폴드 7은 2025년 7월에 출시되었고 현재는 후속작인 갤럭시 Z 폴드 8 시리즈가 판매되고 있습니다 [src_1, src_2]. \n\n갤럭시 Z 폴드 6와 갤럭시 Z 폴드 7의 주요 스펙 비교는 다음과 같습니다.\n\n| 구분 | 삼성 갤럭시 Z 폴드 6 [src_4] | 삼성 갤럭시 Z 폴드 7 [src_2] |\n|:--- |:--- |:--- |\n| **출시일** | 2024년 7월 31일 [src_4] | 2025년 7월 25일 [src_2] |\n| **AP 칩셋** | 관련 정보 없음 | 퀄컴 스냅드래곤 8 엘리트 for 갤럭시 (3nm) [src_2] |\n| **크기 (접었을 때)** | 관련 정보 없음 | 약 168.4 × 72.6 × 8.9 mm [src_2] |\n| **무게** | 관련 정보 없음 | 약 215g (역대 Z 폴드 중 가장 얇고 가벼움) [src_2] |\n| **메모리 (RAM)** | 12GB [src_4] | 12GB (기본), 16GB (1TB 모델) [src_2] |\n| **저장 공간** | 관련 정보 없음 | 256GB, 512GB, 1TB [src_2] |",
+      "modelLatencyMs": 1387,
+      "answer": "맞습니다. 갤럭시 Z 폴드 7은 2025년 7월에 정상 출시되었으며 [src_2], 현재는 후속작인 갤럭시 Z 폴드 8이 판매되고 있으므로 [src_1] 폴드 7을 미출시라고 한 것은 잘못되었습니다. 갤럭시 Z 폴드 7은 이전 모델인 폴드 6에 비해 치수와 무게가 줄어들어 당시 폴드 시리즈 중 가장 얇고 가벼웠으며 [src_2], 3nm 공정의 퀄컴 스냅드래곤 8 엘리트 칩셋을 탑재했습니다 [src_2].",
       "grounding": {
         "basis": "SOURCES_CITED",
         "webMode": "ON",
@@ -144,11 +193,10 @@
         "freshness": "REQUIRED",
         "category": "PRODUCT",
         "evidenceStatus": "SUCCESS",
-        "sourcesRetrieved": 4,
+        "sourcesRetrieved": 2,
         "citedSourceIds": [
-          "src_1",
           "src_2",
-          "src_4"
+          "src_1"
         ],
         "removedCitations": [],
         "languageRewritten": false,
@@ -159,21 +207,46 @@
             "provider": "open_knowledge",
             "outcome": "SUCCEEDED",
             "failureClass": null
-          },
-          {
-            "provider": "open_knowledge",
-            "outcome": "FAILED",
-            "failureClass": "RATE_LIMITED"
           }
         ],
         "queries": [
-          "갤럭시 폴드6 폴드7 스펙 차이 비교",
-          "갤럭시 Z 폴드7 출시 여부 Z 폴드8"
-        ],
-        "degraded": [
-          "RATE_LIMITED"
+          "갤럭시 폴드6 폴드7 스펙 차이",
+          "갤럭시 폴드7 출시 여부 2026"
         ],
         "fromCache": false
+      },
+      "verification": {
+        "level": "L2",
+        "levelBasis": "RULES",
+        "status": "VERIFIED",
+        "statusReasons": [
+          "EVERY_MATERIAL_CLAIM_IS_SUPPORTED"
+        ],
+        "counts": {
+          "checked": 2,
+          "material": 1,
+          "supported": 1,
+          "unsupported": 0,
+          "contradicted": 0,
+          "uncheckable": 0
+        },
+        "review": {
+          "mode": "UNAVAILABLE",
+          "independentFacts": 0,
+          "disagreements": 0
+        },
+        "evidence": {
+          "sources": 2,
+          "pagesRead": 2,
+          "current": 2,
+          "stale": 0,
+          "undated": 0,
+          "primaryLike": 0
+        },
+        "conflicts": [],
+        "extraRetrievals": 0,
+        "revision": "NONE",
+        "claimsNeedingAttention": []
       },
       "sources": [
         {
@@ -193,24 +266,6 @@
           "freshness": "RECENT",
           "pageRead": true,
           "excerpt": "\"},\"image\":{\"wt\":\"Samsung_Galaxy_Fold7_Main_Screen_(cropped).jpg\"},\"caption\":{\"wt\":\"블루 섀도우 색상의 삼성 갤럭시 Z 폴드 7 메인 화면을 보여주는 모습\"},\"aka\":{\"wt\":\"삼성 갤럭시 폴드 7 (일부 유럽 국가에서)\"},\"brand\":{\"wt\":\"[[삼성 갤럭시]]\"},\"manufacturer\":{\"wt\":\"[[삼성전자]]\"},\"slogan\":{\"wt\":\"\"},\"series\":{\"wt\":\"[[삼성 갤럭시 Z 시리즈]]\"},\"serieslabel\":{\"wt\":\"\"},\"family\":{\"wt\":\"[[삼성 갤럭시]]\"},\"modelnumber\":{\"wt\":\"SM-F966B, SM-F966B/DS, SM-F966U, SM-F966U1\"},\"networks\":{\"wt\":\"GSM / CDMA / HSPA / EVDO / LTE / 5G\"},\"released\":{\"wt\":\"{{시작 날짜와 나이|2025|07|25}}\"},\"discontinued\":{\"wt\":\"<!-- {{끝 날짜|YYYY|MM|DD}} -->\"},\"predecessor\":{\"wt\":\"[[삼성 갤럭시 Z 폴드 6]]\"},\"successor\":{\"wt\":\"[[삼성 갤럭시 Z 폴드 8]]\"},\"related\":{\"wt\":\"[[삼성 갤럭시 S25]]<br>[[Samsung Galaxy Z Flip 7|삼성 갤럭"
-        },
-        {
-          "id": "src_3",
-          "title": "삼성 갤럭시 Z 폴드 5",
-          "url": "https://ko.wikipedia.org/wiki/%EC%82%BC%EC%84%B1_%EA%B0%A4%EB%9F%AD%EC%8B%9C_Z_%ED%8F%B4%EB%93%9C_5",
-          "publishedAt": "2026-06-02T04:42:22.000Z",
-          "freshness": "STALE",
-          "pageRead": true,
-          "excerpt": "\"},\"그림\":{\"wt\":\"Samsung Galaxy Fold 5.jpg\"},\"그림크기\":{\"wt\":\"<!-- \\\"px\\\" 포함 - 생략 시 사용자 기본 그림 크기를 사용 -->\"},\"변경\":{\"wt\":\"\"},\"설명\":{\"wt\":\"\"},\"브랜드\":{\"wt\":\"[[삼성 갤럭시]]\"},\"제조사\":{\"wt\":\"[[삼성전자]]\"},\"슬로건\":{\"wt\":\"<!-- 폰의 구체적 슬로건; 출처를 인용 -->\"},\"시리즈\":{\"wt\":\"[[삼성 갤럭시 Z 시리즈]]\"},\"모델번호\":{\"wt\":\"\"},\"네트워크\":{\"wt\":\"\"},\"발매\":{\"wt\":\"<!-- {{시작 날짜와 나이|YYYY|MM|DD}} -->\"},\"가능\":{\"wt\":\"<!-- 나라 {{시작 날짜|YYYY|MM|DD}} (판매) -->\"},\"중단\":{\"wt\":\"<!-- {{끝 날짜|YYYY|MM|DD}} -->\"},\"판매단위\":{\"wt\":\"\"},\"출하단위\":{\"wt\":\"\"},\"이전\":{\"wt\":\"[[삼성 갤럭시 Z 폴드 4]]\"},\"후속\":{\"wt\":\"[[삼성 갤럭시 Z 폴드 6]]\"},\"관련\":{\"wt\":\"[[삼성 갤럭시 S23]]<br />[[삼성 갤럭시 Z 플립 5]]\"},\"유형\":{\"wt\":\"[[폴더블 스마트폰]]\"},\"형태\":{\"wt\":\"폴더블 [[슬레이트 폰|슬레이트]]\"},\"크기\":{\"wt\":\"{{ubl\\n | '''펼쳤을 때:'''\\n | {{convert|158.5|"
-        },
-        {
-          "id": "src_4",
-          "title": "삼성 갤럭시 Z 폴드 6",
-          "url": "https://ko.wikipedia.org/wiki/%EC%82%BC%EC%84%B1_%EA%B0%A4%EB%9F%AD%EC%8B%9C_Z_%ED%8F%B4%EB%93%9C_6",
-          "publishedAt": "2026-08-13T00:18:11.000Z",
-          "freshness": "RECENT",
-          "pageRead": true,
-          "excerpt": "\"},\"logoalt\":{\"wt\":\"\"},\"image\":{\"wt\":\"Samsung Galaxy Z Fold6.png\"},\"imagesize\":{\"wt\":\"<!-- include \\\"px\\\" - Uses users default image size if omitted -->\"},\"alt\":{\"wt\":\"삼성 갤럭시 Z 폴드6\"},\"caption\":{\"wt\":\"삼성 갤럭시 Z 폴드6 (네이비) 후면\"},\"codename\":{\"wt\":\"\"},\"aka\":{\"wt\":\"Z 폴드6\"},\"brand\":{\"wt\":\"[[삼성 갤럭시]]\"},\"manufacturer\":{\"wt\":\"[[삼성전자]]\"},\"slogan\":{\"wt\":\"Epic search is here\"},\"colors\":{\"wt\":\"네이비, 실버 쉐도우, 핑크, 크래프티드 블랙, 화이트\"},\"series\":{\"wt\":\"[[삼성 갤럭시 Z 시리즈]]\"},\"serieslabel\":{\"wt\":\"\"},\"family\":{\"wt\":\"갤럭시 폴더블\"},\"modelnumber\":{\"wt\":\"\"},\"networks\":{\"wt\":\"\"},\"released\":{\"wt\":\"{{시작 날짜와 나이|2024|07|24}}\"},\"available\":{\"wt\":\"\"},\"discontinued\":{\"wt\":\"\"},\"unitssold\":{\"wt\":\"\"},\"unitsshipped\":{\"wt\":\"\"},\"predecessor\":{\"w"
         }
       ]
     },
@@ -218,11 +273,11 @@
       "label": "D",
       "prompt": "Is the Nintendo Switch 2 released yet, and what is its screen size?",
       "httpStatus": 200,
-      "elapsedMs": 8243,
+      "elapsedMs": 6422,
       "provider": "gemini",
       "model": "gemini-flash-lite-latest",
-      "modelLatencyMs": 1028,
-      "answer": "Yes, the Nintendo Switch 2 has been released [src_1]. It launched in most regions on June 5, 2025 [src_1]. \n\nRegarding its screen size, the available sources confirm that the Nintendo Switch 2 features a larger screen compared to the original Nintendo Switch [src_1], but they do not state the exact screen dimensions or measurements.",
+      "modelLatencyMs": 1240,
+      "answer": "The Nintendo Switch 2 has been released; it was launched in most regions on June 5, 2025 [src_1]. \n\nRegarding its screen size, the retrieved sources state that the Nintendo Switch 2 features a larger screen compared to the original Nintendo Switch [src_1], but they do not contain the specific physical dimensions or exact screen size in inches.",
       "grounding": {
         "basis": "SOURCES_CITED",
         "webMode": "ON",
@@ -246,10 +301,43 @@
           }
         ],
         "queries": [
-          "Nintendo Switch 2 release date screen size",
-          "Nintendo Switch successor release status specifications"
+          "Nintendo Switch 2 release date 2026",
+          "Nintendo Switch 2 screen size specs"
         ],
         "fromCache": false
+      },
+      "verification": {
+        "level": "L2",
+        "levelBasis": "RULES",
+        "status": "VERIFIED",
+        "statusReasons": [
+          "EVERY_MATERIAL_CLAIM_IS_SUPPORTED"
+        ],
+        "counts": {
+          "checked": 2,
+          "material": 1,
+          "supported": 1,
+          "unsupported": 0,
+          "contradicted": 0,
+          "uncheckable": 0
+        },
+        "review": {
+          "mode": "UNAVAILABLE",
+          "independentFacts": 0,
+          "disagreements": 0
+        },
+        "evidence": {
+          "sources": 3,
+          "pagesRead": 2,
+          "current": 2,
+          "stale": 0,
+          "undated": 1,
+          "primaryLike": 0
+        },
+        "conflicts": [],
+        "extraRetrievals": 0,
+        "revision": "NONE",
+        "claimsNeedingAttention": []
       },
       "sources": [
         {
@@ -263,8 +351,8 @@
         },
         {
           "id": "src_2",
-          "title": "Nintendo Classics",
-          "url": "https://en.wikipedia.org/wiki/Nintendo_Classics",
+          "title": "List of Nintendo Switch 2 games",
+          "url": "https://en.wikipedia.org/wiki/List_of_Nintendo_Switch_2_games",
           "publishedAt": null,
           "freshness": "UNDATED",
           "pageRead": false,
@@ -272,12 +360,12 @@
         },
         {
           "id": "src_3",
-          "title": "Nintendo eShop",
-          "url": "https://en.wikipedia.org/wiki/Nintendo_eShop",
-          "publishedAt": "2026-10-13T12:50:51.000Z",
+          "title": "Nintendo Switch Sports Resort",
+          "url": "https://en.wikipedia.org/wiki/Nintendo_Switch_Sports_Resort",
+          "publishedAt": "2026-10-05T21:14:29.000Z",
           "freshness": "CURRENT",
           "pageRead": true,
-          "excerpt": "Online service for Nintendo Switch and Nintendo Switch 2\nLaunched Nintendo 3DS\nNintendo Switch system software\nThe Taiwanese market has had a complicated history with Nintendo products in the 2010s. The Nintendo 3DS was officially launched in Taiwan , and one time had access to a Chinese variation of the Nintendo eShop which it shared with Hong Kong . Although the Nintendo Switch was eventually officially launched in Taiwan, Hong Kong had gained official access to the eShop on Nintendo Switch since April 3, 2018, whilst Taiwan has not had the service until September 9, 2025, after the Nintendo Switch 2 launched. The Wii U was never officially released in either Hong Kong or Taiwan.\nThe Tence"
+          "excerpt": "Nintendo Switch Sports Resort\nNintendo Switch Sports Resort\nPlatform Nintendo Switch 2\nNintendo Switch Sports Resort is an upcoming sports video game developed and published by Nintendo for the Nintendo Switch 2 . It is a sequel to Nintendo Switch Sports , with elements based on Wii Sports and Wii Sports Resort .\nThe game was first announced in a Nintendo Direct held on June 9, 2026. Nintendo Switch Sports Resort features a collection of twelve sports, with some found in previous entries of the series. It adds an open world version of Wuhu Island, the setting for Wii Sports Resort . The game uses the Joy-Con 2 's motion and mouse controls for gameplay. It is scheduled for a worldwide release"
         }
       ]
     }

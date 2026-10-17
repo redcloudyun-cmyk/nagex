@@ -26,7 +26,7 @@ const shot = async (name: string): Promise<void> => {
 
 before(async () => {
   world = await startFactWorld();
-  h = await startCanvasAskHarness({ scrubProviders: true, env: world.env });
+  h = await startCanvasAskHarness({ scrubProviders: true, env: { ...world.env, ...world.installGeminiBridge() } });
   const user = h.user('web-answer-quality-ui');
   h.setLocale(user, 'ko');
   ctx = await h.newContext('desktop', user, 'ko');
@@ -38,10 +38,14 @@ before(async () => {
 });
 after(async () => { await ctx?.close(); await h?.close(); await world?.close(); });
 
+// the last /api/v1/ai/chat answer the page received (for diagnostics in assertion messages)
+let lastChat = '';
 async function ask(text: string): Promise<{ answer: string; turn: ReturnType<Page['locator']> }> {
   const turns = await page.locator('.main-turn').count();
+  const waitForChat = page.waitForResponse((r) => r.url().includes('/api/v1/ai/chat') && r.request().method() === 'POST', { timeout: 30000 }).then(async (r) => { try { const d = (await r.json())?.data ?? {}; lastChat = JSON.stringify({ v: d.verification, sources: (d.sources ?? []).map((x: any) => x.title), g: d.grounding?.queries, msg: String(d.message ?? '').slice(0, 160) }); } catch { lastChat = 'unreadable'; } }).catch(() => undefined);
   await page.fill('#main-surface-input', text);
   await page.click('#main-send');
+  await waitForChat;
   await page.waitForFunction((count: number) => {
     const all = Array.from(document.querySelectorAll('.main-turn')) as any[];
     const last = all[all.length - 1];
@@ -125,5 +129,72 @@ describe('the Web switch and an unverified answer, on screen', () => {
     const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
     assert.ok(overflow <= 1, `horizontal overflow ${overflow}px`);
     await shot('6-phone-sources');
+  });
+});
+
+describe('what was checked, on screen', () => {
+  it('an answer shows ONE plain chip for how it was checked, with a short "how" - and nothing technical (no provider, no internal id)', async () => {
+    const { turn } = await ask('오로라폴드6와 오로라폴드7의 주요 스펙 차이가 뭐지? (검증 칩)');
+    const box = turn.locator('.main-answer-verification');
+    assert.equal(await box.count(), 1);
+    assert.equal(await box.getAttribute('data-status'), 'VERIFIED');
+    assert.match(await box.locator('.main-answer-verification-chip').innerText(), /출처로 확인됨/);
+    await box.locator('summary').click();
+    const how = await box.innerText();
+    assert.match(how, /개 문장 확인/);
+    assert.match(how, /뒷받침/);
+    assert.equal(/gemini|nebius|openai|src_|L[0-3]\b/i.test(how), false, `no technical text on screen: ${how}`);
+    await shot('7-verified-chip');
+  });
+
+  it('an answer that was not fully checked offers "더 꼼꼼히 다시 확인": the same question is sent again with a stronger check, for that one request only - and there is no standing switch in the composer', async () => {
+    await page.setViewportSize({ width: 1280, height: 1100 });
+    assert.equal(await page.locator('#main-verify-toggle').count(), 0, 'the composer carries no verification switch (it made the phone composer taller)');
+    world.setSearchMode('conflict');
+    const sent: any[] = [];
+    const onRequest = (r: any) => { if (r.url().includes('/api/v1/ai/chat') && r.method() === 'POST') { try { sent.push(JSON.parse(r.postData() ?? '{}')); } catch { /* not json */ } } };
+    page.on('request', onRequest);
+    try {
+      const first = await ask('오로라폴드8 출시일이 언제야? (충돌 점검)');
+      assert.equal(await first.turn.locator('.main-answer-verification').getAttribute('data-status'), 'PARTIALLY_VERIFIED', lastChat);
+      assert.equal(sent.at(-1)?.requestMetadata?.verificationPreference, 'AUTO');
+      const button = page.locator('#main-inline-actions button[data-action="recheck"]');
+      assert.equal(await button.count(), 1, 'a not fully checked answer offers the deeper check');
+      assert.match(await button.innerText(), /더 꼼꼼히 다시 확인/);
+
+      const turns = await page.locator('.main-turn').count();
+      const answered = page.waitForResponse((r) => r.url().includes('/api/v1/ai/chat') && r.request().method() === 'POST', { timeout: 30000 });
+      await button.click();
+      await answered;
+      await page.waitForFunction((count: number) => {
+        const all = Array.from(document.querySelectorAll('.main-turn')) as any[];
+        const last = all[all.length - 1];
+        return all.length > count && last && last.dataset.kind === 'answer' && (last.querySelector('.main-work-summary')?.textContent || '').trim().length > 10 && !!last.querySelector('.main-answer-verification');
+      }, turns, { timeout: 30000 });
+      assert.equal(sent.at(-1)?.requestMetadata?.verificationPreference, 'STRONG', 'the deeper check is asked for in the request');
+      assert.equal(sent.at(-1)?.message ?? sent.at(-1)?.prompt, sent.at(-2)?.message ?? sent.at(-2)?.prompt, 'it is the same question');
+      assert.equal(await page.locator('#main-inline-actions button[data-action="recheck"]').count(), 0, 'a question already checked at the person\'s request is not offered the same check again');
+
+      // not a standing switch: the next ordinary question goes out as usual
+      await ask('오로라폴드6의 무게는 몇 g이야? (일반)');
+      assert.equal(sent.at(-1)?.requestMetadata?.verificationPreference, 'AUTO');
+    } finally { page.off('request', onRequest); world.setSearchMode('ok'); }
+  });
+
+  it('a conflict between sources is shown as such: the chip says the sources disagree, and the "how" names both values', async () => {
+    world.setSearchMode('conflict');
+    try {
+      const { turn } = await ask('오로라폴드8 출시일이 언제야? (충돌)');
+      const box = turn.locator('.main-answer-verification');
+      const exchanges = world.modelRequests.filter((r) => r.kind === 'chat').slice(-2).map((r) => ({ p: r.provider, user: r.user.slice(0, 120), answer: (r.answer ?? '').slice(0, 120) }));
+      assert.equal(await box.getAttribute('data-status'), 'PARTIALLY_VERIFIED', `${lastChat} ${JSON.stringify(exchanges)}`);
+      await box.locator('summary').click();
+      const how = await box.innerText();
+      assert.match(how, /출처마다 오로라폴드8의 출시일이 달라요/);
+      assert.equal(/release date of/.test(how), false, 'no English internal topic on a Korean screen');
+      assert.ok(how.includes('2026-07-22') && how.includes('2026-08-05'), how);
+      assert.match(how, /답을 고쳤어요/);
+      await shot('8-conflict-chip');
+    } finally { world.setSearchMode('ok'); }
   });
 });

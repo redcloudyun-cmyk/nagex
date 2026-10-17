@@ -4721,6 +4721,30 @@
       "notes": "Spends a handful of free-tier model requests and a few public-API requests per run (the public APIs rate-limit repeated runs - observed live: HTTP 429 with Retry-After). Writes its transcript only where NAGEX_LIVE_EVIDENCE_DIR points. Never part of a certification gate.",
       "writesRepositoryArtifacts": false
     },
+    "answer_verification_core": {
+      "milestone": "ANSWER-VERIFICATION-20261017",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": ["model-routing","runtime","architecture","security"],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "How an answer is checked after it is written, without a server: the verification level (L0-L3) decided from the structure of the request and from what was observed (never from one keyword or a model's mood; an advisor can only raise it and only when confident); claims checked against the sources they cite (a figure in no source is UNSUPPORTED, an off-topic citation is not support, a calendar date is one figure, a colour list is not a release claim); a second DISTINCT provider's independent reading admitted only through quotes that are in the sources; sources that give different dates (a date is attributed to a name only when it follows it closely); one bounded extra search; one rewrite from the sources; removal of what is still unsupported; and the status (VERIFIED / PARTIALLY_VERIFIED / UNVERIFIED / DISPUTED) that follows from the facts.",
+      "notes": "Deterministic, with scripted readers and a simulated JEV service (the request/answer shape is the repository's verified one; no live JEV call). Not evidence that a real second model reviewed anything."
+    },
+    "answer_quality_benchmark": {
+      "milestone": "ANSWER-VERIFICATION-20261017",
+      "classification": "CANONICAL_BEHAVIOR",
+      "canonical": true,
+      "scopes": ["model-routing","runtime","security"],
+      "externalDependencies": [],
+      "realBrowser": false,
+      "sourceImplementationAssertions": false,
+      "deterministic": true,
+      "assertionIntent": "The answer-quality benchmark through the production server with TWO model providers on deterministic stand-ins: A the Fold comparison checked claim by claim (a distinct provider read the same sources on its own, without the answer), B sources that disagree on a release date (found, the answer asked to say so, never \"verified\" by picking one), C the primary model down (another provider answers and the gate still runs), D the first model states a wrong figure (the second reading disagrees, one search, one rewrite, the corrected answer), E plausible figures with no sources (never presented as verified); plus the level decided from the request, the person's stronger-check switch, a high-impact question as L3, Web off beating everything, other products and languages, and hostile page text.",
+      "notes": "STAND-INS: scripted models (a grounded reader that can be told to misbehave) and a fictional fact world. Certifies that NAgex's checks catch what they are meant to catch; it is not a QUALITY_PASS of any real model, and not evidence that a real second provider reviewed anything (only one is configured on this machine)."
+    },
     "device_enrollment": {
       "milestone": "WINDOWS-DESKTOP-20261016",
       "classification": "CANONICAL_BEHAVIOR",

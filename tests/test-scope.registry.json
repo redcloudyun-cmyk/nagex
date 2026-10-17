@@ -21,7 +21,8 @@
       "product_build_routing",
       "adaptive_execution_core",
       "product_builder_adaptive_mockups",
-      "web_answer_quality_core"
+      "web_answer_quality_core",
+      "answer_verification_core"
     ],
     "device": [
       "device_agent_foundation",
@@ -234,7 +235,9 @@
       "adaptive_execution_core",
       "product_builder_adaptive_mockups",
       "web_answer_quality_core",
-      "web_answer_quality_route"
+      "web_answer_quality_route",
+      "answer_verification_core",
+      "answer_quality_benchmark"
     ],
     "personal-home": [
       "main_unified_workspace_browser",
@@ -296,7 +299,9 @@
       "web_answer_quality_core",
       "web_answer_quality_route",
       "web_answer_quality_browser",
-      "web_answer_quality_live"
+      "web_answer_quality_live",
+      "answer_verification_core",
+      "answer_quality_benchmark"
     ],
     "mobile": [
       "real_life_scenario_library_behavioral_rules",
@@ -543,7 +548,9 @@
       "adaptive_execution_core",
       "product_builder_adaptive_mockups",
       "product_builder_adaptive_browser",
-      "web_answer_quality_route"
+      "web_answer_quality_route",
+      "answer_verification_core",
+      "answer_quality_benchmark"
     ]
   },
   "fullOnly": [

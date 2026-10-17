@@ -70,7 +70,7 @@ Read:
 
 ### Current-fact answer / web search / grounding / answer-quality task
 Read:
-`MASTER` + AI/Decision (§10.1-10.3) + Trust + Testing + `docs/adr/ADR-0018-current-fact-answers.md` + `docs/evidence/NAGEX_WEB_ANSWER_QUALITY_20261017.md`.
+`MASTER` + AI/Decision (§10.1-10.4) + Trust + Testing + `docs/adr/ADR-0018-current-fact-answers.md` + `docs/adr/ADR-0019-answer-verification.md` + `docs/evidence/NAGEX_WEB_ANSWER_QUALITY_20261017.md` + `docs/evidence/NAGEX_ANSWER_VERIFICATION_20261017.md`.
 
 ### Security/auth/approval task
 Read:

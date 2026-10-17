@@ -14,7 +14,7 @@ import { buildTimeContext, timeContextPromptLines } from '../common/time-context
 import { groundScheduleSteps, type ScheduleClock } from '../planning/schedule-grounding.js';
 import { capabilityBriefFor, capabilityBriefLines } from './capability-brief.js';
 import { analyzeRequest, checkCoverage, coverageCorrection, requestShapeInstructions } from './request-analysis.js';
-import { KNOWLEDGE_BOUNDARY, answerMatchesLanguage, challengePromptBlock, evidencePromptBlock, redactReleaseDenials, stripInternalMarkers, unsupportedReleaseDenials, unverifiedPromptBlock, validateCitations, type ChatTurnKind } from './chat-grounding.js';
+import { KNOWLEDGE_BOUNDARY, answerMatchesLanguage, challengePromptBlock, evidencePromptBlock, redactReleaseDenials, revisionInstruction, stripInternalMarkers, unsupportedReleaseDenials, unverifiedPromptBlock, validateCitations, type ChatTurnKind } from './chat-grounding.js';
 
 export type PlanStepNecessity = 'REQUIRED' | 'OPTIONAL';
 
@@ -620,6 +620,8 @@ export class AiService {
     personalContext?: string;
     // how this turn relates to the conversation: a follow-up keeps the subject, a correction disputes an earlier answer (src/research/turn-analysis.ts)
     turnKind?: ChatTurnKind;
+    // the answer was checked against the sources and part of it was not supported: write it again once, keeping what is supported (src/verification/)
+    revision?: { previousAnswer: string; problems: string[] };
   }): Promise<AiServiceResponse<{ message: string; evidencePackId?: string; sources?: EvidenceSource[]; grounding?: { citedSourceIds: string[]; removedCitations: string[]; languageRewritten: boolean; releaseDenial?: 'NONE' | 'REWRITTEN' | 'REDACTED' } }>> {
     const requestId = input.requestId || `chat_${randomUUID()}`;
     // what the request asks for (parts, an exact count of items, how big an answer it deserves) is told to the model and checked afterwards
@@ -658,7 +660,11 @@ export class AiService {
     if (!lastItem || lastItem.role !== 'user' || lastItem.content !== input.message) {
       messages.push({ role: 'user', content: input.message });
     }
-    const generateChat = (turns: Array<{ role: 'system' | 'user' | 'assistant'; content: string }>) => this.router.generate({
+    if (input.revision) {
+      messages.push({ role: 'assistant', content: input.revision.previousAnswer });
+      messages.push({ role: 'user', content: revisionInstruction(input.revision.problems) });
+    }
+    const generateChat =(turns: Array<{ role: 'system' | 'user' | 'assistant'; content: string }>) => this.router.generate({
       mode: input.mode,
       requestId,
       routingContext: {
@@ -688,7 +694,8 @@ export class AiService {
     // survives is removed. This is enforced here, not left to the instruction alone.
     let releaseDenialHandled: 'NONE' | 'REWRITTEN' | 'REDACTED' = 'NONE';
     let text = response.text;
-    const unchecked = Boolean(input.evidencePack) && input.evidencePack!.sources.length === 0 && input.evidencePack!.freshnessRequirement !== 'NONE';
+    // no source for what the model says: it may not deny a release or an existence, whatever the question looked like
+    const unchecked = (input.evidencePack?.sources.length ?? 0) === 0;
     if (unchecked && unsupportedReleaseDenials(text).length > 0) {
       const again = await generateChat([...messages, { role: 'assistant', content: text }, { role: 'user', content: 'Your answer says that something has not been released or does not exist. You cannot know that: what came out after your knowledge ends is exactly what you do not know. Write the answer again WITHOUT any statement that something is unreleased, unavailable or nonexistent; say only what you remember (labelled as unverified) and that you cannot confirm the current state. Do not mention this request.' }]).catch(() => null);
       if (again && unsupportedReleaseDenials(again.text).length === 0) { text = again.text; releaseDenialHandled = 'REWRITTEN'; }
@@ -875,6 +882,8 @@ export class AiService {
     sources: Array<{ sourceId: string; title: string; publisher: string; publishedAt?: string; text: string }>;
     mode?: RoutingMode;
     requestId?: string;
+    // DISALLOW: no other provider may answer in its place (an independent reading that silently fell back to the provider that wrote the answer would not be independent)
+    fallbackPolicy?: 'ALLOW' | 'DISALLOW';
   }): Promise<AiServiceResponse<{ claims: Array<{ sourceId: string; statement: string; quote: string; relevance?: number }> }>> {
     const requestId = input.requestId || `rextract_${randomUUID()}`;
     const blocks = input.sources.map((s) => `<source id="${s.sourceId}" title=${JSON.stringify(s.title.slice(0, 160))} publisher=${JSON.stringify(s.publisher.slice(0, 80))} published=${JSON.stringify(s.publishedAt ?? 'not stated')}>\n${s.text}\n</source>`).join('\n\n');
@@ -883,6 +892,7 @@ export class AiService {
       requestId,
       jsonMode: true,
       validationRetries: 1,
+      ...(input.fallbackPolicy ? { fallbackPolicy: input.fallbackPolicy } : {}),
       // a research task, routed like research synthesis (Nemotron first): whatever the model proposes is verified against the retrieved text by NAgex, so the answer needs no stricter provider
       routingContext: { taskKind: 'RESEARCH_SYNTHESIS', requiresJson: true, requiresEvidenceGrounding: true, requestId },
       validate: (text) => {

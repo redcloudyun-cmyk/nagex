@@ -88,7 +88,8 @@ export class EvidencePackService {
     const base = { evidencePackId, query, generatedAt: now, freshnessRequirement: classification.freshness, category: classification.category } as const;
 
     // the person's own switch is respected: nothing leaves, and the pack says that this is why
-    if (options?.webMode === 'OFF' && !options?.forceSearch) {
+    // the person's switch dominates everything, including a forced search: Web OFF means nothing is looked up
+    if (options?.webMode === 'OFF') {
       return { ...base, status: classification.freshness === 'NONE' ? 'NOT_REQUIRED' : 'DISABLED', sources: [] };
     }
 
@@ -271,6 +272,7 @@ export class EvidencePackService {
         if (!outcome.ok) return;
         const excerpt = selectRelevantExcerpt(outcome.source.text, query, 1800);
         if (excerpt) source.excerpt = excerpt;
+        source.fullText = outcome.source.text.slice(0, 24_000);
         // the page may carry its own date when the search result did not: it is the page's claim about itself, and is used only to judge freshness
         const pageDate = outcome.source.modifiedAt || outcome.source.publishedAt;
         if (!source.publishedAt && pageDate) {
