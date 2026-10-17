@@ -147,22 +147,23 @@
     const btnSend = document.getElementById('qw-btn-send');
 
     if (input && btnSend) {
-      btnSend.onclick = () => {
+      // the button and Enter run this one function; the Enter that only confirms an IME composition is not a send (composer-keys.js; the fallback keeps that rule if the script is missing)
+      const sendFromInput = () => {
         const val = input.value.trim();
         if (val) {
           input.value = '';
           submitPrompt(val);
         }
       };
+      const keys = window.NAGEX_COMPOSER_KEYS;
+      const composition = keys ? keys.watchComposition(input) : null;
+      btnSend.onclick = sendFromInput;
 
       input.onkeydown = (e) => {
-        if (e.key === 'Enter' && !e.shiftKey) {
+        const submits = keys ? keys.isSubmitEnter(e, composition) : (e.key === 'Enter' && !e.shiftKey && !e.altKey && !e.isComposing && e.keyCode !== 229);
+        if (submits) {
           e.preventDefault();
-          const val = input.value.trim();
-          if (val) {
-            input.value = '';
-            submitPrompt(val);
-          }
+          sendFromInput();
         }
       };
     }

@@ -240,6 +240,18 @@ Every visible string on Desktop Main — composer chrome, mode chips, thread sta
 - Logic must not depend on translated text: the thread status is also kept in `data-status` in its canonical form.
 - A new user-visible Main string needs its EN and KO entries in `public/i18n.js` in the same change.
 
+### Composer keys (2026-10-17)
+
+Every message box follows one rule set, defined once in `public/composer-keys.js` and used by Main, the ambient Ask sheet, Canvas Ask and Quick Wake:
+
+- **Enter sends; Shift+Enter (and Alt+Enter) is a new line.** Ctrl/Cmd+Enter also sends. An empty box sends nothing, a held key sends once, and a request already in flight is not sent twice (Main says so).
+- **The Enter that only confirms an IME composition (Korean, Japanese, Chinese) never sends.** It is recognised from any of: `isComposing`, `keyCode 229`, being between `compositionstart` and `compositionend`, or `compositionend` having fired a moment ago (Safari order). The next, deliberate Enter sends the confirmed text. The composition flag cannot get stuck (cleared by blur and by a non-composing input event).
+- **The Send button and Enter run the same function** in every box - there is no second copy of the send logic.
+- On a touch-first device (`hover: none` and `pointer: coarse`) the on-screen keyboard's Enter is a new line and the Send button sends (Main).
+- The legacy phone Home bar (`#mh-command-input`) is not part of this: with Main loaded it is never initialised (DEBT-0017).
+
+A front-end fix reaches users only if its file is part of the build-version hash (`FRONTEND_VERSIONED_FILES` in `src/server_web.ts`); `tests/frontend_asset_versioning.test.ts` pins that every versioned asset of every page is covered. Evidence: `docs/evidence/NAGEX_ENTER_SUBMIT_P0_20261017.md`.
+
 ## 12. Consumer Status Vocabulary
 
 Prefer stable human states:

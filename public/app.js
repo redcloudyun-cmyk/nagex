@@ -376,8 +376,9 @@
     const wireCanvasAsk = (id, prefix) => {
       const el = document.getElementById(id);
       if (el) {
+        const canvasAskComposition = window.NAGEX_COMPOSER_KEYS ? window.NAGEX_COMPOSER_KEYS.watchComposition(el) : null;
         el.addEventListener('keydown', (e) => {
-          if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) {
+          if (composerEnterSubmits(e, canvasAskComposition)) {
             e.preventDefault();
             if (window.NAGEX && window.NAGEX.submitCanvasAsk) {
               window.NAGEX.submitCanvasAsk(prefix);
@@ -2618,6 +2619,13 @@
     });
   }
 
+  // One definition of "this Enter sends" for the single-line message boxes in this file (composer-keys.js); the fallback keeps the IME rule if that script is missing.
+  function composerEnterSubmits(event, composition) {
+    const keys = window.NAGEX_COMPOSER_KEYS;
+    if (keys) return keys.isSubmitEnter(event, composition);
+    return event.key === 'Enter' && !event.shiftKey && !event.altKey && !event.isComposing && event.keyCode !== 229;
+  }
+
   async function renderActivity() {
     const container = document.getElementById('executions-list-container');
     if (!container) return;
@@ -3681,11 +3689,13 @@
 
     const ambientInput = document.getElementById('ambient-prompt-input');
     if (ambientInput) {
+      const ambientComposition = window.NAGEX_COMPOSER_KEYS ? window.NAGEX_COMPOSER_KEYS.watchComposition(ambientInput) : null;
       ambientInput.addEventListener('keydown', (event) => {
         // Enter submits; Shift+Enter is left to the browser's native
         // behavior (a no-op on this single-line input, so no newline is
         // ever inserted — this is a plain <input>, not multiline).
-        if (event.key === 'Enter' && !event.shiftKey) {
+        // the Enter that only confirms an IME composition (Korean/Japanese/Chinese) is not a send
+        if (composerEnterSubmits(event, ambientComposition)) {
           event.preventDefault();
           submitAmbientComposerInput();
         }

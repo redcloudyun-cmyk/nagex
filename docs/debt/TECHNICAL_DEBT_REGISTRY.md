@@ -809,6 +809,28 @@ status: OPEN
 
 ---
 
+```yaml
+id: DEBT-0017
+area: ui / legacy phone Home bar
+description: >
+  The native phone Home (#mobile-view-home, its message box #mh-command-input and the handlers bound by initCommandBar() in public/mobile/mobile-home.js) is dead code while the unified
+  Main surface is loaded: activeNativeTab() returns null for Home on a phone whenever main-surface.js is on the page, so renderMobileHome() - the only caller of initCommandBar() - never
+  runs, #mobile-app-shell stays display:none at every viewport and the bar has no handler at all. Found while giving every message box the shared IME rule (public/composer-keys.js).
+  If it were ever revived, its Enter handler would send on the Enter that merely confirms a Korean syllable (a truncated message); it was deliberately NOT changed, because code that cannot run
+  cannot be tested end to end.
+severity: low
+introduced: R22 native mobile Home; superseded by the unified Main surface
+reason: >
+  Removing a screen is a product decision (what a phone user sees at Home), not an overnight change; nothing advertises or links to it.
+risk: >
+  Confusion for future edits, and a latent truncated-send bug if the bar is revived without the shared rule.
+target: delete the native phone Home and its tests together, or route its bar through window.NAGEX_COMPOSER_KEYS and certify it in real Chromium before it is shown again.
+owner: NAGEX
+status: OPEN
+```
+
+---
+
 ## Explicitly classified as NON-GOAL, not debt
 
 Per the R11 directive's own explicit instruction not to silently call every disclosed limitation "debt":

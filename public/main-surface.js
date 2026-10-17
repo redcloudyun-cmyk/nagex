@@ -4024,16 +4024,14 @@
     document.getElementById('main-voice')?.addEventListener('click', () => startVoiceRecognition('SESSION'));
     // Enter sends - through the very same handler as the Send button (no second path). Shift+Enter is a new line. Enter that confirms an IME composition (Korean, Japanese, Chinese) is never a send.
     // An empty box and a held key send nothing, and a request in flight is not sent twice. On a touch-first device the virtual keyboard's Enter key is a new line and the Send button sends.
-    let composing = false;
-    let compositionEndedAt = 0;
+    // "does this Enter only confirm an IME composition?" is answered by the one shared definition (composer-keys.js), the same one every other message box uses
+    const composerKeys = window.NAGEX_COMPOSER_KEYS;
+    const composition = composerKeys ? composerKeys.watchComposition(input) : null;
     const touchFirst = () => !!(window.matchMedia && window.matchMedia('(hover: none) and (pointer: coarse)').matches);
     if (input) input.setAttribute('enterkeyhint', touchFirst() ? 'enter' : 'send');
-    input?.addEventListener('compositionstart', () => { composing = true; });
-    input?.addEventListener('compositionend', () => { composing = false; compositionEndedAt = Date.now(); });
     input?.addEventListener('keydown', (event) => {
       if (event.key !== 'Enter') return;
-      // the key that confirms an IME composition: some browsers report it as isComposing, some as keyCode 229, Safari fires compositionend first
-      if (event.isComposing || composing || event.keyCode === 229 || Date.now() - compositionEndedAt < 80) return;
+      if (composerKeys ? composerKeys.confirmsComposition(event, composition) : (event.isComposing || event.keyCode === 229)) return;
       if (event.shiftKey || event.altKey) return;
       const withModifier = event.ctrlKey || event.metaKey;
       if (!withModifier && touchFirst()) return;
